@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 from pathlib import Path
@@ -30,8 +31,84 @@ def test_sql_analysis_route_is_disabled_by_default_for_authenticated_user(client
     login_as_profile(client, monkeypatch, "commercial", username="sql-route-disabled")
     monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", False)
     response = client.post("/api/v1/ai/sql-analyses", json={"question": "faturamento"})
-    assert response.status_code == 503
+    assert response.status_code == 503, response.text
     assert response.json()["detail"] == "Análise SQL indisponível."
+
+
+def test_sql_analysis_readiness_denial_returns_sanitized_http_error(
+    client, monkeypatch, caplog,
+):
+    import logging
+    from uuid import uuid4
+
+    from app.api.v1.endpoints import ai as ai_endpoint
+    from app.schemas.genai_internal import AccessScope
+    from app.services.genai_sql_admission import SqlAdmissionDenied
+
+    scope = AccessScope.model_validate({
+        "caller_ref": "session:" + "a" * 64,
+        "profile_id": "v-energy-grid-360-gold",
+        "source_id": "gold.local",
+        "allowed_operations": ["read"],
+        "allowed_metric_ids": ["billing.revenue"],
+        "allowed_dimension_ids": ["geography.municipality", "customer.consumption_class"],
+    })
+    batch_ref = (
+        "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:"
+        "12345678-1234-4123-8123-123456789abc"
+    )
+
+    class Publication:
+        def __init__(self):
+            self.batch_ref = batch_ref
+
+        def planning_fields(self, _engine, _scope):
+            return {
+                "batch_ref": self.batch_ref,
+                "temporal_coverage": [{
+                    "metric_id": "billing.revenue", "kind": "monthly",
+                    "competencies": ["2026-06"],
+                }],
+            }
+
+    async def reject_for_readiness(*_args, **_kwargs):
+        raise SqlAdmissionDenied("private readiness detail")
+
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", True)
+    monkeypatch.setattr(
+        ai_endpoint.GoldPublicationContext, "capture",
+        classmethod(lambda _cls, _engine: Publication()),
+    )
+    monkeypatch.setattr(ai_endpoint, "run_sql_question", reject_for_readiness)
+    monkeypatch.setattr(
+        ai_endpoint.AuditStore, "record",
+        lambda _self, _event, *, service="genai", now=None: "synthetic-audit-reference",
+    )
+    client.app.dependency_overrides[ai_endpoint.get_question_gold_resources] = (
+        lambda: (test_engine, lambda: scope)
+    )
+    login_as_profile(client, monkeypatch, "commercial", username=f"sql-readiness-{uuid4().hex[:8]}")
+    strict_client = TestClient(client.app, raise_server_exceptions=True)
+    strict_client.cookies.update(client.cookies)
+    strict_client.headers.update(client.headers)
+
+    with caplog.at_level(logging.INFO, logger="uvicorn.error"):
+        response = strict_client.post(
+            "/api/v1/ai/sql-analyses",
+            json={"question": "pergunta privada e faturamento"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "A análise Gold está temporariamente indisponível."
+    assert "private readiness detail" not in caplog.text
+    assert "pergunta privada" not in caplog.text
+    events = [
+        json.loads(record.getMessage().removeprefix("genai_execution "))
+        for record in caplog.records
+        if record.getMessage().startswith("genai_execution {")
+    ]
+    assert any(event.get("stage") == "http" and event.get("http_status") == 503 for event in events)
 
 
 def test_public_sql_analysis_response_schema_does_not_expose_candidate_sql():
@@ -193,7 +270,7 @@ def _benchmark_candidate(case_id, request):
     reason="Configure PostgreSQL descartável em TEST_TEXT_TO_SQL_URL.",
 )
 def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
-    client, monkeypatch,
+    client, monkeypatch, caplog,
 ):
     address = os.getenv("TEST_TEXT_TO_SQL_URL")
     if not address:
@@ -226,6 +303,10 @@ def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
         connection.exec_driver_sql("GRANT SELECT ON gold.publicacao_atual, gold_v2.diagnostico_receita, gold_v2.consumo_receita_bairro, gold_v2.consumo_mensal_uc TO venergy_genai_reader")
     reader = create_engine(owner_url.set(username="venergy_genai_reader", password="synthetic-test-only"),
                            hide_parameters=True, echo=False, pool_size=1, max_overflow=0)
+    pressure_reader = create_engine(
+        owner_url.set(username="venergy_genai_reader", password="synthetic-test-only"),
+        hide_parameters=True, echo=False, pool_size=1, max_overflow=0, pool_timeout=0.2,
+    )
     scope = AccessScope.model_validate({
         "caller_ref": "session:" + "a" * 64, "profile_id": "v-energy-grid-360-gold",
         "source_id": "gold.local", "allowed_operations": ["read"],
@@ -239,17 +320,22 @@ def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
     monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", True)
     app.state.genai_question_client = BenchmarkCandidateClient(fixture["cases"])
     login_as_profile(client, monkeypatch, "commercial", username="sql-route-integration")
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
+    trace_correlation_id = None
     try:
         strict_client = TestClient(app, raise_server_exceptions=True)
         strict_client.cookies.update(client.cookies)
         strict_client.headers.update(client.headers)
         for case in fixture["cases"]:
-            context = ([{"role": "user", "content": "Qual foi o faturamento de Recife em junho de 2026?"}]
-                       if case.get("context") else [])
+            # Cada caso verifica a rota sem contexto de conversa. Follow-up real
+            # exige token emitido pelo Backend e é coberto pelo teste de conversa.
+            context = []
             response = strict_client.post("/api/v1/ai/sql-analyses", json={
                 "question": case["question"], "context": context})
             assert response.status_code == 200, f"{case['id']}: {response.text}"
             body = response.json()
+            if trace_correlation_id is None:
+                trace_correlation_id = body["correlation_id"]
             assert re.fullmatch(r"[a-f0-9]{32}", body["audit_reference"])
             audit_events = AuditStore(test_engine).read_reference(body["audit_reference"])
             assert audit_events
@@ -261,6 +347,7 @@ def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
             )
             if case["expected_status"] == "needs_clarification":
                 assert body["status"] == "needs_clarification", case["id"]
+                assert audit_events[-1]["event"].get("sql_f1_artifact") is None
                 assert body["evidence"] is None, case["id"]
                 assert body["presentation"] is None, case["id"]
                 assert body["unsupported_reason"] is None, case["id"]
@@ -268,6 +355,16 @@ def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
                 continue
 
             assert body["status"] == "answered", case["id"]
+            sql_artifact = audit_events[-1]["event"]["sql_f1_artifact"]
+            assert sql_artifact["artifact_version"] == "text-to-sql-f1-audit-v1"
+            assert sql_artifact["contract_version"] == "text-to-sql-f1-v1"
+            assert sql_artifact["canonical_sql_template"]
+            assert re.fullmatch(r"[a-f0-9]{64}", sql_artifact["template_digest"])
+            assert re.fullmatch(r"[a-f0-9]{64}", sql_artifact["candidate_digest"])
+            assert re.fullmatch(r"[a-f0-9]{64}", sql_artifact["admission_digest"])
+            assert re.fullmatch(r"[a-f0-9]{64}", sql_artifact["execution_digest"])
+            assert re.fullmatch(r"[a-f0-9]{64}", sql_artifact["result_digest"])
+            assert "Recife" not in json.dumps(sql_artifact)
             assert "sql" not in body and "parameters" not in body["evidence"]
             presentation = body["presentation"]
             assert presentation["evidence_digest"] == body["evidence"]["evidence_digest"]
@@ -287,6 +384,96 @@ def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
                 expected = [[format(value, ".2f") if value is not None and not isinstance(value, str)
                              else value for value in row.values()] for row in oracle]
             assert body["evidence"]["rows"] == expected, case["id"]
+
+
+        if os.getenv("TEST_TEXT_TO_SQL_LOAD") == "1":
+            from concurrent.futures import ThreadPoolExecutor
+            from math import ceil
+            from time import perf_counter
+
+            question = fixture["cases"][0]["question"]
+            payload = {"question": question, "context": []}
+            baseline = strict_client.post("/api/v1/ai/sql-analyses", json=payload)
+            assert baseline.status_code == 200
+            expected_rows = baseline.json()["evidence"]["rows"]
+
+            def request_under_load(_):
+                started = perf_counter()
+                result = strict_client.post("/api/v1/ai/sql-analyses", json=payload)
+                elapsed_ms = (perf_counter() - started) * 1000
+                assert result.status_code == 200
+                assert result.json()["evidence"]["rows"] == expected_rows
+                return elapsed_ms
+
+            for concurrency in (1, 4, 8):
+                started = perf_counter()
+                with ThreadPoolExecutor(max_workers=concurrency) as workers:
+                    durations = sorted(workers.map(request_under_load, range(40)))
+                elapsed = perf_counter() - started
+                print(
+                    f"F1_LOAD concurrency={concurrency} requests={len(durations)} "
+                    f"p50_ms={durations[ceil(len(durations) * .50) - 1]:.1f} "
+                    f"p95_ms={durations[ceil(len(durations) * .95) - 1]:.1f} "
+                    f"requests_per_second={len(durations) / elapsed:.2f}"
+                )
+
+        app.dependency_overrides[get_question_gold_resources] = (
+            lambda: (pressure_reader, lambda: scope)
+        )
+        with pressure_reader.connect():
+            pool_failure = strict_client.post(
+                "/api/v1/ai/sql-analyses",
+                json={"question": fixture["cases"][0]["question"], "context": []},
+            )
+        assert pool_failure.status_code == 503
+        assert "timeout" not in pool_failure.text.lower()
+        pool_correlation = pool_failure.headers["X-Correlation-ID"]
+        pool_events = [
+            json.loads(record.getMessage().removeprefix("genai_execution "))
+            for record in caplog.records
+            if record.getMessage().startswith("genai_execution {")
+        ]
+        assert any(
+            event.get("correlation_id") == pool_correlation
+            and event.get("stage") == "publication"
+            and event.get("reason") == "database_error"
+            for event in pool_events
+        )
+
+        app.dependency_overrides[get_question_gold_resources] = lambda: (reader, lambda: scope)
+        recovered = strict_client.post(
+            "/api/v1/ai/sql-analyses",
+            json={"question": fixture["cases"][0]["question"], "context": []},
+        )
+        assert recovered.status_code == 200
+
+        trace_events = [
+            json.loads(record.getMessage().removeprefix("genai_execution "))
+            for record in caplog.records
+            if record.getMessage().startswith("genai_execution {")
+        ]
+        correlated = [
+            event for event in trace_events
+            if event.get("correlation_id") == trace_correlation_id
+        ]
+        assert {
+            "context", "generation", "semantic_review", "readiness_admission",
+            "admission_revalidation", "sql_execution", "materialization", "evidence",
+            "presentation", "http",
+        } <= {event["stage"] for event in correlated}
+        assert all(event["strategy"] == "text_to_sql_f1" for event in correlated)
+        assert all(
+            event["contract_version"] == (
+                "text-to-sql-f1-presentation-v1"
+                if event["stage"] in {"presentation", "http"}
+                else "text-to-sql-f1-v1"
+            )
+            for event in correlated
+        )
+        assert not any(
+            key in event for event in correlated
+            for key in ("question", "sql", "parameters", "filters", "exception")
+        )
 
         original_client = app.state.genai_question_client
 
@@ -400,7 +587,10 @@ def test_authenticated_route_executes_postgres_and_returns_reconciled_evidence(
         assert "evidence" not in audit_failure.json()
         assert "presentation" not in audit_failure.json()
         assert attempted_audit_stages[:3] == ["request", "source", "response"]
+
+
     finally:
         app.dependency_overrides = overrides
+        pressure_reader.dispose()
         reader.dispose()
         owner.dispose()

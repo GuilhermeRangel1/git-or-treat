@@ -1,0 +1,96 @@
+{
+  "version": "text-to-sql-f1-continuity-v1",
+  "boundary": "synthetic follow-up interpretation; no SQL execution or Gold reads",
+  "cases": [
+    {
+      "id": "F1-CONT-01",
+      "question": "E no mês seguinte?",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife na competência junho de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "total", "periods": [["2026-07", "2026-07"]], "filters": {"geography.municipality": ["Recife"]}, "group_by": [], "ranking_limit": null}
+    },
+    {
+      "id": "F1-CONT-02",
+      "question": "Troque Recife por Olinda e mantenha o mesmo período.",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife na competência junho de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "total", "periods": [["2026-06", "2026-06"]], "filters": {"geography.municipality": ["Olinda"]}, "group_by": [], "ranking_limit": null}
+    },
+    {
+      "id": "F1-CONT-03",
+      "question": "Remova o filtro de município; quero o total geral desse mês.",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife na competência junho de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "total", "periods": [["2026-06", "2026-06"]], "filters": {}, "group_by": [], "ranking_limit": null}
+    },
+    {
+      "id": "F1-CONT-04",
+      "question": "E só para a classe residencial?",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife na competência junho de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "total", "periods": [["2026-06", "2026-06"]], "filters": {"geography.municipality": ["Recife"], "customer.consumption_class": ["RESIDENCIAL"]}, "group_by": [], "ranking_limit": null}
+    },
+    {
+      "id": "F1-CONT-05",
+      "question": "Agrupe esse faturamento por classe de consumo.",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife na competência junho de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "grouped_total", "periods": [["2026-06", "2026-06"]], "filters": {"geography.municipality": ["Recife"]}, "group_by": ["customer.consumption_class"], "ranking_limit": null}
+    },
+    {
+      "id": "F1-CONT-06",
+      "question": "Quais foram os cinco municípios com maior faturamento nesse período?",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife na competência junho de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "ranking", "periods": [["2026-06", "2026-06"]], "filters": {}, "group_by": ["geography.municipality"], "ranking_limit": 5}
+    },
+    {
+      "id": "F1-CONT-07",
+      "question": "Qual foi o faturamento de Olinda em maio de 2025?",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife na competência junho de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "total", "periods": [["2025-05", "2025-05"]], "filters": {"geography.municipality": ["Olinda"]}, "group_by": [], "ranking_limit": null}
+    },
+    {
+      "id": "F1-CONT-08",
+      "question": "E o consumo medido em kWh de Recife nesse mês?",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife na competência junho de 2026."}
+      ],
+      "expected": {"status": "unsupported", "reason_code": "metric_outside_f1", "metric_id": "energy.consumption", "operation": null, "periods": [["2026-06", "2026-06"]], "filters": {"geography.municipality": ["Recife"]}, "group_by": [], "ranking_limit": null}
+    },
+    {
+      "id": "F1-CONT-09",
+      "question": "E em maio?",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife na competência junho de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "total", "periods": [["2026-05", "2026-05"]], "filters": {"geography.municipality": ["Recife"]}, "group_by": [], "ranking_limit": null}
+    },
+    {
+      "id": "F1-CONT-10",
+      "question": "E esse valor em maio?",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento de Recife em junho de 2026 por classe comercial e residencial?"},
+        {"role": "assistant", "content": "Em junho de 2026, o faturamento foi R$ 10.000 na classe comercial e R$ 8.000 na residencial."}
+      ],
+      "expected": {"status": "needs_clarification", "metric_id": "billing.revenue", "operation": null, "periods": [], "filters": {}, "group_by": [], "ranking_limit": null}
+    }
+  ]
+}

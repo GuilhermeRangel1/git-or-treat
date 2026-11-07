@@ -64,6 +64,7 @@ describe("cliente do chat", () => {
         rows: [{ observation_id: "row_1", cells: ["1234.50"] }],
         evidence_digest: "a".repeat(64),
       },
+      continuation_token: "signed-continuation-token",
     };
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(response), {
@@ -78,6 +79,8 @@ describe("cliente do chat", () => {
         contract_version: "v1",
         question: "Faturamento total de Recife em junho?",
         context: [{ role: "user", content: "Faturamento anterior" }],
+        conversation_id: "8abf4322-17ab-4a75-98f1-29481ee9f456",
+        continuation_token: "previous-signed-token",
       },
       onData,
       undefined,
@@ -91,9 +94,11 @@ describe("cliente do chat", () => {
     expect(JSON.parse(String(options.body))).toEqual({
       contract_version: "v1",
       question: "Faturamento total de Recife em junho?",
-      context: [{ role: "user", content: "Faturamento anterior" }],
+      conversation_id: "8abf4322-17ab-4a75-98f1-29481ee9f456",
+      continuation_token: "previous-signed-token",
     });
     expect(result.sql_analysis_mode).toBe(true);
+    expect(result.continuation_token).toBe("signed-continuation-token");
     expect(onData).not.toHaveBeenCalled();
   });
 
@@ -122,6 +127,41 @@ describe("cliente do chat", () => {
     ).rejects.toMatchObject({ code: "invalid_continuation", retryable: false });
     expect(isGoldPublicationStale()).toBe(false);
   });
+
+  it("usa a rota de conversa salva para persistir consultas F1 idempotentes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      askAIQuestion(
+        {
+          contract_version: "v1",
+          question: "E no ano anterior?",
+          context: [],
+          conversation_id: "8abf4322-17ab-4a75-98f1-29481ee9f456",
+          history_request_id: "c0f6d390-c3a2-4d4f-b72c-31e070df9f77",
+        },
+        undefined,
+        undefined,
+        "sql_f1",
+      ),
+    ).rejects.toThrow("Não foi possível apresentar a resposta.");
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "/api/v1/ai/conversations/8abf4322-17ab-4a75-98f1-29481ee9f456/questions",
+    );
+    expect(JSON.parse(String(options.body))).toEqual({
+      request_id: "c0f6d390-c3a2-4d4f-b72c-31e070df9f77",
+      question: "E no ano anterior?",
+      strategy: "sql_f1",
+      refresh_context: false,
+    });
+  });
+
   it("envia o contrato v1 ao Backend e valida a resposta", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(validResponse), {

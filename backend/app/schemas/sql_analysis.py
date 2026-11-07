@@ -66,6 +66,7 @@ class SqlAnalysisResponse(BaseModel):
     presentation: SqlAnalysisPresentation | None = None
     clarification: SqlClarification | None = None
     unsupported_reason: SqlUnsupported | None = None
+    continuation_token: Annotated[str, StringConstraints(min_length=1, max_length=16000)] | None = None
 
     @model_validator(mode="after")
     def validate_result_shape(self):
@@ -136,4 +137,7 @@ class SqlAnalysisResponse(BaseModel):
 
 
 class SqlAnalysisRequest(AIQuestionRequest):
-    """Pergunta F1 autenticada pelo Backend; contexto segue conversa existente."""
+    """Pergunta F1 autenticada; contexto de follow-up exige token assinado."""
+
+    conversation_id: Annotated[str, StringConstraints(pattern=r"^[a-f0-9-]{36}$")] | None = None
+    continuation_token: Annotated[str, StringConstraints(min_length=1, max_length=16000)] | None = None

@@ -743,8 +743,7 @@ export default function AssistentePage() {
               message.contextEligible &&
               message.response != null &&
               (["answered", "no_evidence"].includes(message.response.status) ||
-                (message.response.status === "needs_clarification" &&
-                  message.response.continuation_token != null)),
+                message.response.continuation_token != null),
           )?.response?.continuation_token ?? undefined,
       userMessageId,
       assistantMessageId,
@@ -766,7 +765,7 @@ export default function AssistentePage() {
     requestAbort.current = abortController;
     setRequestPhase("consulting");
     try {
-      const saveHistory = historyEnabled && !retryRequest.sqlF1Mode;
+      const saveHistory = historyEnabled;
       if (saveHistory && !savedIdRef.current) {
         const created = await createConversation(conversationId);
         if (!current()) return;

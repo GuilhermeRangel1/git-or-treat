@@ -63,3 +63,30 @@ class AuditStore:
                 AUDIT_EVENTS.c.id == reference, AUDIT_EVENTS.c.expires_at > now,
             )).scalar_one_or_none()
         return [] if correlation is None else self.read(correlation, now=now)
+
+    def read_references(self, references, *, now=None) -> dict[str, list[dict]]:
+        """Lê em lote as correlações referenciadas pelo histórico privado."""
+        references = set(references)
+        if any(re.fullmatch(r"[a-f0-9]{32}", value) is None for value in references):
+            raise ValueError("Referência inválida.")
+        if not references:
+            return {}
+        now = now or datetime.now(UTC)
+        with self._engine.connect() as connection:
+            reference_rows = connection.execute(select(
+                AUDIT_EVENTS.c.id, AUDIT_EVENTS.c.correlation_id,
+            ).where(
+                AUDIT_EVENTS.c.id.in_(references), AUDIT_EVENTS.c.expires_at > now,
+            )).all()
+            correlations = {row.correlation_id for row in reference_rows}
+            rows = connection.execute(select(AUDIT_EVENTS).where(
+                AUDIT_EVENTS.c.correlation_id.in_(correlations),
+                AUDIT_EVENTS.c.expires_at > now,
+            ).order_by(AUDIT_EVENTS.c.created_at, AUDIT_EVENTS.c.id)).mappings().all()
+        by_correlation: dict[str, list[dict]] = {}
+        for row in rows:
+            by_correlation.setdefault(row["correlation_id"], []).append(dict(row))
+        return {
+            row.id: by_correlation.get(row.correlation_id, [])
+            for row in reference_rows
+        }

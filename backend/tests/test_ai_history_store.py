@@ -9,7 +9,14 @@ from app.models.ai_conversations import EXCHANGES as E
 from app.models.auth import AuthUser
 from app.schemas.ai import AIQuestionResponse
 from app.schemas.ai_conversations import ConversationDetail
-from app.services.ai_conversations import ConversationStore, now, purge_history
+from app.schemas.genai_internal import AccessScope
+from app.schemas.sql_analysis import SqlAnalysisResponse
+from app.services.ai_conversations import (
+    ConversationStore,
+    now,
+    purge_history,
+    sql_replay_audit_matches,
+)
 from fastapi import HTTPException
 from sqlalchemy import create_engine, event, insert, select, update
 from sqlalchemy.orm import Session
@@ -61,6 +68,30 @@ def response():
     )
 
 
+def sql_response():
+    return SqlAnalysisResponse(
+        correlation_id="a" * 32,
+        audit_reference="b" * 32,
+        status="needs_clarification",
+        clarification={
+            "question": "Qual período você quer consultar?",
+            "missing_fields": ["period"],
+        },
+    )
+
+
+def sql_unsupported_response():
+    return SqlAnalysisResponse(
+        correlation_id="c" * 32,
+        audit_reference="d" * 32,
+        status="unsupported",
+        unsupported_reason={
+            "code": "operation_outside_f1",
+            "message": "Esta análise ainda não está disponível.",
+        },
+    )
+
+
 def test_unresolved_draft_survives_multiple_short_answers(storage):
     _db, owner, _other = storage
     conversation = owner.create(str(uuid4()))["id"]
@@ -109,6 +140,167 @@ def test_creation_and_completed_request_are_idempotent(storage):
     assert len(owner.detail(conversation, "scope")["exchanges"]) == 1
     with pytest.raises(HTTPException):
         owner.reserve(conversation, exchange, "outro pedido", "scope")
+
+
+def test_sql_f1_history_is_versioned_isolated_and_idempotent(storage):
+    _db, owner, other = storage
+    conversation = owner.create(str(uuid4()))["id"]
+    request = str(uuid4())
+    answer = sql_response()
+    cached, context, attempt, batch = owner.reserve_sql(
+        conversation, request, "faturamento residencial", "scope-a", batch_ref="batch-a",
+    )
+    assert cached is None and context == [] and attempt and batch is None
+
+    owner.finish_sql(
+        conversation, request, attempt, "faturamento residencial", answer, "batch-a",
+    )
+    cached, context, attempt, batch = owner.reserve_sql(
+        conversation, request, "faturamento residencial", "scope-a", batch_ref="batch-a",
+    )
+    assert cached == answer and attempt is None and batch == "batch-a"
+    assert [(turn.role, turn.content) for turn in context] == [
+        ("user", "faturamento residencial"),
+        ("assistant", "Qual período você quer consultar?"),
+    ]
+
+    detail = ConversationDetail.model_validate(owner.detail(conversation, "scope-a"))
+    assert detail.exchanges[0].response is None
+    assert detail.exchanges[0].sql_response == answer
+    assert detail.exchanges[0].batch_ref == "batch-a"
+    unavailable = owner.detail(conversation, "scope-b")["exchanges"][0]
+    assert unavailable["state"] == "unavailable"
+    assert unavailable["question"] is None and unavailable["sql_response"] is None
+    with pytest.raises(HTTPException):
+        other.detail(conversation, "scope-a")
+
+    with pytest.raises(HTTPException) as error:
+        owner.reserve_sql(conversation, request, "outro pedido", "scope-a", batch_ref="batch-a")
+    assert error.value.status_code == 409
+    with pytest.raises(HTTPException) as error:
+        owner.reserve_sql(
+            conversation,
+            request,
+            "faturamento residencial",
+            "scope-a",
+            batch_ref="batch-a",
+            refresh_context=True,
+        )
+    assert error.value.status_code == 409
+    with pytest.raises(HTTPException) as error:
+        owner.reserve_sql(
+            conversation,
+            request,
+            "faturamento residencial",
+            "scope-a",
+            batch_ref="batch-b",
+        )
+    assert error.value.status_code == 409
+    with pytest.raises(HTTPException) as error:
+        owner.reserve_sql(
+            conversation,
+            request,
+            "faturamento residencial",
+            "scope-a",
+            batch_ref="batch-a",
+            expected_publication={"publication": "another-visible-lot"},
+        )
+    assert error.value.status_code == 409
+
+
+def test_sql_f1_history_does_not_reuse_an_exchange_under_a_new_scope(storage):
+    _db, owner, _other = storage
+    conversation = owner.create(str(uuid4()))["id"]
+    request = str(uuid4())
+    _, _, attempt, _ = owner.reserve_sql(
+        conversation, request, "receita", "scope-a", batch_ref="batch-a",
+    )
+    owner.finish_sql(conversation, request, attempt, "receita", sql_response(), "batch-a")
+
+    with pytest.raises(HTTPException) as error:
+        owner.reserve_sql(conversation, request, "receita", "scope-b", batch_ref="batch-a")
+    assert error.value.status_code == 409
+    assert owner.sql_context(conversation, "scope-b", batch_ref="batch-a") == []
+    assert owner.sql_context(conversation, "scope-a", batch_ref="batch-b") == []
+
+
+def test_sql_unsupported_question_is_private_history_but_clears_followup_context(storage):
+    _db, owner, _other = storage
+    conversation = owner.create(str(uuid4()))["id"]
+    request = str(uuid4())
+    _, _, attempt, _ = owner.reserve_sql(
+        conversation, request, "compare várias métricas", "scope", batch_ref="batch-a",
+    )
+    owner.finish_sql(
+        conversation, request, attempt, "compare várias métricas",
+        sql_unsupported_response(), "batch-a",
+    )
+
+    detail = ConversationDetail.model_validate(owner.detail(conversation, "scope"))
+    assert detail.exchanges[0].question == "compare várias métricas"
+    assert detail.exchanges[0].sql_response.status == "unsupported"
+    assert owner.sql_context(conversation, "scope", batch_ref="batch-a") == []
+
+
+def test_legacy_and_sql_f1_history_coexist_without_crossing_context(storage):
+    _db, owner, _other = storage
+    conversation = owner.create(str(uuid4()))["id"]
+    legacy_request = str(uuid4())
+    _, _, legacy_attempt = owner.reserve(
+        conversation, legacy_request, "old legacy question", "scope",
+    )
+    owner.finish(
+        conversation, legacy_request, legacy_attempt, "old legacy question", response(),
+    )
+    sql_request = str(uuid4())
+    _, context, sql_attempt, _ = owner.reserve_sql(
+        conversation, sql_request, "new SQL question", "scope", batch_ref="batch-a",
+    )
+    assert context == []
+    owner.finish_sql(
+        conversation, sql_request, sql_attempt, "new SQL question", sql_response(), "batch-a",
+    )
+
+    detail = ConversationDetail.model_validate(owner.detail(conversation, "scope"))
+    assert detail.exchanges[0].response.status == "needs_clarification"
+    assert detail.exchanges[0].sql_response is None
+    assert detail.exchanges[1].response is None
+    assert detail.exchanges[1].sql_response.status == "needs_clarification"
+
+
+def test_sql_history_replay_requires_matching_original_audit_event():
+    answer = sql_response()
+    scope = AccessScope(
+        caller_ref="session:" + "a" * 64,
+        profile_id="v-energy-grid-360-gold",
+        source_id="gold.local",
+        allowed_operations={"read"},
+        allowed_metric_ids={"billing.revenue"},
+        allowed_dimension_ids={"geography.municipality"},
+    )
+    event = {
+        "id": answer.audit_reference,
+        "service": "backend",
+        "event": {
+            "correlation_id": answer.correlation_id,
+            "stage": "response",
+            "outcome": "success",
+            "caller_ref": scope.caller_ref,
+            "source_id": "gold.local",
+            "metric_id": "billing.revenue",
+            "batch_ref": "batch-a",
+            "evidence_ref": None,
+        },
+    }
+
+    assert sql_replay_audit_matches(
+        answer, [event], reference=answer.audit_reference, scope=scope, batch="batch-a",
+    )
+    for field, value in (("batch_ref", "batch-b"), ("caller_ref", "session:" + "b" * 64)):
+        changed = {**event, "event": {**event["event"], field: value}}
+        assert not sql_replay_audit_matches(
+            answer, [changed], reference=answer.audit_reference, scope=scope, batch="batch-a",
+        )
 
 
 def test_interrupted_request_does_not_store_submitted_question(storage):
