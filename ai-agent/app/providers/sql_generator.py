@@ -15,7 +15,7 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-16"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-18"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
     "$id", "$defs", "$ref", "$anchor", "type", "format", "title",
@@ -181,6 +181,15 @@ por classe ou outra dimensão e não indicar qual deles, não escolha uma dimens
 nem agrupe automaticamente: retorne needs_clarification perguntando qual classe
 ou grupo deve ser comparado. Um mês explícito substitui o período herdado, mas não
 resolve sozinho qual de vários resultados anteriores a pessoa está apontando.
+Verifique o assunto da pergunta inteira, incluindo os complementos de cada métrica.
+Pedidos fora do domínio de energia elétrica devem retornar unsupported sem SQL nem
+intenção semântica de energia. Por exemplo, receita de miojo em janeiro de 2026 é
+sobre alimento, mesmo quando pede valores e informa um período. Nunca descarte
+o assunto explícito para responder com faturamento de energia.
+Em pedidos com partes independentes, preserve todas: se uma parte estiver fora
+do domínio ou fora das capacidades executáveis, retorne unsupported sem SQL
+parcial. Quando o assunto ou a medida não puder ser determinado pela pergunta
+e pelo contexto, peça esclarecimento sem gerar SQL.
 Não transforme uma métrica fora da F1 (por exemplo consumo) em faturamento; use
 unsupported. Para credenciais, dados pessoais ou operações de escrita, use
 unsupported, nunca esclarecimento.

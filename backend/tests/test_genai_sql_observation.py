@@ -139,3 +139,34 @@ def test_expired_global_deadline_prevents_provider_call(sql_request):
 def test_envelope_budget_caps_wider_global_deadline(sql_request):
     with pytest.raises(GenAITimeout):
         run(sql_request, stage_expired=True)
+
+
+@pytest.mark.parametrize("question", [
+    "Qual a receita de miojo em janeiro de 2026?",
+    "Qual foi o FATURAMENTO DE HAMBÚRGUER em janeiro de 2026?",
+    "Qual a previsão do tempo em janeiro de 2026?",
+])
+def test_explicit_external_subject_stops_before_the_generator(sql_request, question):
+    request = sql_request.model_copy(update={"question": question})
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Pedido externo chegou ao gerador")
+
+    result = asyncio.run(observe_sql_generation(
+        request, client=UnexpectedGenerator(), deadline=GenAIRequestDeadline.start(60),
+        correlation_id="b" * 32,
+    ))
+    assert result.review is None
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.sql is None
+
+
+@pytest.mark.parametrize("question", [
+    "Qual foi a receita em janeiro de 2026?",
+    "Qual foi a receita de Recife em 2026?",
+    "Qual foi a receita residencial?",
+])
+def test_energy_revenue_still_reaches_the_generator(sql_request, question):
+    request = sql_request.model_copy(update={"question": question})
+    assert run(request).review is not None

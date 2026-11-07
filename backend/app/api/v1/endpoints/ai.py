@@ -61,6 +61,10 @@ from app.services.genai_coordination import (
     answer_gold_question,
 )
 from app.services.genai_deadline import GenAIRequestDeadline
+from app.services.genai_domain_policy import (
+    OUT_OF_DOMAIN_MESSAGE,
+    is_explicitly_outside_energy_domain,
+)
 from app.services.genai_executor import GoldExecutionDenied
 from app.services.genai_expected_publication import (
     ExpectedPublicationMismatch,
@@ -256,7 +260,7 @@ async def _run_f1_sql_analysis_impl(
             "response", code, outcome,
             row_count=len(run.evidence.rows) if run.evidence is not None else 0,
             evidence_ref=run.evidence.evidence_digest if run.evidence is not None else None,
-            model_calls=1,
+            model_calls=run.model_calls,
             sql_f1_artifact=run.audit_artifact,
         )
         publication.assert_current(engine)
@@ -356,6 +360,19 @@ class AIQuestionRoute(APIRoute):
         async def ai_question_handler(request: Request):
             try:
                 return await original_handler(request)
+            except ExplicitOutOfDomainQuestion as refusal:
+                response = AIQuestionResponse(
+                    correlation_id=request.state.correlation_id,
+                    audit_reference=refusal.audit_reference,
+                    status="refused",
+                    message=OUT_OF_DOMAIN_MESSAGE,
+                    error=AIQuestionError(code="out_of_scope", retryable=False),
+                )
+                return JSONResponse(
+                    status_code=200,
+                    content=response.model_dump(mode="json"),
+                    headers={"X-Correlation-ID": request.state.correlation_id},
+                )
             except RequestValidationError:
                 return _question_error(
                     request,
@@ -387,19 +404,6 @@ class AIQuestionRoute(APIRoute):
         return progressive_handler(ai_question_handler)
 
 
-questions_router = APIRouter(
-    route_class=AIQuestionRoute,
-    dependencies=[Depends(require_permission("ai:ask"))],
-)
-insights_router = APIRouter(
-    route_class=AIQuestionRoute,
-    dependencies=[
-        Depends(require_permission("ai:ask")),
-        Depends(require_permission("panorama:read")),
-    ],
-)
-
-
 def _question_error(
     request: Request,
     *,
@@ -426,6 +430,54 @@ def get_genai_question_client(request: Request) -> GenAIQuestionClient:
 
 def get_genai_insight_client(request: Request) -> GenAIInsightClient:
     return request.app.state.genai_insight_client
+
+
+class ExplicitOutOfDomainQuestion(Exception):
+    def __init__(self, audit_reference: str | None):
+        self.audit_reference = audit_reference
+
+
+async def enforce_explicit_question_domain(
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    """Reject an external subject before Gold dependencies or model calls."""
+    try:
+        body = await request.json()
+    except ValueError:
+        return  # Let request validation return the standard 422 envelope.
+    question = body.get("question") if isinstance(body, dict) else None
+    if not isinstance(question, str) or not is_explicitly_outside_energy_domain(question):
+        return
+    audit_reference = AuditStore(db.get_bind()).record(
+        BackendAuditEvent(
+            correlation_id=request.state.correlation_id,
+            stage="policy",
+            code="refused",
+            outcome="refused",
+            duration_ms=0,
+            model_calls=0,
+            source_calls=0,
+        ),
+        service="backend",
+    )
+    raise ExplicitOutOfDomainQuestion(audit_reference)
+
+
+questions_router = APIRouter(
+    route_class=AIQuestionRoute,
+    dependencies=[
+        Depends(require_permission("ai:ask")),
+        Depends(enforce_explicit_question_domain),
+    ],
+)
+insights_router = APIRouter(
+    route_class=AIQuestionRoute,
+    dependencies=[
+        Depends(require_permission("ai:ask")),
+        Depends(require_permission("panorama:read")),
+    ],
+)
 
 
 @router.post(
@@ -464,6 +516,26 @@ async def ask_genai_question(
     """Coordena consulta e contexto curto autenticado, sem persistir histórico."""
 
     question = payload.without_publication()
+    if is_explicitly_outside_energy_domain(question.question):
+        audit_reference = AuditStore(db.get_bind()).record(
+            BackendAuditEvent(
+                correlation_id=request.state.correlation_id,
+                stage="policy",
+                code="refused",
+                outcome="refused",
+                duration_ms=0,
+                model_calls=0,
+                source_calls=0,
+            ),
+            service="backend",
+        )
+        return AIQuestionResponse(
+            correlation_id=request.state.correlation_id,
+            audit_reference=audit_reference,
+            status="refused",
+            message=OUT_OF_DOMAIN_MESSAGE,
+            error=AIQuestionError(code="out_of_scope", retryable=False),
+        )
     deadline = GenAIRequestDeadline.start(GOLD_REQUEST_TIMEOUT_SECONDS)
     try:
         if gold_resources is not None:

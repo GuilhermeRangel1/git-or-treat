@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from time import perf_counter
@@ -12,6 +13,10 @@ from app.schemas.genai_internal import AccessScope, QuestionPlanRequest
 from app.schemas.sql_generation import SqlGenerationCandidate, SqlGenerationRequest
 from app.services.genai_client import GenAIQuestionClient
 from app.services.genai_deadline import GenAIRequestDeadline
+from app.services.genai_domain_policy import (
+    OUT_OF_DOMAIN_MESSAGE,
+    is_explicitly_outside_energy_domain,
+)
 from app.services.genai_publication import GoldPublicationContext
 from app.services.genai_sql_admission import (
     SqlAdmission,
@@ -26,7 +31,6 @@ from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_seman
 from app.services.genai_sql_telemetry import record_sql_stage, sql_stage
 
 logger = logging.getLogger(__name__)
-
 
 def log_sql_context_ready(context, correlation_id: str) -> None:
     """Registra composição e versões do contexto, nunca conteúdo ou valores."""
@@ -62,12 +66,14 @@ def log_sql_context_unavailable(error: SqlContextUnavailable, correlation_id: st
 class SqlGenerationObservation:
     candidate: SqlGenerationCandidate
     review: SqlSemanticReview | None
+    model_calls: int = 1
 
 
 @dataclass(frozen=True)
 class SqlPreparation:
     candidate: SqlGenerationCandidate
     admission: SqlAdmission | None
+    model_calls: int = 1
 
 
 def assert_current_sql_request_context(
@@ -116,6 +122,46 @@ async def observe_sql_generation(
         dictionary_version=context.dictionary_version,
     )
     log_sql_context_ready(context, correlation_id)
+    question = request.question.casefold()
+    if is_explicitly_outside_energy_domain(request.question):
+        record_sql_stage(
+            correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
+            outcome="unsupported", reason="outside_domain", context_version=context.context_version,
+        )
+        return SqlGenerationObservation(
+            SqlGenerationCandidate(
+                generation_contract_version="text-to-sql-f1-v1",
+                status="unsupported",
+                context_version=context.context_version,
+                unsupported_reason={
+                    "code": "metric_outside_f1",
+                    "message": OUT_OF_DOMAIN_MESSAGE,
+                },
+            ),
+            None,
+            model_calls=0,
+        )
+    if not request.context and re.fullmatch(
+        r"(?:qual\s+(?:foi\s+)?a\s+)?receita\s*[?!\.]*", question.strip(),
+    ):
+        record_sql_stage(
+            correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
+            outcome="clarification", reason="ambiguous_subject",
+            context_version=context.context_version,
+        )
+        return SqlGenerationObservation(
+            SqlGenerationCandidate(
+                generation_contract_version="text-to-sql-f1-v1",
+                status="needs_clarification",
+                context_version=context.context_version,
+                clarification={
+                    "question": "Você quer saber a receita de energia? Para qual período?",
+                    "missing_fields": ["metric", "period"],
+                },
+            ),
+            None,
+            model_calls=0,
+        )
     payload = SqlGenerationRequest(
         context_version=context.context_version, contents=context.contents,
         remaining_timeout_ms=deadline.remaining_timeout_ms(stage_seconds),
@@ -158,7 +204,7 @@ async def prepare_sql_candidate(
     observed = await observe_sql_generation(
         request, client=client, deadline=deadline, correlation_id=correlation_id)
     if observed.review is None:
-        return SqlPreparation(observed.candidate, None)
+        return SqlPreparation(observed.candidate, None, model_calls=observed.model_calls)
     with sql_stage(correlation_id, "readiness_admission"):
         admitted = await admit_sql_candidate(
             observed.candidate, request, engine=engine, readiness_engine=readiness_engine, publication=publication, client=client,

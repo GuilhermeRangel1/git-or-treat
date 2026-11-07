@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.endpoints.ai import (
     AIQuestionRoute,
+    enforce_explicit_question_domain,
     _question_error,
     _run_f1_sql_analysis_impl,
     ask_genai_question,
@@ -186,6 +187,7 @@ async def question(
     request: Request,
     owner: Owner,
     db: Database,
+    _domain_policy: Annotated[None, Depends(enforce_explicit_question_domain)],
     genai: Annotated[GenAIQuestionClient, Depends(get_genai_question_client)],
     gold_resources: Annotated[
         tuple[Engine, Callable[[], AccessScope]] | None,

@@ -671,6 +671,34 @@ Depois, passar a captura ao avaliador de candidatos Backend junto do PostgreSQL 
 - Tentativa suplementar após o 429: `F1-06-V0`, uma chamada real ao `GeminiSqlGenerator` com saída limitada a 1.024 tokens. O provedor não retornou outro 429, mas o envelope falhou como `ModelProviderInvalidResponse`/`contract_validation` (`validation_fields=envelope`); nenhum candidato SQL foi aceito ou executado. A resposta levou 2.408 ms e reportou 3.596 tokens de entrada, 550 de saída e 4.146 totais; tokens de pensamento não vieram, então o custo exato continua desconhecido. Limite inferior pela tarifa Standard: US$ 0,0024538; reserva conservadora acumulada do runner: US$ 2,776756/US$ 3. Artefato local privado/ignorado: `work/tsql10-gemini-final-recovery-attempt.json`.
 - **TSQL-10 continua aberta:** a recuperação de quota no transporte foi repetida, mas ainda falta uma resposta F1 válida após o 429 e carga representativa no ambiente operacional. A chamada suplementar confirma a mesma falha de contrato; não justifica relaxar a validação nem declarar sucesso.
 
+### TSQL-10A — Bloqueio de perguntas fora do domínio
+
+**Regra geral:** toda solicitação analítica precisa estar relacionada ao domínio de energia e às capacidades disponíveis no sistema.
+
+**Ordem:** validar os casos conhecidos antes de ampliar o escopo na TSQL-11. Medir a generalização com o Gemini real na TSQL-12. **Requisitos:** IA-01, IA-02 e IA-06.
+
+- [x] Recusar no Backend os casos externos explícitos já cobertos, como “Qual a receita de miojo em janeiro de 2026?”, sem chamar o gerador nem emitir SQL.
+- [x] Orientar o gerador a preservar o assunto da pergunta inteira e a recusar assuntos externos sem reinterpretá-los como faturamento de energia.
+- [x] Verificar que “Qual a receita de energia em junho?” ainda chega ao gerador. Os testes dirigidos também cobrem alimentos com acento e previsão do tempo.
+- [x] Validar na rota pública três situações: faturamento de energia segue o fluxo normal, consumo de energia é reconhecido como assunto do produto fora da execução F1, e assunto externo recebe recusa sem gerar nem executar SQL.
+- [x] Cobrir ambiguidades e pedidos mistos. Pedir esclarecimento quando o assunto não estiver claro e nunca ignorar um complemento explícito para executar outra consulta.
+- [ ] Confirmar pela tela do Assistente que a recusa vale para a solicitação analítica no modo padrão e no modo TSQL F1, sem permitir que a rota legada ignore um assunto externo explícito.
+- [ ] Na TSQL-12, medir com Gemini real paráfrases e assuntos externos inéditos, junto de perguntas legítimas parecidas. Registrar aceitações indevidas e recusas incorretas.
+
+| Pergunta | Decisão de domínio esperada |
+| --- | --- |
+| Qual foi a receita em janeiro de 2026? | Aceitar |
+| Qual foi a receita de Recife em 2026? | Aceitar |
+| Qual foi a receita residencial? | Aceitar |
+| Qual a receita de miojo? | Recusar |
+| Como fazer uma receita de bolo? | Recusar |
+| Qual a receita de lasanha em janeiro? | Recusar |
+| Qual foi a receita? | Esclarecer quando faltar contexto |
+
+Aceitar nessa triagem significa reconhecer uma pergunta de energia. A execução ainda exige capacidade disponível, período resolvido, autorização e cobertura Gold. Uma pergunta mista com assunto externo explícito deve ser recusada por inteiro. A auditoria de recusas e esclarecimentos locais registra zero chamadas ao modelo e zero consultas analíticas.
+
+**Estado:** não concluída de ponta a ponta. A falha observada na captura manual de 07/11/2026 veio de um caminho da rota padrão/histórico legado que não passava pela política exclusiva de TSQL F1. A política determinística agora é compartilhada pela rota padrão e pelo envio legado salvo, com defesa também no pipeline F1. Testes no Docker confirmam recusa de miojo no modo padrão, na rota legada e na F1, sem chamada ao modelo, e preservação dos pedidos de receita de energia; os 14 testes de observação passaram. Falta repetir os casos pela tela nos modos padrão e TSQL F1. A automação de navegador local estava desativada no Work nesta sessão, por isso o aceite visual segue pendente. A generalização com Gemini real continua na TSQL-12. Verificações anteriores de PostgreSQL descartável e do gerador permanecem registradas acima; testes HTTP não substituem a confirmação visual.
+
 ### TSQL-11 — Expansão controlada de SQL, domínios e reparo
 
 **Dependência:** primeira fatia comprovada, TSQL-02/06/07/10. **IDs:** IA-01/02/03/06/08, ENT-01.
