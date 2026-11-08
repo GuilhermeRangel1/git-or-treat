@@ -6,8 +6,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
+from app.agent.execution import ExecutionLimitExceeded
 from app.api.access import require_service_auth, resolve_access_context
 from app.api.errors import ServiceAuthenticationError
+from app.ports.events import AuditUnavailable
+from app.providers.protocols import (
+    ModelProviderInvalidResponse,
+    ModelProviderRejected,
+    ModelProviderUnavailable,
+)
 from app.readiness.models import PublicationFacts, ReadinessReport
 from app.schemas.access import AccessContext
 from app.schemas.capabilities import CapabilitiesResponse
@@ -24,6 +31,7 @@ from app.schemas.internal import (
 )
 from app.schemas.questions import QuestionRequest, QuestionResponse
 from app.schemas.responses import PublicError, PublicErrorCode, PublicErrorResponse
+from app.schemas.sql_generation import SqlGenerationRequest, SqlGenerationResponse
 
 router = APIRouter()
 ResolvedAccess = Annotated[AccessContext | None, Depends(resolve_access_context)]
@@ -39,6 +47,33 @@ def require_gold_auth(request: Request) -> None:
     ):
         raise ServiceAuthenticationError(configured=False)
     require_service_auth(request, request.headers.get("authorization"))
+
+
+@router.post(
+    "/api/v1/internal/sql-candidates", response_model=SqlGenerationResponse,
+    dependencies=[Depends(require_gold_auth)],
+)
+async def generate_sql_candidate(payload: SqlGenerationRequest, request: Request):
+    service = request.app.state.sql_candidate_service
+    retryable = False
+    status = 503
+    code = PublicErrorCode.SERVICE_UNAVAILABLE
+    try:
+        if service is not None:
+            return await service.generate(payload, request.state.correlation_id)
+    except (ExecutionLimitExceeded, ModelProviderUnavailable):
+        retryable = True
+    except ModelProviderInvalidResponse:
+        status = 502
+        code = PublicErrorCode.INVALID_UPSTREAM_RESPONSE
+    except (AuditUnavailable, ModelProviderRejected):
+        pass
+    body = PublicErrorResponse(
+        correlation_id=request.state.correlation_id,
+        error=PublicError(code=code, retryable=retryable),
+        message="Não foi possível concluir a geração de candidato SQL.",
+    )
+    return JSONResponse(status_code=status, content=body.model_dump(mode="json"))
 
 
 @router.post(
@@ -115,6 +150,8 @@ async def runtime_status(request: Request) -> dict:
         "catalog": request.app.state.domain_profile.physical_catalog.model_dump(mode="json"),
         "audit_configured": active.audit_url is not None and active.audit_write_token is not None,
         "generation_configured": configured,
+        "sql_generation_enabled": active.sql_generation_enabled,
+        "sql_generation_configured": request.app.state.sql_candidate_service is not None,
         "routing_enabled": active.model_routing_enabled,
         "cache_enabled": active.model_cache_ttl_seconds > 0,
         "limits": {

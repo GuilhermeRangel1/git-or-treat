@@ -104,7 +104,7 @@ def main() -> int:
             print(f"Carga Gold v2: {summary['status']}; cadastro: {summary.get('cadastro_status', 'não fornecido')}.", flush=True)
         provision_roles()
         run(sys.executable, "scripts/bootstrap_local_auth.py", "--output", "/work/local-auth/credentials.txt",
-            "--commercial-username", "comercial", "--customer-service-username", "atendimento",
+            "--commercial-username", "comercial-demo", "--customer-service-username", "atendimento",
             "--losses-username", "perdas", "--operations-username", "operacao")
         print("Banco Gold v2, leitores restritos e contas locais preparados.", flush=True)
         return 0

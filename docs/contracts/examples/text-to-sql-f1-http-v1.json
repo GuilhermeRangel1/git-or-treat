@@ -1,0 +1,142 @@
+{
+  "request": {
+    "generation_contract_version": "text-to-sql-f1-v1",
+    "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "contents": "{\"context_version\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"generation_contract_version\": \"text-to-sql-f1-v1\", \"dialect\": \"postgres\", \"question\": \"Qual foi o faturamento de Recife em junho de 2026?\"}",
+    "remaining_timeout_ms": 30000
+  },
+  "response": {
+    "generation_contract_version": "text-to-sql-f1-v1",
+    "correlation_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "sql_candidate",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+      "parameters": {
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        },
+        "competency": {
+          "type": "string",
+          "value": "2026-06"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-06-01",
+            "end": "2026-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": []
+      },
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ]
+    }
+  },
+  "invalid": [
+    {
+      "id": "request-context-version-mismatch",
+      "type": "request",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "contents": "{\"context_version\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"generation_contract_version\": \"text-to-sql-f1-v1\", \"dialect\": \"postgres\"}",
+        "remaining_timeout_ms": 30000
+      }
+    },
+    {
+      "id": "request-budget-over-limit",
+      "type": "request",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "contents": "{\"context_version\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"generation_contract_version\": \"text-to-sql-f1-v1\", \"dialect\": \"postgres\"}",
+        "remaining_timeout_ms": 60001
+      }
+    },
+    {
+      "id": "request-extra-authorization-field",
+      "type": "request",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "contents": "{\"context_version\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"generation_contract_version\": \"text-to-sql-f1-v1\", \"dialect\": \"postgres\"}",
+        "remaining_timeout_ms": 30000,
+        "authorized": true
+      }
+    },
+    {
+      "id": "response-correlation-invalid",
+      "type": "response",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "correlation_id": "INVALID",
+        "candidate": {
+          "generation_contract_version": "text-to-sql-f1-v1",
+          "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "needs_clarification",
+          "clarification": {
+            "question": "Qual mês?",
+            "missing_fields": ["period"]
+          }
+        }
+      }
+    },
+    {
+      "id": "response-version-mismatch",
+      "type": "response",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v2",
+        "correlation_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "candidate": {
+          "generation_contract_version": "text-to-sql-f1-v1",
+          "context_version": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "status": "needs_clarification",
+          "clarification": {
+            "question": "Qual mês?",
+            "missing_fields": ["period"]
+          }
+        }
+      }
+    },
+    {
+      "id": "response-extra-approval-field",
+      "type": "response",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "correlation_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "candidate": {
+          "generation_contract_version": "text-to-sql-f1-v1",
+          "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "needs_clarification",
+          "clarification": {
+            "question": "Qual mês?",
+            "missing_fields": ["period"]
+          }
+        },
+        "authorized": true
+      }
+    }
+  ]
+}

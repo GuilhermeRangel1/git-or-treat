@@ -124,7 +124,7 @@ class QuestionInterpreter:
         self._aliases_absorbing_direction = frozenset(
             _normalize(alias)
             for metric, alias in self._metric_aliases
-            if _find_phrases(alias, profile.direction_terms)
+            if _find_phrases(alias, (*profile.direction_terms, *profile.comparison_terms))
             and not any(
                 _find_phrases(alias, (other,))
                 for other in metric.aliases
@@ -207,14 +207,30 @@ class QuestionInterpreter:
                                 if _find_phrases(original, r.phrases)
                                 and turns[-1].content.startswith(r.clarification)), None)
                 phrase = pending.confirmation_phrase if pending else None
+                answer = _normalize(question).strip(" ?!.")
+                starts_new_question = _QUESTION_START.match(answer) is not None
                 if pending and phrase is None and len(pending.alternative_metric_ids) == 1:
-                    phrase = next(m.aliases[0] for m in self._profile.metrics
-                                  if m.id == pending.alternative_metric_ids[0])
-                confirmed = _normalize(question).strip(" ?!.") in {
+                    phrase = next(
+                        metric.aliases[0]
+                        for metric in self._profile.metrics
+                        if metric.id == pending.alternative_metric_ids[0]
+                    )
+                candidate_ids = (
+                    set(pending.resolved_metric_ids) | set(pending.alternative_metric_ids)
+                    if pending else set()
+                )
+                matched_choices = [
+                    metric for metric in self._profile.metrics
+                    if metric.id in candidate_ids
+                    and any(_find_phrases(question, (alias,)) for alias in metric.aliases)
+                ]
+                if phrase is None and len(matched_choices) == 1 and not starts_new_question:
+                    phrase = matched_choices[0].aliases[0]
+                confirmed = answer in {
                     "sim", "isso", "isso mesmo", "pode ser", "pode consultar",
                     *([_normalize(phrase)] if phrase else []),
-                }
-                if pending and phrase and confirmed:
+                } or (len(matched_choices) == 1 and not starts_new_question)
+                if pending and phrase and confirmed and not starts_new_question:
                     for start, end, _ in reversed(_find_phrases(original, pending.phrases)):
                         original = original[:start] + " " * (end-start) + original[end:]
                     for dimension in self._profile.dimensions:
@@ -226,6 +242,10 @@ class QuestionInterpreter:
                                 original = original[:start] + " " * (end-start) + original[end:]
                     return self._interpret(f"{original} {phrase}", None)
                 if confirmed:
+                    return previous
+                if not starts_new_question:
+                    # Respostas que não escolhem uma medida não descartam a
+                    # ambiguidade pendente nem viram uma solicitação genérica.
                     return previous
             if previous.clarification_reason is ClarificationReason.MULTIPLE_METRICS:
                 options = self._ordered_metric_options(original)
@@ -495,6 +515,8 @@ class QuestionInterpreter:
         ambiguity = next(
             (rule for rule in self._profile.ambiguities
              if _find_phrases(question, rule.phrases)
+             and not (base_intent is not None
+                      and base_intent.metric_id in rule.resolved_metric_ids)
              and not any(metric.id in rule.resolved_metric_ids
                          and _find_phrases(question, metric.aliases)
                          for metric in self._profile.metrics)),
@@ -596,6 +618,11 @@ class QuestionInterpreter:
             # O nome da dimensão no pedido de contribuição não é um valor de filtro.
             filter_question = self._without_grouping_reference(filter_question, breakdown)
             location_question = filter_question
+            if selected_metric.id == "energy.consumption":
+                # Mantém a métrica ao conferir locais: removê-la junto com os outros
+                # trechos reconhecidos deixa palavras como "medido" após "no" e
+                # faz o validador tratá-las como uma geografia desconhecida.
+                location_question = self._without_grouping_reference(question, breakdown)
         structured = self._profile.structured_dimension_filters
         dimension_filters: dict[str, str | tuple[str, str]] = {}
         if structured:
@@ -758,8 +785,14 @@ class QuestionInterpreter:
             bool(re.search(r"\bentre\s+$", _normalize(question[:periods[0][0]])))
             if paired_filter else " entre " in f" {normalized_question} "
         )
+        comparison_hits = _find_phrases(question, self._profile.comparison_terms)
         comparison_requested = comparison_requested or (
-            self._has_comparison(normalized_question) and not (paired_filter and len(periods) == 1)
+            any(not any(
+                metric_start <= start and end <= metric_end
+                and _normalize(surface) in self._aliases_absorbing_direction
+                for metric_start, metric_end, surface in metric_hits
+            ) for start, end, _ in comparison_hits)
+            and not (paired_filter and len(periods) == 1)
         )
         comparison_requested = comparison_requested or configured_comparison_window
         if (selected_metric is not None and selected_metric.requires_published_windows
@@ -859,7 +892,8 @@ class QuestionInterpreter:
             "group_by_dimension_ids": [breakdown.id] if grouping_allowed else inherited_groups,
             "ranking_direction": (
                 "asc" if grouping_allowed and re.search(
-                    r"\b(?:perdeu|caiu|reduziu|menor|menos)\b", _normalize(detail_question)
+                    r"\b(?:perdeu|caiu|reduziu|queda|quedas|perda|perdas|"
+                    r"redução|reduções|menor|menos)\b", _normalize(detail_question)
                 ) else "desc" if grouping_allowed and re.search(
                     r"\b(?:mais|maior)\b", _normalize(detail_question)
                 ) else "desc" if ranking is not None else inherited_order

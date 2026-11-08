@@ -30,7 +30,10 @@ def main():
                         help="Competência solicitada YYYY-MM; repetir para mais meses.")
     parser.add_argument("--scope", choices=["attendance", "domains"], default="attendance",
                         help="Atendimento compatível ou avaliação dos quatro domínios.")
-    parser.add_argument("--approve-control", action="append", choices=["C01","C02","C03","C04","C10","C11","C12","C13","C14","C15"], default=[],
+    parser.add_argument("--approve-control", action="append", choices=[
+        "C01", "C02", "C03", "C04", "C08", "C09", "C10", "C11",
+        "C12", "C13", "C14", "C15",
+    ], default=[],
                         help="Aceite explícito da regra do controle; não força resultado passado.")
     args = parser.parse_args()
     url = os.getenv("GOLD_READINESS_DATABASE_URL")

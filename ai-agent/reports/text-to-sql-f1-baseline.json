@@ -1,0 +1,1831 @@
+{
+  "version": "text-to-sql-f1-benchmark-1",
+  "boundary": "legacy GenAI ASGI planning; synthetic coverage; fake synthesis adapter unused",
+  "commit": "3a739a89d9fc9e0962568a20e1c9c2adc46e2c22",
+  "working_tree": "local modifications included in source hashes",
+  "source_sha256": {
+    "ai-agent/app/__init__.py": "c58292edc3264530e54808164554cb5fbd0225def8f11fd913269a29e08c2a13",
+    "ai-agent/app/agent/__init__.py": "ee1ec1011cd5ffb0ad1de5028dc4a34502023b5352f6403045cccfbb96da190c",
+    "ai-agent/app/agent/access.py": "08ba56011fcafc5681f5b279a1c9340ecd97457d0eeba897134f3b5f189aca4e",
+    "ai-agent/app/agent/comparison.py": "0b5ff190fa605366e597de24512e91e4ed733f4d35372022ff2f19fbf0934082",
+    "ai-agent/app/agent/composition.py": "3a52d3e13f015692f2355af3c14b271cb8fda1ebd946e50deeaf70fa44bc972e",
+    "ai-agent/app/agent/documentation.py": "5f0e87853641aed477b522122f1942eb7f0bb2db932ba04900c8c842752b0f97",
+    "ai-agent/app/agent/evidence_guard.py": "da630b877da4456a53a3e7baa07c0cde5e12d16f4413d6ef8ae2fb6265cac517",
+    "ai-agent/app/agent/execution.py": "f4d1272990a0a1891575a459f3d643c376835ab2bbe679d5970ec750aeea11ab",
+    "ai-agent/app/agent/grounding.py": "b5f3f683dd5766cefd0557ec469cfc46610b048ff8eef248e5fa9639e4b3bc6c",
+    "ai-agent/app/agent/insights.py": "ef2f59bb9aa777c366a448b03b4d4edef3aa414abf48545dd497e6ada48c3305",
+    "ai-agent/app/agent/interpretation_shadow.py": "e415ae83939ff04987b2af6d65ef1c4fcfe8456318c03399bc91029ba31fa89c",
+    "ai-agent/app/agent/interpreter.py": "6fd4a5b6593d9579d2960b2f56f0e45cf11b014abdeb11ecf857e7b7f6420179",
+    "ai-agent/app/agent/language_recovery.py": "371a15c2b5abed8ba76e0aae702f36fad6fd17c7683a8f5d94c8ad0288ec67ee",
+    "ai-agent/app/agent/orchestrator.py": "99afc90f833e0d63d1cebba0600414110f90429aee717ec82b2aaa47e0b56935",
+    "ai-agent/app/agent/planner.py": "03b8093542f549a6b3e1728397e4fa6509caffd1d5d4bd9e75aefb5f0e5027bb",
+    "ai-agent/app/agent/ranking.py": "1f0e22c9b86c9192ef274f529c5e62e9a53ecdf5ba0bfac96b6a646baca9d85e",
+    "ai-agent/app/agent/read_plan.py": "b4a070fd2da624011075f4ff3f870dc4f9390f19b298aba6f14dec14e58fb74b",
+    "ai-agent/app/agent/safety.py": "5bc4602ab08581b0f4b30100005450c037450327816cfb968bf26bb695a4a24a",
+    "ai-agent/app/agent/sql_candidates.py": "0f5baa9bb003a05dfb384c723613ce9580f9f969ed0dc00e1be05212883188e3",
+    "ai-agent/app/agent/temporal.py": "c2602ab4698b5e200a3a3f21d7ac5b3321fc07beb0992b8fc92bec2d2e5f80e4",
+    "ai-agent/app/api/__init__.py": "2b80b3a306bc0c66b23106e17ec5ad46721dd2c2d65304413aa2da856fbe9016",
+    "ai-agent/app/api/access.py": "c9845a5765394fab2a5669369675adb236c381abb39e09b266c219a482a919c1",
+    "ai-agent/app/api/application.py": "ef4e4dd8db7d1500d9b9e2a9aafb5abcf3513da05cf3ec9e2474fcfa90491685",
+    "ai-agent/app/api/errors.py": "3a18f489e9f7c3479a3d71f7e93023d34e0f1a0adab28ef01ddd2494fbac5eaf",
+    "ai-agent/app/api/routes.py": "915fe979551476d383594ecdefa63e5f6ff6b6db0ecf4b7ac973a5f76c8ac594",
+    "ai-agent/app/audit.py": "522a2d2ba34a36a9cefef38e2d7149ce85fc48638d4feebedd5ea14c88955671",
+    "ai-agent/app/config.py": "5f1b3223e0f1ea14292db2d93e592ce21d0fc1f18407e01e5b2ee57c0cb1ff64",
+    "ai-agent/app/generation/__init__.py": "3b5cb712ba3c1151aa4c975a084e9226be4db4c34486d33e9b84eda17c5cfca2",
+    "ai-agent/app/generation/prompts.py": "73ee7eba4728f46c21d1e9aab0ea3cd9466908b92e201ed4ce0f8f0a31345ca1",
+    "ai-agent/app/generation/selection.py": "64132eabcccdf8fd9a5f366d2d38ba9db07d4ae2c67695726795e716d2ba923a",
+    "ai-agent/app/gold_runtime.py": "2e06586d541e58907eb7c061a9f3ec53b6b43f07309692a5e25f878b8ace87eb",
+    "ai-agent/app/main.py": "59142b75ec3d3ac3e14681e3250adf443e3bae304aba78874fa3fc4003334f4f",
+    "ai-agent/app/ports/__init__.py": "c5751c6f04a51b370d9067fad75a4d05f54d434285fa2527d7c35181adb8ce02",
+    "ai-agent/app/ports/documentation.py": "7469b34ffdb71039f88799a1195f4678dab380baaea446c0607f381e3ef8186f",
+    "ai-agent/app/ports/events.py": "8fad91158f1ec2eb08a59255511cc90b6cab5c26f1ecff1da2803d9d3008e507",
+    "ai-agent/app/ports/evidence.py": "9cea7364af57a16d9528011725a7ac143baa10ef9abb7e124f67b7681ba353ff",
+    "ai-agent/app/profiles/__init__.py": "1d36a239b548e61510846f898f6e4d5cce26c0d957ff8960f906ea44a0a32441",
+    "ai-agent/app/profiles/grid360_demo.py": "e3f7332d3ed6cdb269f904014610fb23570063eab3844c0dc1469f074450de1c",
+    "ai-agent/app/profiles/grid360_gold.py": "71adceb06ba3fa5c8de499be2a56e4b6d3d3eccece57ce8ba8cfedcf250b561a",
+    "ai-agent/app/profiles/grid360_gold_catalog.py": "a32a7b82d624625bf401e96b091b0aa312f2e922903dc1ce832cdfb52945f067",
+    "ai-agent/app/profiles/grid360_gold_mapping.py": "2eecb85e28c8f9d7997307d17855e143c635c27733df45ccde80bbceaa2b35c0",
+    "ai-agent/app/profiles/grid360_gold_mapping_v1.py": "4bfde8596e30bc15e32b93c52fb10e9dbdfba14d908b3b956c019894bf0a7779",
+    "ai-agent/app/profiles/grid360_gold_v1.py": "2d3199a0869cee18ad39a6f6ec3930f41df793bda80557534b9d23cb011ae7fe",
+    "ai-agent/app/profiles/grid360_sql_demo.py": "05df66a4cf38d5f563d6ed8eaa00f12a5174a2e2f692462d9c1ef7008f02c986",
+    "ai-agent/app/providers/__init__.py": "37f19b4cfa3537161f6b994af1c31345191118563ff765a40a2a9c4ae4e91c2b",
+    "ai-agent/app/providers/caching.py": "5233db49ab08d5e1c16f5a1764d6f096857dab6f369a527417f0820982aa051d",
+    "ai-agent/app/providers/document_selector.py": "e3b300ecb7c2ae5e834252eb63f2b1f95e04d1adb645caf5cbb989bc42713a91",
+    "ai-agent/app/providers/factory.py": "31a2d5580136d58802edb890f5a4c13383f2cc41bde9f4a3301a15fc86df521d",
+    "ai-agent/app/providers/fallback.py": "b2430319f160791f39b71b4269bfe550259b1c558f28a284d8b3f4e76b6afdf9",
+    "ai-agent/app/providers/gemini.py": "22418c433250641d6434a48fcb3c118e9c34d25f9074a8ff66d14cde7195dd72",
+    "ai-agent/app/providers/groq.py": "1ef34be9a25202fcf7e4288cbe5b4b0e4fb03dc5a68f485c113d0a06d89529db",
+    "ai-agent/app/providers/intent_proposer.py": "e8cefb8f43cd744d7db0d6b1dc62e301a0d4043c6f3bc53aaa07aaba5410c706",
+    "ai-agent/app/providers/protocols.py": "f7ffeca687a78ce43a9c5a01b98557d848ed5d63553f34dc825fa80af9179735",
+    "ai-agent/app/providers/routing.py": "4b6ffdae6c2494c5d90205bb7b714b0a32f67a99f23a9ba87e2d9376c4373e58",
+    "ai-agent/app/providers/sql_generator.py": "11665c37f64e887b47ce22460078083ad3b0dda9c996a4b664c4aee540523816",
+    "ai-agent/app/providers/unavailable.py": "a2e761ffcf8a868e14e4fde504af4d83581de63816e913cc2a4fc39fca9d642b",
+    "ai-agent/app/readiness/__init__.py": "9421f38d638106b03d4dd54c3da9c4eb091a8bc48dadaef8c5986faa79d7db2a",
+    "ai-agent/app/readiness/evaluate.py": "8077cdc5e5fcf77c66f365f5395706d495d5bddb44c3882b9834d7602ced4225",
+    "ai-agent/app/readiness/models.py": "465256ad1731486a911d2d112fbb34b87bda1d0ae0932f08e0d97fdc5a87456b",
+    "ai-agent/app/readiness/requirements.py": "ad76171d8453c7c8a05ad521e40420210600f143e5fb394da85303b5d5b3e5d9",
+    "ai-agent/app/scenarios.py": "650c4819dc5b49e42696ee11005d4ca8f54b495e1ce383d07f5b14c13253acf5",
+    "ai-agent/app/schemas/__init__.py": "d72f01dc6247a1ac6475c6b8af69366787e1c8d10fc4122dd6c9a0e4884e0c47",
+    "ai-agent/app/schemas/access.py": "65c14607736327b4ee66584129543372d84fa76a1951ace39ebadb1ed2eff178",
+    "ai-agent/app/schemas/analysis.py": "8748787bce7a2956caccf10fdae9120adf9742829204ba0bd72c48bc607bf096",
+    "ai-agent/app/schemas/capabilities.py": "5c88c7bac306f2742f89c4909cda37ef923ff4737c0d65a00a670e670f03c882",
+    "ai-agent/app/schemas/domain_profile.py": "4721103d5523f13a577105e8d737f5f869474958933dad5ee92683817acc8e93",
+    "ai-agent/app/schemas/evidence.py": "cae2cb38e49da18955079ea4afcf853fc24488249f19ea17dd47b7fac73e1356",
+    "ai-agent/app/schemas/insights.py": "580c206b4bdff6b8cb98b5cb1cbde780625b083ac78b039e86275356a44418b1",
+    "ai-agent/app/schemas/internal.py": "08dfb1a4ccc076b782fdc9ef1232028effb789f6a54578a3648c2ece06e5ee49",
+    "ai-agent/app/schemas/interpretation.py": "c70754c402068a4ec0a2e898176ddf36a87ad8c70aab21faba485ce7f3679487",
+    "ai-agent/app/schemas/physical_catalog.py": "fe8ceca42733a0e96353cee8c0c9bcf8c85d7a04d4d1c14c1892fa10943c57a5",
+    "ai-agent/app/schemas/questions.py": "b8b00613dfc3b50833eee35e720cfe28faa5cc27235365504a31dcce6c461d99",
+    "ai-agent/app/schemas/read_plan.py": "1ada92bc25cd87515aaa5d25b739d60ba2179182a27bb52c3ef79c4978da8906",
+    "ai-agent/app/schemas/responses.py": "9db031617e884855e619501d9d32b71b07dd23cef7ab3c21809e241840b9c936",
+    "ai-agent/app/schemas/scenarios.py": "7fd75b9d72cf1720d14c1d8bb5985233c83e7bef4ea883ca0ad6c3d47a9799aa",
+    "ai-agent/app/schemas/sql_evidence.py": "bc2a69ab371107e9223803f6633d290c9a2368828a2324d9c0f11cb535ee800e",
+    "ai-agent/app/schemas/sql_generation.py": "e12be8530e42b86bbf2a0790717f9659063651ca098900f33dc54c6d42b9006b",
+    "ai-agent/app/schemas/version.py": "6bcd35db27e76098a0f2990ae9081d58281614f4886367ba41b3eeb0caa6382f",
+    "ai-agent/app/sql/__init__.py": "3d9e7a2a0246f83fcc041b8ca40d704838ae139232ef70bb4cb1fc1146ccbf44",
+    "ai-agent/app/sql/audit.py": "878a2221e493346eaaba406b3d4d53a34df979d2a402af8c8bec9819b7021d12",
+    "ai-agent/app/sql/demo.py": "9d1b7dc4ea892005860b5ef99f1a1eb6b0746c3e5015c4f71226911a93997233",
+    "ai-agent/app/sql/dictionary.py": "3c303a208ea765f5c4a7eab11e0e32c8574f508ed25270dfabacf51e0c486308",
+    "ai-agent/app/sql/evidence.py": "560fe3a17a1feeb88db8191be0946cc1707d965475133a997106647796f73311",
+    "ai-agent/app/sql/executors.py": "02fcefcdd0434fa1f78d4e94fa3b88c7d47b98dda235f92acc353e44bb5e9169",
+    "ai-agent/app/sql/plan.py": "2023b4a44d154c477300c89e7be13d03cb624e62f179893751739491cc79e0ee",
+    "ai-agent/app/sql/seed_demo.py": "c302e9da98496b043ce08a0d2eb220aa59dfec4a54c75e13db1097adc834b271",
+    "ai-agent/app/sql/service.py": "e824bebfdb8e5cc5c021fcf5de540177e9ac382b3a810dd6a6c209af7f1fc90b",
+    "ai-agent/app/sql/validator.py": "2aba00b1a55969b98238f032786264e5446eca269439f95f023d6efbd70d590e",
+    "ai-agent/app/telemetry.py": "f02cea1999bd3d5a7b38915210ee641d100cb93a8a496c7788fa882efa3220a1",
+    "ai-agent/app/tools/__init__.py": "59e43db0e05985c37f4c7f881cd3c96f97246725d17b5f3f3561957f9abc50e2",
+    "ai-agent/app/tools/documentation.py": "7a508a4833561299df0589dc3cc4d130166d99f7bf3cb3a293b0b0153977d377",
+    "ai-agent/app/tools/synthetic_analytics.py": "9aaa07481da2af3e5e8d82e3fc79d84be8dabe4b21de6aac017f00b581ae82f3"
+  },
+  "evaluator_sha256": "c2aafce0670eb3b2195c49f2074d7a5a2d3dedd71b408e61d82464b559944063",
+  "regressions": "initial baseline; no earlier comparable frozen benchmark",
+  "reserve": "8 authorial questions unevaluated; independent holdout count is zero",
+  "benchmark_sha256": "0a8a811bcde4d61494679fbdc3bbc65860944aaee917104493fa056d3197ceb5",
+  "reference_sha256": "7b46d51d949235682d08e81b8ae6f795eee6a45385b0c3554b8559689bbc132d",
+  "domain_review": "technical_semantics_reviewed_against_manual_sql_and_independent_decimal; external_business_certification_not_claimed",
+  "holdout_count": 0,
+  "false_refusals": 0,
+  "unnecessary_clarifications": 18,
+  "required_clarifications": 8,
+  "denominator": 40,
+  "counts": {
+    "observed_fields_match": 17,
+    "divergent": 23
+  },
+  "divergence_counts": {
+    "status": 21,
+    "operation": 2
+  },
+  "provider_calls": 0,
+  "provider_tokens": null,
+  "provider_cost": null,
+  "sql_execution": "not measured",
+  "results": [
+    {
+      "id": "F1-01-V0",
+      "reference_id": "F1-01",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-06-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "4b75491301959be7aa7f350c2b9411e3067ca9c314a1c89c4073095a844dd689",
+        "response": null
+      },
+      "latency_ms": 65.64
+    },
+    {
+      "id": "F1-01-V1",
+      "reference_id": "F1-01",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-06-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "4b75491301959be7aa7f350c2b9411e3067ca9c314a1c89c4073095a844dd689",
+        "response": null
+      },
+      "latency_ms": 26.42
+    },
+    {
+      "id": "F1-01-V2",
+      "reference_id": "F1-01",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-06-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "4b75491301959be7aa7f350c2b9411e3067ca9c314a1c89c4073095a844dd689",
+        "response": null
+      },
+      "latency_ms": 26.18
+    },
+    {
+      "id": "F1-01-V3",
+      "reference_id": "F1-01",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Qual indicador ou assunto você quer consultar?",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "qual o faturamneto de Recife em junho de 2026?"
+      },
+      "latency_ms": 40.17
+    },
+    {
+      "id": "F1-02-V0",
+      "reference_id": "F1-02",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-06-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "4b75491301959be7aa7f350c2b9411e3067ca9c314a1c89c4073095a844dd689",
+        "response": null
+      },
+      "latency_ms": 30.91
+    },
+    {
+      "id": "F1-02-V1",
+      "reference_id": "F1-02",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-06-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "4b75491301959be7aa7f350c2b9411e3067ca9c314a1c89c4073095a844dd689",
+        "response": null
+      },
+      "latency_ms": 30.14
+    },
+    {
+      "id": "F1-02-V2",
+      "reference_id": "F1-02",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Informe uma competência com mês e ano, um intervalo de meses completos ou uma janela como ‘último trimestre’. Recortes por dia ou semana ainda não estão disponíveis neste planejamento.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "faturamento no município Recife em junho de 2026? Agora quero o faturamento total de Recife em 2026, de janeiro a dezembro."
+      },
+      "latency_ms": 35.39
+    },
+    {
+      "id": "F1-02-V3",
+      "reference_id": "F1-02",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Qual período você quer consultar ou comparar?\n\nExemplo de pergunta: “Quanto Recife faturou durante todo 2026 em junho de 2026?”",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Quanto Recife faturou durante todo 2026?"
+      },
+      "latency_ms": 66.63
+    },
+    {
+      "id": "F1-03-V0",
+      "reference_id": "F1-03",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-01-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "b85534d4443ae784ab8ad3eeb9cd1bcff23899a8a3b907feaf568efd66c1067d",
+        "response": null
+      },
+      "latency_ms": 35.32
+    },
+    {
+      "id": "F1-03-V1",
+      "reference_id": "F1-03",
+      "outcome": "divergent",
+      "differences": [
+        "operation"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-01-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "comparison_periods": [
+            "2026-01",
+            "2026-06"
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "6f81c91257c4e4c9353db67be720b378fe86f2a640abe7337879d9c647498477",
+        "response": null
+      },
+      "latency_ms": 37.64
+    },
+    {
+      "id": "F1-03-V2",
+      "reference_id": "F1-03",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Não reconheci esse local nas referências disponíveis; confirme a geografia desejada.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "faturamento no município Recife em junho de 2026? Quanto deu o total de Recife no primeiro semestre de 2026?"
+      },
+      "latency_ms": 40.25
+    },
+    {
+      "id": "F1-03-V3",
+      "reference_id": "F1-03",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Qual indicador ou assunto você quer consultar?",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Quero um único total em reais para Recife de janeiro de 2026 até junho de 2026, somando todos os meses."
+      },
+      "latency_ms": 55.09
+    },
+    {
+      "id": "F1-04-V0",
+      "reference_id": "F1-04",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Qual indicador ou assunto você quer consultar?\n\nExemplo de pergunta: “Compare receita faturada entre maio de 2026 e junho de 2026.”",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Compare esse acumulado com janeiro de 2025 a junho de 2025."
+      },
+      "latency_ms": 67.94
+    },
+    {
+      "id": "F1-04-V1",
+      "reference_id": "F1-04",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Informe duas competências mensais completas.\n\nExemplo de pergunta: “Compare faturamento no município Recife entre maio de 2026 e junho de 2026?”",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Compare faturamento no município Recife entre de janeiro de 2026 a junho de 2026 e janeiro de 2025 a junho de 2025?"
+      },
+      "latency_ms": 59.4
+    },
+    {
+      "id": "F1-04-V2",
+      "reference_id": "F1-04",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Não reconheci esse local nas referências disponíveis; confirme a geografia desejada.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Quanto Recife faturou em cada primeiro semestre de 2025 e 2026 e qual a diferença em reais?"
+      },
+      "latency_ms": 68.73
+    },
+    {
+      "id": "F1-04-V3",
+      "reference_id": "F1-04",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Informe o mês e o ano de ambos os extremos do intervalo; preciso dos dois períodos para fazer essa consulta.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Quero os dois totais de Recife, janeiro de 2025 a junho de 2025 e janeiro de 2026 a junho de 2026, e a diferença entre eles."
+      },
+      "latency_ms": 55.48
+    },
+    {
+      "id": "F1-05-V0",
+      "reference_id": "F1-05",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-01-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "b85534d4443ae784ab8ad3eeb9cd1bcff23899a8a3b907feaf568efd66c1067d",
+        "response": null
+      },
+      "latency_ms": 25.9
+    },
+    {
+      "id": "F1-05-V1",
+      "reference_id": "F1-05",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Não reconheci esse local nas referências disponíveis; confirme a geografia desejada.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Liste mês a mês quanto Recife faturou no primeiro semestre de 2026."
+      },
+      "latency_ms": 45.67
+    },
+    {
+      "id": "F1-05-V2",
+      "reference_id": "F1-05",
+      "outcome": "divergent",
+      "differences": [
+        "operation"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-01-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "comparison_periods": [
+            "2026-01",
+            "2026-06"
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "6f81c91257c4e4c9353db67be720b378fe86f2a640abe7337879d9c647498477",
+        "response": null
+      },
+      "latency_ms": 25.53
+    },
+    {
+      "id": "F1-05-V3",
+      "reference_id": "F1-05",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-01-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "b85534d4443ae784ab8ad3eeb9cd1bcff23899a8a3b907feaf568efd66c1067d",
+        "response": null
+      },
+      "latency_ms": 26.96
+    },
+    {
+      "id": "F1-06-V0",
+      "reference_id": "F1-06",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Há um valor não reconhecido de município. Informe somente os valores autorizados que deseja consultar.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Quais cinco municípios mais faturaram entre janeiro de 2026 e junho de 2026, considerando todos os municípios?"
+      },
+      "latency_ms": 46.49
+    },
+    {
+      "id": "F1-06-V1",
+      "reference_id": "F1-06",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Não reconheci esse local nas referências disponíveis; confirme a geografia desejada.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Liste os cinco municípios com maior receita no primeiro semestre de 2026, no conjunto geral."
+      },
+      "latency_ms": 58.77
+    },
+    {
+      "id": "F1-06-V2",
+      "reference_id": "F1-06",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Há um valor não reconhecido de município. Informe somente os valores autorizados que deseja consultar.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Top 5 cidades por faturamento acumulado de janeiro de 2026 a junho de 2026, incluindo todas as cidades."
+      },
+      "latency_ms": 49.15
+    },
+    {
+      "id": "F1-06-V3",
+      "reference_id": "F1-06",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Escolha uma única competência para este agrupamento ordenado.\n\nExemplo de pergunta: “Top 5 município com maior faturamento em junho de 2026?”",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Top 5 município com maior faturamento em janeiro de 2026 a junho de 2026?"
+      },
+      "latency_ms": 47.7
+    },
+    {
+      "id": "F1-07-V0",
+      "reference_id": "F1-07",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Qual indicador ou assunto você quer consultar?",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Quanto corresponde a cada classe em Recife em junho de 2026?"
+      },
+      "latency_ms": 46.35
+    },
+    {
+      "id": "F1-07-V1",
+      "reference_id": "F1-07",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "customer.consumption_class",
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [
+            "customer.consumption_class"
+          ],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-06-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "f0f07e6a4e57a6877f290f2eedf3bcb433738ff71345effac81160f4ef09c591",
+        "response": null
+      },
+      "latency_ms": 26.66
+    },
+    {
+      "id": "F1-07-V2",
+      "reference_id": "F1-07",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Há um valor não reconhecido de classe de consumo. Informe somente os valores autorizados que deseja consultar.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Quanto cada classe de consumo faturou em Recife em junho de 2026?"
+      },
+      "latency_ms": 43.14
+    },
+    {
+      "id": "F1-07-V3",
+      "reference_id": "F1-07",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Há um valor não reconhecido de classe de consumo. Informe somente os valores autorizados que deseja consultar.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Receita de Recife em junho de 2026 dividida em residencial, comercial e demais classes de consumo."
+      },
+      "latency_ms": 45.7
+    },
+    {
+      "id": "F1-08-V0",
+      "reference_id": "F1-08",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Qual indicador ou assunto você quer consultar?",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Qual foi a soma em reais das faturas emitidas em Recife em junho de 2026?"
+      },
+      "latency_ms": 40.04
+    },
+    {
+      "id": "F1-08-V1",
+      "reference_id": "F1-08",
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Qual indicador ou assunto você quer consultar?",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Quanto somaram em reais as faturas emitidas para Recife em junho de 2026?"
+      },
+      "latency_ms": 39.92
+    },
+    {
+      "id": "F1-08-V2",
+      "reference_id": "F1-08",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-06-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "4b75491301959be7aa7f350c2b9411e3067ca9c314a1c89c4073095a844dd689",
+        "response": null
+      },
+      "latency_ms": 25.21
+    },
+    {
+      "id": "F1-08-V3",
+      "reference_id": "F1-08",
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage",
+        "aggregation_shape"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "planned",
+        "plan": {
+          "contract_version": "v1",
+          "catalog_version": "v1",
+          "operation": "read",
+          "profile_id": "v-energy-grid-360-gold",
+          "source_id": "gold.local",
+          "domain_id": "revenue",
+          "metric_id": "billing.revenue",
+          "dimension_ids": [
+            "geography.municipality"
+          ],
+          "group_by_dimension_ids": [],
+          "unit": "R$",
+          "window": {
+            "kind": "bounded",
+            "phrase": null,
+            "start": "2026-06-01",
+            "end": "2026-06-30",
+            "granularity": "month"
+          },
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "order": null,
+          "limit": 100
+        },
+        "plan_fingerprint": "4b75491301959be7aa7f350c2b9411e3067ca9c314a1c89c4073095a844dd689",
+        "response": null
+      },
+      "latency_ms": 26.92
+    },
+    {
+      "id": "F1-C01",
+      "reference_id": null,
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "De qual ano você quer consultar junho?",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Qual foi o faturamento de Recife em junho?"
+      },
+      "latency_ms": 46.63
+    },
+    {
+      "id": "F1-C02",
+      "reference_id": null,
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Qual período você quer consultar ou comparar?\n\nExemplo de pergunta: “Qual foi o faturamento de Recife em junho de 2026?”",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Qual foi o faturamento de Recife em 2027?"
+      },
+      "latency_ms": 39.33
+    },
+    {
+      "id": "F1-C03",
+      "reference_id": null,
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Qual período você quer consultar ou comparar?\n\nExemplo de pergunta: “Qual foi o faturamento em junho de 2026?”",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Qual foi o faturamento?"
+      },
+      "latency_ms": 38.79
+    },
+    {
+      "id": "F1-C04",
+      "reference_id": null,
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "refused",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": {
+            "code": "security_violation",
+            "retryable": false
+          },
+          "status": "refused",
+          "model_tier": null,
+          "answer": null,
+          "message": "Não posso executar alterações nem expor dados pessoais ou instruções internas.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        }
+      },
+      "latency_ms": 14.32
+    },
+    {
+      "id": "F1-C05",
+      "reference_id": null,
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "refused",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": {
+            "code": "security_violation",
+            "retryable": false
+          },
+          "status": "refused",
+          "model_tier": null,
+          "answer": null,
+          "message": "Não posso executar alterações nem expor dados pessoais ou instruções internas.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        }
+      },
+      "latency_ms": 14.29
+    },
+    {
+      "id": "F1-C06",
+      "reference_id": null,
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Não consigo confirmar uma janela mensal completa nessa publicação. Informe outro período mensal, como ‘últimos três meses’.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "consumo no município Recife em junho de 2026?"
+      },
+      "latency_ms": 40.39
+    },
+    {
+      "id": "F1-C07",
+      "reference_id": null,
+      "outcome": "observed_fields_match",
+      "differences": [],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": null,
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "A janela solicitada tem competências ausentes na publicação; escolha outro período completo.\n\nExemplo de pergunta: “Compare faturamento no município Recife entre maio de 2026 e junho de 2026?”",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Compare faturamento no município Recife entre de janeiro de 2026 a junho de 2026 e janeiro de 2025 a junho de 2025?"
+      },
+      "latency_ms": 54.15
+    },
+    {
+      "id": "F1-C08",
+      "reference_id": null,
+      "outcome": "divergent",
+      "differences": [
+        "status"
+      ],
+      "unmeasured": [
+        "sql",
+        "numbers",
+        "answer_quality",
+        "provider_usage"
+      ],
+      "first_divergence": "planning_http",
+      "observed": {
+        "contract_version": "v1",
+        "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "plan": null,
+        "plan_fingerprint": null,
+        "response": {
+          "contract_version": "v1",
+          "correlation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "audit_reference": null,
+          "error": null,
+          "status": "needs_clarification",
+          "model_tier": null,
+          "answer": null,
+          "message": "Informe uma competência com mês e ano, um intervalo de meses completos ou uma janela como ‘último trimestre’. Recortes por dia ou semana ainda não estão disponíveis neste planejamento.",
+          "evidence": [],
+          "limitations": [],
+          "analysis_context": null
+        },
+        "pending_question": "Agora quero o faturamento total de Recife em 2026, de janeiro a dezembro."
+      },
+      "latency_ms": 62.52
+    }
+  ]
+}

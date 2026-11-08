@@ -41,7 +41,7 @@ def test_gold_question_requires_existing_session_and_never_calls_demo(client, mo
     ask.assert_not_called()
 
 
-@pytest.mark.parametrize("profile", ["customer_service", "losses"])
+@pytest.mark.parametrize("profile", ["losses"])
 def test_profile_without_gold_metric_returns_public_limitation_without_reader_or_model(
     client, monkeypatch, profile,
 ):

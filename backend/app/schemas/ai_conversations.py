@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.schemas.ai import AIQuestionResponse, AIQuestionText
 from app.schemas.ai_question_publication import AIExpectedPublication
+from app.schemas.sql_analysis import SqlAnalysisResponse
 
 ConversationTitle = Annotated[
     str,
@@ -59,6 +60,8 @@ class ConversationExchange(BaseModel):
     state: Literal["pending", "completed", "interrupted", "unavailable"]
     question: AIQuestionText | None
     response: AIQuestionResponse | None
+    sql_response: SqlAnalysisResponse | None = None
+    batch_ref: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
 
 
 class ConversationDetail(BaseModel):
@@ -76,3 +79,4 @@ class ConversationQuestion(BaseModel):
     question: AIQuestionText
     expected_publication: AIExpectedPublication | None = None
     refresh_context: bool = Field(default=False, strict=True)
+    strategy: Literal["legacy", "sql_f1"] = "legacy"

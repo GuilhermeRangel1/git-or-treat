@@ -3,12 +3,11 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from pydantic import ValidationError
-from sqlalchemy import create_engine
-
 from app.models.genai_audit import AUDIT_EVENTS
 from app.schemas.genai_audit import GenAIAuditEvent
 from app.services.genai_audit import AuditStore
+from pydantic import ValidationError
+from sqlalchemy import create_engine
 
 
 @pytest.mark.parametrize("version", [
@@ -50,6 +49,33 @@ def test_audit_survives_new_store_and_expires_after_thirty_days(tmp_path):
     engine.dispose()
 
 
+def test_audit_reads_multiple_referenced_correlations_in_one_lookup(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'audit-batch.db'}")
+    AUDIT_EVENTS.create(engine)
+    store = AuditStore(engine)
+    first = store.record(GenAIAuditEvent(
+        correlation_id="a" * 32, stage="response", code="completed",
+        outcome="success", duration_ms=1,
+    ))
+    store.record(GenAIAuditEvent(
+        correlation_id="a" * 32, stage="source", code="available",
+        outcome="success", duration_ms=2,
+    ))
+    second = store.record(GenAIAuditEvent(
+        correlation_id="b" * 32, stage="response", code="completed",
+        outcome="success", duration_ms=3,
+    ))
+
+    found = store.read_references([first, second, "f" * 32])
+    assert len(found[first]) == 2
+    assert len(found[second]) == 1
+    assert set(found) == {first, second}
+    assert store.read_references([]) == {}
+    with pytest.raises(ValueError):
+        store.read_references(["not-an-audit-reference"])
+    engine.dispose()
+
+
 def test_audit_contract_does_not_accept_free_text_or_nested_payloads():
     base = {"correlation_id": "a" * 32, "stage": "response", "code": "completed",
                 "outcome": "success", "duration_ms": 0}
@@ -60,9 +86,9 @@ def test_audit_contract_does_not_accept_free_text_or_nested_payloads():
 
 
 def test_internal_ingress_requires_own_token_and_confirms_persistence(client, monkeypatch):
+    from app.core.config import settings
     from pydantic import SecretStr
 
-    from app.core.config import settings
     from tests.support.database import test_engine
 
     monkeypatch.setattr(settings, "GENAI_AUDIT_WRITE_TOKEN", SecretStr("a" * 40))

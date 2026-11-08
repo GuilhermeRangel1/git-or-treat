@@ -8,6 +8,7 @@ from app.agent.documentation import DocumentationResponder
 from app.agent.execution import ExecutionController, ExecutionLimits
 from app.agent.insights import ScreenInsightOrchestrator
 from app.agent.orchestrator import QuestionOrchestrator
+from app.agent.sql_candidates import SqlCandidateService
 from app.api.access import SYNTHETIC_SOURCE_ID, AccessContextResolver
 from app.api.application import SourceMode, create_api_application
 from app.config import Settings, get_settings
@@ -16,7 +17,7 @@ from app.ports.evidence import EvidenceSource
 from app.profiles.grid360_demo import GRID360_DEMO_PROFILE
 from app.profiles.grid360_sql_demo import GRID360_SQL_DEMO_PROFILE
 from app.providers.document_selector import GeminiDocumentSelector
-from app.providers.factory import build_model_adapter, build_model_router
+from app.providers.factory import build_model_adapter, build_model_router, build_sql_generator
 from app.providers.protocols import ModelAdapter
 from app.providers.routing import ModelRouter, ModelTier
 from app.readiness import evaluate_readiness
@@ -162,6 +163,13 @@ def create_app(
             max_evidence_bytes=active_settings.evidence_max_bytes,
             documentation_responder=documentation_responder,
         )
+    sql_candidate_service = None
+    if active_settings.sql_generation_enabled:
+        if source_mode != "external" or source_id != "gold.local":
+            raise ValueError("Geração SQL exige composição Gold externa.")
+        sql_candidate_service = SqlCandidateService(
+            build_sql_generator(active_settings), execution_controller, event_sink,
+        )
     return create_api_application(
         settings=active_settings,
         question_handler=question_orchestrator or core.question,
@@ -171,7 +179,10 @@ def create_app(
         source_mode=source_mode,
         access_context_resolver=access_context_resolver,
         readiness_handler=evaluate_readiness,
+        sql_candidate_service=sql_candidate_service,
     )
 
 
-app = create_app()
+# Instância demonstrativa de compatibilidade. A geração SQL é composta exclusivamente
+# por create_gold_app; habilitar sua flag não pode impedir a importação dessa fábrica.
+app = create_app(settings=get_settings().model_copy(update={"sql_generation_enabled": False}))

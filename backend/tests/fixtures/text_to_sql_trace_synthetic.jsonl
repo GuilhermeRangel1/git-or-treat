@@ -1,0 +1,5 @@
+INFO genai_execution {"service":"backend","strategy":"text_to_sql_f1","correlation_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","stage":"http","elapsed_ms":190,"outcome":"success","http_status":200,"contract_version":"text-to-sql-f1-v1","context_version":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+INFO genai_execution {"service":"backend","strategy":"text_to_sql_f1","correlation_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","stage":"context","elapsed_ms":12,"outcome":"success","mapping_version":"synthetic-mapping-v1","dictionary_version":"synthetic-dictionary-v1"}
+INFO genai_execution {"service":"backend","strategy":"text_to_sql_f1","correlation_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","stage":"sql_execution","elapsed_ms":30,"outcome":"success"}
+INFO genai_execution {"correlation_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","stage":"model","queue_ms":4,"work_ms":50,"outcome":"success"}
+INFO genai_usage {"correlation_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","provider":"gemini","model":"gemini-3.5-flash-lite","prompt_version":"f1-synthetic","attempts":1,"prompt_tokens":120,"output_tokens":20,"thought_tokens":10,"cached_tokens":0,"total_tokens":150}

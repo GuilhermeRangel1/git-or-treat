@@ -51,6 +51,25 @@ class AuditExecutionArtifact(BaseModel):
     result_digest: Hex64 | None = None
 
 
+class SqlF1AuditArtifact(BaseModel):
+    """Consulta canônica e linhagem F1, armazenadas apenas na auditoria Backend."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    artifact_version: Literal["text-to-sql-f1-audit-v1"] = "text-to-sql-f1-audit-v1"
+    contract_version: Literal["text-to-sql-f1-v1"] = "text-to-sql-f1-v1"
+    context_version: Hex64
+    batch_ref: GoldBatchRef
+    mapping_version: Annotated[str, Field(strict=True, min_length=1, max_length=100)]
+    dictionary_version: Annotated[str, Field(strict=True, min_length=1, max_length=100)]
+    candidate_digest: Hex64
+    admission_digest: Hex64
+    execution_digest: Hex64
+    result_digest: Hex64
+    template_digest: Hex64
+    canonical_sql_template: str = Field(min_length=1, max_length=16_000)
+
+
 class BackendAuditEvent(GenAIAuditEvent):
     """Metadados derivados do plano admitido; nunca recebe conteúdo do navegador."""
 
@@ -68,3 +87,4 @@ class BackendAuditEvent(GenAIAuditEvent):
     ] | None = None
 
     artifact: AuditExecutionArtifact | None = None
+    sql_f1_artifact: SqlF1AuditArtifact | None = None

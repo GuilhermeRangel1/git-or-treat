@@ -1,0 +1,66 @@
+{
+  "report_type": "gold_language_planning",
+  "synthetic": true,
+  "dataset_version": "p0-noncanonical-1.0.0",
+  "scenario_scope": "Two authored revenue paraphrases without revenue aliases; planning only, artificial coverage, development after this execution",
+  "provider": "none; interpretation only",
+  "limitations": [
+    "No SQL, numerical results, provider or portal validated.",
+    "Expected business meaning is annotated independently from actual planner output."
+  ],
+  "summary": {
+    "total": 2,
+    "passed": 0,
+    "failed": 2
+  },
+  "categories": {
+    "noncanonical_revenue": {
+      "total": 2,
+      "passed": 0
+    }
+  },
+  "cases": [
+    {
+      "id": "NONCAN-01",
+      "category": "noncanonical_revenue",
+      "passed": false,
+      "outcome": "unexpected_failure",
+      "actual_status": "needs_clarification",
+      "failing_checks": [
+        "filters",
+        "group_by_dimension_ids",
+        "metric_id",
+        "status",
+        "window"
+      ],
+      "checks": {
+        "status": false,
+        "metric_id": false,
+        "group_by_dimension_ids": false,
+        "filters": false,
+        "window": false
+      }
+    },
+    {
+      "id": "NONCAN-02",
+      "category": "noncanonical_revenue",
+      "passed": false,
+      "outcome": "unexpected_failure",
+      "actual_status": "needs_clarification",
+      "failing_checks": [
+        "filters",
+        "group_by_dimension_ids",
+        "metric_id",
+        "status",
+        "window"
+      ],
+      "checks": {
+        "status": false,
+        "metric_id": false,
+        "group_by_dimension_ids": false,
+        "filters": false,
+        "window": false
+      }
+    }
+  ]
+}

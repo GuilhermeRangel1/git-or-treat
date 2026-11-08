@@ -247,7 +247,7 @@ Para GenAI Gold v2, Comercial tem as cinco métricas de faturamento/energia e Op
 
 | ID | Prioridade | Estado | Requisito e critérios de aceite |
 | --- | --- | --- | --- |
-| IA-01 | Obrigatório | Pendente | **Perguntas em português.** Usuário não técnico pergunta sobre consumo, faturamento, interrupções e atendimento sem escrever SQL; perguntas representativas retornam números reconciliados com Gold. |
+| IA-01 | Obrigatório | Pendente | **Perguntas em português.** Usuário não técnico pergunta sobre consumo, faturamento, interrupções e atendimento sem escrever SQL; perguntas simples e compostas suportadas retornam números reconciliados com Gold. Inclui ranquear municípios por queda de consumo e apresentar a decomposição publicada da variação da receita faturada por classe, com períodos, unidades e método explícitos; não atribuir causalidade sem evidência. |
 | IA-02 | Obrigatório | Pendente | **Vocabulário do negócio.** Perguntas como “conta de luz” e “falta de luz” são mapeadas corretamente para métricas/fontes; ambiguidades relevantes geram pergunta de esclarecimento. |
 | IA-03 | Obrigatório | Pendente | **Resposta fundamentada.** Cada resposta quantitativa mostra período, filtros, unidade, fonte/consulta ou trilha equivalente e observações de qualidade; analista consegue reproduzir amostra. |
 | IA-04 | Obrigatório | Em validação | **Insights dentro do portal.** Ao menos uma tela apresenta insight contextual gerado por IA para interpretar o dado exibido, com sinalização de base temporal e possibilidade de verificar os números. |
@@ -255,6 +255,12 @@ Para GenAI Gold v2, Comercial tem as cinco métricas de faturamento/energia e Op
 | IA-06 | Obrigatório | Pendente | **Somente leitura e limites.** IA não altera dados, não executa SQL arbitrário fora do esquema autorizado e responde “não sei”/explica insuficiência quando a evidência falta. Testes demonstram bloqueio de escrita e de perguntas fora do escopo. |
 | IA-07 | Diferencial | Concluído | **Follow-up com contexto.** Usuário faz pergunta complementar e o agente mantém período, métrica e filtros relevantes sem confundir conversas. |
 | IA-08 | Diferencial | Concluído | **Avaliação automática.** Conjunto versionado de perguntas e resultados esperados mede correção numérica, fundamentação e recusa adequada, com relatório de regressão. |
+
+### 06/11/2026 — IA-01 / TSQL-11 — definição da análise composta prioritária
+
+- A pessoa usuária confirmou comparar jul/2025–jun/2026 com jul/2024–jun/2025, ranquear a maior queda absoluta de consumo medido em kWh e mostrar o percentual quando a base anterior for positiva.
+- Para a variação da receita faturada por classe, usar o `efeito_volume_reais` da decomposição publicada Gold; apresentar método e períodos, sem declarar causalidade.
+- O requisito segue pendente de implementação/aceite. O fluxo F1 atual limita a métrica a receita faturada; a implementação e o benchmark desta capacidade pertencem à expansão controlada TSQL-11. A matriz de 486 casos do interpretador antigo é somente regressão e não evidencia qualidade do Text-to-SQL.
 
 ### 6.4 Diagnóstico, documentação e entrega — ENT
 
@@ -464,6 +470,77 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Entrada de evidência adicionada abaixo e estado do ID alterado para `Concluído` na mesma mudança.
 
 ## 14. Registro de progresso
+
+### 2026-11-07 — IA-01 / TSQL-11 — variação percentual em comparação F1
+
+- Em comparações já aprovadas de totais, o Backend deriva `(período 1 - período 2) / período 2 * 100` a partir dos totais e da diferença executados; arredonda a duas casas com `ROUND_HALF_EVEN`. Base ausente, zero ou negativa resulta em percentual nulo, com texto que explica a indefinição para zero/negativo.
+- Evidência e apresentação v2 acrescentam unidade `%`; leitores preservam respostas v1 do histórico. O candidato SQL e a autorização continuam limitados aos três resultados SQL existentes; percentual é cálculo Backend rastreado pelo digest da evidência.
+- Verificação em Docker: `python -m pytest -q -p no:cacheprovider tests/test_genai_sql_evidence.py tests/test_genai_sql_presentation.py tests/test_genai_sql_result.py tests/test_genai_sql_comparison.py tests/test_genai_sql_semantics.py tests/test_genai_sql_public_route.py -k "not sql_analysis_route_is_disabled_by_default_for_authenticated_user"` — 95 passaram, 1 foi ignorado e 1 foi excluído. `python -m compileall -q app tests` passou.
+- O teste de contrato Frontend para v2 foi incluído, mas não iniciou: `npm run test -- src/features/assistente/contract.test.ts` — `vitest` não está instalado no `frontend/node_modules` disponível. A execução Backend sem excluir `test_sql_analysis_route_is_disabled_by_default_for_authenticated_user` falhou porque a dependência Gold retorna `Leitura Gold indisponível.` antes da rota, divergindo da mensagem esperada `Análise SQL indisponível.`; esse comportamento já havia sido observado antes desta ampliação. Próximo passo: corrigir/validar a precedência de disponibilidade da rota e rodar os testes do Frontend.
+- Esta entrega conclui somente a derivação da comparação não agrupada no Backend. TSQL-11 continua aberta; comparação agrupada/ranking por variação, novos domínios, JOINs, análise composta, reparo e validação portal/Gemini permanecem pendentes. Estados oficiais IA/WEB foram preservados.
+
+### 2026-11-07 — IA-01 / TSQL-11 — comparação agrupada por Gold v2
+
+- A comparação F1 passa a aceitar agrupamento por município e/ou classe de consumo sobre `gold_v2.diagnostico_receita`. Para cada grupo, o SQL precisa produzir os dois totais de janela e a diferença; o Backend continua derivando a variação percentual por grupo com base positiva. O ranking opcional ordena pela diferença em reais, exige limite explícito e desempata por todas as dimensões; agrupamento por competência e ordenação por percentual permanecem recusados.
+- Testes cobrem linhagem SQL, janelas e filtros, agrupamento divergente, ranking asc/desc, desempate, evidência v2 por grupo e estados vazios/nulos. Backend: 144 testes dirigidos passaram; gerador: 38 testes passaram. Na Gold v2 real, consulta somente leitura no papel `venergy_genai_reader` confirmou 70 grupos município/classe com os dois períodos completos, diferenças presentes e bases anteriores positivas. No container Frontend montado no worktree, 25 testes de contrato/visualização passaram e `npm run build` passou.
+- A entrega não conclui TSQL-11 nem IA-01: não houve chamada Gemini, aceite visual na tela ou medida de consumo/efeito de volume. A tabela `decomposicao_receita` não tinha linhas para as janelas confirmadas nesta publicação, portanto nenhum impacto foi inferido de co-variação de consumo e faturamento. Estados oficiais IA/WEB permanecem pendentes.
+
+### 2026-11-07 — IA-01 / TSQL-11 — reconciliação de consumo e compatibilidade de evidência
+
+- A consulta somente leitura sobre `gold_v2.diagnostico_receita` comparou jul/2025–jun/2026 com jul/2024–jun/2025 por município. Para `consumo_total_kwh`, as somas com `FILTER` por janela coincidiram com as somas em duas etapas, por competência e depois por janela. Os 14 grupos tinham as 24 competências observadas e base anterior positiva. Onze tiveram queda. A leitura gerou apenas contagens e a transação foi revertida ao final.
+- A CLI isolada de prontidão encerrou por configuração incompleta. A chamada ao cliente interno da aplicação para as 24 competências retornou `control_pending` para consumo mensal e atendimento mensal, e `control_pending,coverage_incomplete` para DEC/FEC. Em Gold v2, `control_pending` indica que ao menos um controle exigido está sem resultado, não passou ou não está aprovado no mesmo lote; os controles exigidos são C03/C10 para consumo, C14/C15 para atendimento e C11 para DEC/FEC. O registro sanitizado não preservou o estado individual de cada controle, então não permite afirmar qual condição específica faltou. Preço-volume apareceu como disponível no relatório, mas a tabela de decomposição não tem linhas para o par exato de janelas. A aprovação dos controles e a publicação de um recorte compatível continuam pendentes.
+- O ranking por diferença usa direção e limite existentes para preservar os digests do histórico. O serviço GenAI agora valida evidência v2. As suítes dirigidas passaram com 144 testes Backend e 68 testes GenAI, incluindo os contratos compartilhados. IA-01 segue pendente.
+
+### 2026-11-07 — TSQL-11 — política estrutural e análise composta inicial
+
+- Acrescentado um serviço Backend para combinar evidências tipadas de consumo e decomposição de receita somente sob identidade igual de lote, escopo e janelas, com validação de cobertura dos grupos. A suíte isolada passou com 9 testes; o serviço ainda não integra a rota nem admite consultas SQL compostas.
+- A bateria estrutural agora identifica e rejeita explicitamente HAVING, UNION, funções de janela, subconsultas e um JOIN fato-a-fato que pode multiplicar linhas. Em conjunto com os testes do serviço composto, passaram 79 testes Backend dirigidos. Nenhuma consulta foi executada na Gold nesta verificação.
+- TSQL-11 permanece aberta para integração de medidas, prontidão das capacidades, JOIN aprovado com cardinalidade/reconciliação, validação visual e avaliações restantes.
+- Preparação operacional da Gold v2 em staging registrada no TODO com `AMBIENTE=test`, janelas jul/2024–jun/2025 e jul/2025–jun/2026, sem tarefa de exportação. A execução permanece pendente porque a CLI Databricks não está instalada; a Gold ativa não foi alterada.
+- Testes de observação confirmam que consumo, atendimento, DEC e FEC preservam a intenção sem admitir ou transportar SQL. A expansão executável continua dependente de controles Gold ainda pendentes.
+- Amostra Gemini f1-19 de dois casos sintéticos, sem SQL, teve dois envelopes rejeitados pelo contrato. Reserva conservadora acumulada registrada em US$ 2,971338 de US$ 3; custo exato indisponível. O resultado não comprova entendimento do modelo.
+
+### 2026-11-07 — IA-01 / TSQL-11 — suporte SQL condicionado para consumo medido
+
+- O Backend Text-to-SQL agora monta contexto v2 para `energy.consumption`, seleciona a fonte agregada `gold_v2.diagnostico_receita` e permite apenas a medida `consumo_total_kwh`, com unidade kWh e tipo numérico `double` segundo o catálogo. A revisão semântica compara métrica, coluna, unidade, período e filtros; a materialização arredonda conforme a regra Gold half-even. A resposta e os contratos de evidência/portal distinguem consumo medido de faturamento.
+- Antes da prontidão, a admissão confere os meses pedidos na fonte exata dentro do snapshot somente leitura. Também exige prontidão disponível para `consumo.mensal_uc` e para a capacidade catalogada da fonte; falta de cobertura ou controle bloqueia o candidato antes da execução. A escolha da métrica respeita o escopo atual e o contexto de continuidade da conversa. Perguntas que pedem consumo e faturamento ao mesmo tempo são recusadas antes do modelo enquanto a análise composta não estiver integrada, para não devolver apenas uma parte.
+- Verificações nesta worktree `feat/genai-text-to-sql`: **298 testes Backend Text-to-SQL passaram e 14 foram ignorados**; **107 testes dirigidos do agente GenAI passaram**; Ruff, `compileall` e `git diff --check` passaram. Os testes provam os gates e contratos com fixtures sintéticas. O Vitest do Frontend não pôde rodar porque `frontend/node_modules` não está instalado (`vitest` não reconhecido).
+- Esta é uma implementação parcial, não aceite ponta a ponta: não houve leitura da Gold ativa, aprovação dos controles, chamada Gemini, resultado pela rota pública com execução ou confirmação visual no Assistente. A prontidão Gold anteriormente observada segue `control_pending` para consumo, e atendimento/DEC/FEC continuam sem execução F1. TSQL-11 e IA-01 permanecem abertas; estados oficiais IA/WEB não foram alterados.
+
+### 2026-11-07 — TSQL-11 — conferência operacional de controles e privilégios Gold
+
+- A checagem `backend/scripts/check_gold_readiness.py --scope domains --period 2026-06` foi executada em leitura no Docker local, com aceite explícito das regras candidatas. O serviço Backend e o serviço GenAI estavam saudáveis, mas a CLI retornou “Não foi possível comprovar prontidão” sem relatório de capacidades.
+- Diagnóstico sanitizado do observador identificou PostgreSQL `42501: permission denied for table fila_inspecao`. A sondagem de metadados do papel leitor confirmou leitura de coluna em `consumo_mensal_uc`, `diagnostico_receita`, `visao_360_uc`, `ocorrencias_uc`, `indicadores_dec_fec` e `atendimentos_uc`; não confirmou acesso a `fila_inspecao` e `cobertura_dominios` (nem às fontes ainda não liberadas `faturas_uc`, `medidor_uc`, `gd_uc` e `tratativas_uc`).
+- O observador enumera todas as fontes antes de calcular os controles e interrompe em `fila_inspecao`; além disso, sem `cobertura_dominios` não se prova cobertura fechada do recorte. Portanto, esta execução não comprova aprovação de C03/C10 para consumo, C11 para DEC/FEC, nem C14/C15 para atendimento. A configuração das aprovações não é suficiente para liberar consulta kWh. Nenhuma permissão, dado Gold ou configuração do lote foi alterada; não houve Gemini nem execução analítica.
+- Próximos passos TSQL-11: fazer o observador degradar por capacidade quando uma fonte ainda não autorizada estiver inacessível, e alinhar com Engenharia de Dados a leitura mínima da cobertura necessária ao período; então repetir a prontidão e a consulta de kWh/DEC/FEC/atendimento contra a mesma publicação antes de qualquer aceite. TSQL-11 permanece aberta.
+
+### 2026-11-07 — IA-01 / TSQL-11 — alinhamento do gate de consumo ao fluxo legado
+
+- A conferência histórica confirmou que a métrica do fluxo anterior usa `consumo_total_kwh` de `diagnostico_receita` sob a capacidade `faturamento.receita`, controlada por C01/C02/C04. O catálogo GenAI e o catálogo Backend foram alinhados para usar essa mesma capacidade no Text-to-SQL; a admissão continua verificando a competência na fonte exata dentro do snapshot.
+- Consulta real no PostgreSQL local, com `GENAI_GOLD_DATABASE_URL` e somente leitura: `SUM(consumo_total_kwh)` para junho/2026 retornou 13.572.438 kWh em 161 grupos. Testes dirigidos `test_genai_sql_admission.py` e `test_genai_sql_context.py`: 49 passaram.
+- A consulta acima prova a fonte e a medida, mas ainda não a jornada pública: a prontidão geral continua falhando ao inspecionar fontes sem privilégios e não devolveu estado real de C01/C02/C04. Não houve chamada Gemini. Atendimento/DEC/FEC permanecem sem consulta Text-to-SQL. IA-01 e TSQL-11 seguem abertas.
+
+### 2026-11-07 — IA-01 / TSQL-11 — satisfação mensal na F1
+
+- Adicionado `service.satisfaction` à geração F1 v7 para o perfil Atendimento, usando exclusivamente `AVG(nota_satisfacao)` em `gold_v2.atendimentos_uc` com janela UTC de `data_abertura`. O contrato exige média mensal (`average_non_null`) sem filtros ou agrupamentos; SQL alternativo, `COUNT`, valores NULL/zero no predicado e janelas não correspondentes são recusados. NULL é ignorado conforme catálogo; zero é válido. Evidência v7 e apresentação v6 mantêm unidade `pontos` e a limitação “Média das notas informadas; valores ausentes são excluídos e zero é válido.”
+- Verificação: 297 testes Backend passaram e dois foram ignorados por exigirem banco descartável; 22 testes do gerador AI Agent passaram; 18 testes Vitest do decoder passaram e o build Frontend concluiu. Um PostgreSQL 16 descartável executou a rota de pipeline/read-only com dados sintéticos (4,5, 0, NULL em junho e 1,0 em julho) e reconciliou 2,25 com `AVG` independente; a rota pública autenticada em teste reconheceu o contrato v7 para o perfil Atendimento.
+- Gold v2 ativa, leitura somente agregada em transação PostgreSQL `READ ONLY`, junho/2026: 6.433 protocolos, 6.260 notas não nulas, zero notas zero e média `4,098466453674122` (4,10 após arredondamento HALF_EVEN). Isso confere população e fórmula no dado ativo, mas **não comprova C14/C15 nem a rota pública**. O avaliador de prontidão atual ainda aborta ao acessar fontes sem grant (incluindo tabela de cobertura), antes de emitir um estado utilizável. TSQL-11 e IA-01 permanecem abertas; nenhum estado oficial foi promovido. Nenhuma chamada Gemini, mudança de grants ou commit foi realizada.
+
+### 2026-11-07 — IA-01/02/06 — proteção de domínio na F1
+
+- O Backend e o prompt F1-17 preservam o assunto inteiro e recusam assuntos externos explícitos, inclusive pedidos mistos com receita e período.
+- Verificações anteriores: suíte de observação e rota passou (16 testes, 1 ignorado), rota com PostgreSQL 16 descartável passou (12) e gerador passou (22).
+- A captura manual do portal em Docker, em 07/11/2026, mostrou “Qual a receita de miojo de janeiro de 2026?” recebendo resposta de faturamento. A investigação identificou que a interface pode usar a rota padrão `/api/v1/ai/questions`, que não passava pela guarda exclusiva do TSQL F1.
+- Correção posterior: a política determinística foi centralizada e aplicada antes das dependências Gold tanto na rota padrão como no envio de perguntas do histórico legado; a rota F1 mantém defesa no pipeline. Os testes direcionados no Docker confirmam recusa no padrão e no legado sem chamada ao modelo, recusa no F1 e preservação da observação para perguntas de energia. O teste completo de observação passou (14).
+- TSQL-10A permanece aberta até confirmar pela tela os modos padrão e TSQL F1. O controle de navegador local do Work estava desativado nesta sessão; essa verificação visual não foi substituída pelos testes HTTP. A medição de assuntos inéditos com Gemini real continua planejada para TSQL-12.
+- A regra local cobre expressões explícitas. A avaliação de assuntos inéditos com Gemini real segue pendente; os estados oficiais foram preservados.
+
+
+### 2026-11-05 — TSQL-05 — observabilidade da geração em preparação
+
+- Evoluído o prompt F1 para `text-to-sql-f1-2`, explicitando política contra instruções externas e os formatos das operações; adicionados logs sanitizados de versão/modelo, parâmetros, latência, tamanho do contexto, tokens disponíveis e falhas tipadas. Probe de chamada real passou a registrar parâmetros/tamanho, limitado a uma solicitação e sem execução SQL.
+- `ruff`, `compileall`, smoke dos eventos, nove testes puros de telemetria/captura/fábrica e `git diff --check` passaram. O Backend exportou 40 contextos artificiais e o runner confirmou hash/cobertura sem chamada Gemini. O teste direcionado do gerador não pôde ser concluído neste Windows: o loop Proactor travou ao criar self-pipe em `socket.accept`; a tentativa com Selector também não encerrou e foi interrompida. A suíte permanece não aprovada até repetição em ambiente compatível.
+- Isto melhora observabilidade/configuração, mas não demonstra acerto semântico, resistência empírica a prompt injection, qualidade nos 40 casos F1 ou aceite Gold. TSQL-05 segue em andamento. Detalhes e critérios pendentes em [TODO 3](plans/TODO_3_Text_to_SQL_Generativo.md#tsql-05--gerador-sql-em-observação) e [contrato F1](contracts/text-to-sql-f1.md#adaptador-gemini).
 
 ### 2026-11-04 — IA-01/02/03/05/06/07/08 — consistência das consultas do Assistente
 
@@ -4092,3 +4169,416 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 ### 2026-11-04 — IA-01 / IA-02 / IA-03 — ranking de unidades com GD
 
 O catálogo Gold v2 permite contar e ordenar UCs com GD registrada por município no lote. A API autenticada local retornou Recife, 1.420 UCs, reconciliadas com uma agregação SQL independente usando o leitor restrito. A suíte de linguagem de GD e continuidade passou com 18 testes, incluindo confirmação de GD e do limiar de queda sem perder o município. A métrica cadastral não descreve vigência histórica nem comprova origem solar.
+
+### 05/11/2026 — IA-01/02/03/05/06/07/08 e ENT-01 — conferência detalhada do diagnóstico
+
+- Branch `feat/genai-diagnostico-final`, base `origin/develop` em `0511232`; entrega de preparação/diagnóstico, sem alteração dos estados oficiais dos requisitos.
+- Rastreio estático portal → Backend → composição Gold v2 → interpretação/plano → executor → síntese → consumidor e cobertura dos itens 1.1/1.2 registrados em [conferência do diagnóstico](plans/2026-11-05-genai-diagnostico-conferencia.md). Jornada visual atual permanece pendente. Intenção quantitativa semântica não é composta nesta base; não se declara passagem ao planner ou integração inexistente.
+- Adicionadas duas perguntas autorais de receita sem aliases dessa métrica. Conferência normalizada com o catálogo vigente confirmou a ausência dos aliases. Expectativas anotadas de métrica, janela, filtros e agrupamento não foram inferidas das respostas reais. Ambas falharam no planejamento: 0/2 conformes. Casos passam a ser desenvolvimento; não são reserva independente.
+- Avaliador existente admite explicitamente a nova fixture `gold_p0_noncanonical.json`; nenhuma regra de interpretação produtiva foi alterada. `python -m pytest tests/test_gold_language_evaluation.py -q -p no:cacheprovider --tb=short`: 3 passaram em 5,00 s. `python -m ruff check tests/test_genai_regression.py` e `git diff --check`: passaram.
+- Limites: cobertura e planejamento artificiais; sem novo SQL, Gemini, portal, revisão numérica ou certificação Gold. Seção 1.3 e oráculos detalhados ainda precisam de auditoria. P0 completo permanece aberto; os TODOs continuam locais e fora de commits.
+
+### 05/11/2026 — IA-01/02/03/08 — fortalecimento dos oráculos do diagnóstico
+
+- Conferência de 55 casos de planejamento identificou quatro expectativas sem janela e nove sem filtros. As fixtures foram completadas com base nas perguntas; não houve ajuste da interpretação produtiva nem alteração dos estados oficiais.
+- Reexecução com verificações detalhadas: 40/46, 4/7 e 0/2 conformes. Fotografia anterior em `ai-agent/reports/genai-p0-oracle-audit.json`; execução posterior em `genai-p0-oracles-recheck.json`. As versões das fixtures receberam sufixo `-oracle-audit-1`.
+- Permanecem pendentes conferência de operação/ordenação/limite de todos os casos, referências numéricas por família, métricas restantes e jornada visual. P0 continua aberto; fonte Gold v2 com cobertura artificial, sem nova prova SQL ou de provedor.
+
+### 05/11/2026 — IA-01/02/03/08 — execução reproduzível das medições P0
+
+- Adicionado `ai-agent/tests/p0_measurements.py`: executa os 55 casos de planejamento em conjuntos separados e os 14 casos de síntese artificial existentes; registra contexto/oráculo/observado, checks por campo, mensagem, latência local e fronteira observável da divergência. Nenhum estado oficial é alterado.
+- `python -m tests.p0_measurements`: 40/46, 4/7 e 0/2 conformes em planejamento; 14/14 na síntese artificial. O gate detecta erro de avaliador e falha numérica; divergências conhecidas de planejamento continuam explícitas. `python -m ruff check tests/p0_measurements.py`: passou.
+- Relatório local `ai-agent/reports/genai-p0-measurements.json`. Evidência Gold v2 artificial; não comprova SQL, intenção interna isolada, números reais, naturalidade final ou portal. A reserva não é executada. Tokens/custo reais não medidos. Stack Docker compilada e iniciada com configuração local ignorada; etapa visual interrompida pela ferramenta devido ao Firefox. P0 segue aberto pelas lacunas declaradas.
+
+### 05/11/2026 — IA-01/02/03/06/08 — diagnóstico reunido à interpretação semântica
+
+- A pedido da pessoa usuária, alterações da branch de diagnóstico foram reunidas à `feat/genai-interpretacao`, mantendo o trabalho experimental P1 e os TODOs locais. Nenhum estado oficial de requisito é alterado.
+- O runner captura a interpretação selecionada pelo planner e mede seus campos anotados separadamente do plano: 43/46, 6/7 e 0/2 na interpretação limitada; 40/46, 4/7 e 0/2 nos oráculos de plano. Esclarecimentos indevidos nos controles suportados: 0/22, 1/5 e 2/2; capacidades ausentes separadas. Zero novas regressões nos 53 casos comparáveis; dois casos novos sem baseline. Síntese artificial 14/14.
+- Revisão qualitativa do agente de 18 mensagens existente em `genai-p0-language-review.json`, distinta da revisão humana anterior de 24 cenários. Não classifica como resposta final os seis casos com apenas plano.
+- Sete solicitações reais ao Gemini: quatro propostas válidas no contrato, três erros HTTP 503, 18.456 tokens retornados nas quatro respostas com metadados; custo indisponível por preço não configurado. Relatório local `genai-semantic-probe.json`. Esses dados são amostra de desenvolvimento, não benchmark de produção nem gate de promoção.
+- Seis testes dirigidos de avaliação/shadow passaram em 7,02 s; Ruff dirigido passou. Tentativa SQL Windows interrompida; primeira tentativa Linux recusou banco descartável sujo, que foi recriado isoladamente. Repetição em banco limpo em andamento; sem nova aprovação SQL nesta anotação.
+
+### 05/11/2026 — IA-03/06/08 — nova prova independente SQL do diagnóstico
+
+- Repetição Linux em PostgreSQL 16 descartável limpo concluída: `python -m pytest tests/test_genai_session_postgres.py::test_session_selects_reader_and_database_denies_prohibited_access -q -p no:cacheprovider --tb=short -o faulthandler_timeout=60`: 1 passou em 145,96 s; aviso preexistente Starlette/httpx. A saída de diagnóstico aos 60 s não foi falha do teste. JUnit privado em `work/p0-sql-linux-result.xml`.
+- Prova autenticada percorre coordenação, SQL pelo leitor restrito, referência fixa independente, evidência, síntese e auditoria, com controles de falha. Relatório sanitizado `ai-agent/reports/genai-p0-sql-recheck.json`. Dados artificiais Gold v2 e modelo falso; não reconcilia as 55 perguntas nem certifica lote real/portal.
+- Container descartável sem volume parado/removido após conclusão; banco do portal preservado. Itens de medição SQL/números do TODO receberam evidência com alcance; estados oficiais dos requisitos preservados. P0 inteiro continua aberto por jornada visual e cobertura detalhada de oráculos/referências, sem bloquear a continuação das correções P1.
+
+### 05/11/2026 — IA-01/02/03/05/06/07/08, ENT-01 — roteiro de transição Text-to-SQL
+
+- A pedido da pessoa usuária, preparado um roteiro novo a partir do documento Text-to-SQL generativo fornecido, sem usar os TODOs anteriores como fila de execução: [TODO 3 adaptado ao projeto](plans/TODO_3_Text_to_SQL_Generativo.md).
+- Inspeção estrutural de GenAI, Backend, Gold/dados, portal, testes, Docker e CI identificou reaproveitamento e migração de contratos, leitor/snapshot, catálogo/prontidão, evidência/síntese, contexto/histórico, cache/replay e visualização. Foram estruturadas 12 entregas com dependências, critérios de conclusão e primeira fatia completa de faturamento.
+- Entrega exclusivamente documental/preparatória. A nova ADR, contratos generativos e autorização de execução serão entregas próprias; este roteiro não altera silenciosamente a ADR-0002 nem habilita SQL gerado pelo modelo. Estados oficiais e critérios de aceite dos requisitos permanecem preservados.
+- Verificação documental: 24 links locais, 22 caminhos do repositório e 12 entregas conferidos sem destino ausente; `git diff --check` passou. Não houve nova execução funcional, teste de migração, consulta Gold ou chamada ao modelo nesta rodada. O TODO permanece local, sem commit/push.
+
+### 05/11/2026 — IA-01/02/03/05/06/07/08 — delimitação da primeira fatia Text-to-SQL
+
+- TODO 3 revisado para 1.1: F1 restrita à receita faturada em `gold_v2.diagnostico_receita`, filtros de município/classe/competência, somas, séries, grupos, rankings simples e comparação de duas janelas com diferença em reais. Oito cenários, incluindo sequência Recife/junho/ano/acumulado/comparação, com tratamento de cobertura anual incompleta.
+- Saída do gerador detalhada como proposta de contrato; integração E dividida em Backend/GenAI/Portal, com continuidade mínima para a demonstração. A decisão de permitir SQL proposto continua sujeita à entrega da ADR/contratos prevista no roteiro; estados oficiais preservados.
+- Evidência de PostgreSQL no código/Compose conferida, sem conexão nova. Registro de inventário limita sua afirmação à inspeção estrutural efetivamente realizada. Verificação documental de 24 links e consistência das 12 entregas passou; `git diff --check` passou. Nenhum teste funcional nesta revisão documental. Os três TODOs permanecem sem commit/push.
+
+### 05/11/2026 — IA-01/02/03/05/06/07/08 — critérios de saída do roteiro Text-to-SQL
+
+- TODO 3 atualizado para 1.2: 12 entregas com critérios verificáveis, evidência mínima, bloqueios e próximo estado permitido. Cada tarefa/caso F1 exige registro de esperado/observado e alcance; marcos E1/E2/E3 receberam critérios separados para impedir conclusão de ponta a ponta por componente isolado.
+- Verificação documental: 12 blocos completos, 24 links válidos, blocos de código balanceados e `git diff --check` passou. Não houve implementação ou teste funcional nesta revisão; nenhum critério de produto ou estado oficial foi alterado. Os três TODOs permanecem locais, sem commit/push.
+
+### 05/11/2026 — IA-01/03/05/06/07/08 — decisão e fronteiras Text-to-SQL
+
+- ADR-0025 registra a direção autorizada de SQL proposto pelo modelo, mantendo validação final, autorização e execução no Backend. A ADR-0002 preserva o fluxo implantado até integração e ativação explícita; não houve mudança de aceite dos requisitos.
+- Matriz de consumidores e testes, contrato candidato F1 e vetores compartilhados em [contrato F1](contracts/text-to-sql-f1.md). Guias dos serviços e skills locais alinhados à transição. SQL candidato não equivale a consulta aprovada.
+- Verificações documentais: caminhos e links locais conferidos; `git diff --check` passou. Esta parte registra preparação/decisão, sem habilitar endpoint generativo, executor ou acesso a novos dados.
+
+### 05/11/2026 — IA-02/03/06/08 — contrato e contexto autorizados da F1
+
+- Adicionados schemas independentes de candidato SQL nos dois serviços, parâmetros estritos, estados coerentes, janelas mensais e metadados de resultado. Fixtures comuns com três válidos e dez inválidos têm aceitação/rejeição e JSON Schema comparados entre serviços.
+- Contexto F1 seleciona apenas receita e colunas/dimensões autorizadas do catálogo instalado; digest vincula identidade, escopo, pergunta, conversa, publicação e cobertura sem divulgar a identidade ao modelo. Excesso de tamanho falha sem truncar restrições.
+- Verificações observadas: testes de contrato com 28 casos aprovados, nove testes de contexto Backend aprovados e Ruff dirigido passou. Não certifica prontidão/schema vivo nem autoriza/executa SQL; transporte e composição runtime permanecem pendentes.
+
+### 05/11/2026 — IA-01/02/03/05/06/07/08 — preparação implementada da transição generativa F1
+
+- ADR-0025 registra direção autorizada e substituição parcial explícita da ADR-0002 na arquitetura-alvo: modelo propõe SQL, Backend valida/autoriza/executa; runtime antigo permanece até integração. Guias, índice de decisões e skills locais alinhados. Matriz de consumidores, contratos e testes existentes em [contrato F1](contracts/text-to-sql-f1.md). TSQL-01 encerrada apenas como preparação; estados oficiais IA/ENT preservados.
+- Implementados schemas independentes `sql_generation.py` nos dois serviços, com contrato `text-to-sql-f1-v1`, três estados, parâmetros estritos, janelas mensais, regras de ranking/comparação e colunas. Fixtures compartilhadas incluem três válidos/dez inválidos; teste cruzado confere schema e resultados nos dois serviços. Envelope válido não autoriza SQL.
+- Implementado `backend/app/services/genai_sql_context.py`: seleciona somente receita/colunas/dimensões F1 autorizadas do catálogo instalado, vincula digest a contexto/identidade/escopo/cobertura/publicação e rejeita excesso sem truncamento. Não consulta dados nem certifica prontidão. Adaptador `GeminiSqlGenerator` com schema fechado, limites configuráveis, versão de contexto, timeout e erros tipados; ainda sem composição/rota de runtime.
+- Referências manuais artificiais para F1-01 a F1-08 e testes PostgreSQL cobrem total/grupos/ranking/comparação, grão adicional, ano completo/incompleto, nulo/zero/ausência/estorno. Não são execução de candidatos do modelo nem revisão humana independente da metodologia.
+- Verificações: 50 testes dirigidos GenAI em 5,56 s; nove de contexto Backend em 0,14 s; 13 de referências PostgreSQL 16 em 130,56 s; Ruff dos arquivos novos e `git diff --check` passaram. Containers descartáveis sem volume removidos após provas. Uma geração real sobre contexto artificial passou no contrato em 2.770,03 ms, com 1.118 tokens reportados; AST offline SELECT, nenhum SQL candidato executado. JUnit/probe privados em `work/`.
+- Versões observadas: Pydantic 2.13.4, google-genai 2.31.0, SQLGlot 30.24.0; documentação Pydantic consultada via Context7 com fontes no contrato F1. Não houve execução da suíte completa, novo aceite de Gold real/portal ou ativação do gerador. Próximos marcos: transporte/composição, validador Backend, executor generativo e integração F1. Os três TODOs continuam locais sem commit/push.
+
+
+### 05/11/2026 — IA-01/02/06/08: transporte privado de candidatos SQL
+
+- Integração executável entre cliente Backend e fábrica Gold para geração de candidatos, com autenticação de serviço, correlação/contexto versionados, auditoria durável e orçamento compartilhado. Configuração desligada por padrão; caminho público e execução SQL não integrados.
+- Evidências: `ai-agent/tests/test_sql_candidate_http.py`, `backend/tests/test_genai_sql_client.py` e fixtures HTTP comuns. 145 testes dirigidos GenAI e 52 Backend aprovados, incluindo fronteira entre processos com modelo artificial.
+- Suíte GenAI completa: 4.608 aprovados, 17 skips e uma falha de importação no experimento local anterior `intent_proposer.py`. Sem nova chamada real ao Gemini, consulta PostgreSQL ou jornada portal. Estados oficiais dos requisitos preservados; esta fatia não encerra aceite Gold.
+
+
+### 05/11/2026 — preparação de parâmetros no Backend
+
+- Adicionado `backend/app/services/genai_sql_parameters.py`: exige igualdade entre parâmetros do envelope e nomes fornecidos pelo futuro analisador; converte datas e Decimal sem interpolação ou perda de precisão. Não conectado ao executor.
+- Cinco testes passaram (0,19 s), cobrindo precisão decimal, data, preservação do envelope e parâmetros ausentes/extras/substituídos.
+- TSQL-06 permanece aberto: extração AST, autorização física e artefato aprovado ainda pendentes. Esta função isolada não aprova SQL.
+
+
+### 05/11/2026 — IA-03/06/08 e WEB-10: revisão estrutural SQL no Backend
+
+- Implementada `backend/app/services/genai_sql_structure.py`, independente do executor: contexto reconstruído pelo Backend e digest conferido; uma fonte física autorizada; allowlist positiva de nós e atributos PostgreSQL; aliases, agrupamentos, SUM/FILTER/subtração, filtros nomeados, ordenação e LIMIT do subconjunto F1. CTE/JOIN/subconsultas/escrita/locks/casts/funções externas são recusados.
+- Parâmetros extraídos da AST conferem exatamente com o envelope, sem interpolação. SQL canônico usa placeholders psycopg e passa por round-trip; resultado imutável não retém o dicionário mutável do candidato. SQLGlot fixado em `>=30.24.0,<30.25`, observado 30.24.0; API conferida via Context7 e fonte instalada. Logs do fallback não copiam trechos do SQL.
+- Verificações: `work/p0-validation-venv/Scripts/python.exe -m pytest backend/tests/test_genai_sql_structure.py backend/tests/test_genai_sql_parameters.py backend/tests/test_genai_sql_context.py -q -p no:cacheprovider --tb=short --junitxml=work/text-to-sql-structure-only.xml`: 79 passaram em 1,04 s. Clientes `test_genai_sql_client.py` e `test_genai_client.py`: 43 passaram em 6,56 s, em rodada separada fora da restrição local que parou a tentativa combinada. Total dirigido: 122; não é suíte Backend completa. Ruff dirigido e diff aprovados.
+- Sem SQL executado, banco/grants alterados, provedor real ou jornada portal nesta rodada. O retorno é `SqlStructureReview`, não autorização. TSQL-06 permanece aberto: validar intenção/período/recortes, cobertura/prontidão e criar artefato final vinculado à política/publicação antes de integrar executor. Estados oficiais dos requisitos preservados; próximos aceites exigem essas provas.
+
+
+### 05/11/2026 — IA-02/03/06/08: período, filtros e ranking conferidos na AST
+
+- Novo `backend/app/services/genai_sql_semantics.py` compara recortes temporais e de dimensão, agrupamento, direção/tamanho do ranking e cobertura mensal com a interpretação estruturada. Aceita recombinações equivalentes de predicados; rejeita período/filtro omitido ou divergente, expansão de recorte, ano incompleto, truncamento fora de ranking e promoção de receita nula. Comparação de duas janelas e OR entre eixos distintos permanecem fora do subconjunto verificável.
+- 98 testes dirigidos de semântica/estrutura/parâmetros/contexto passaram em 1,28 s; Ruff dirigido e diff passaram. JUnit privado: `work/text-to-sql-semantics.xml`. A intenção ainda é declarada pelo modelo: coincidência SQL/intenção não comprova entendimento do pedido original.
+- Chave e modelo locais configurados, sem revelar credencial. Duas solicitações reais limitadas com contexto artificial falharam: primeira indisponível em 3.509,72 ms; segunda em 8.484,22 ms, com status sanitizado Gemini 503. Não houve candidato, execução SQL ou uso de tokens reportado; consumo/custo permanecem desconhecidos. Probe agora registra classificação/status de falha sem texto da exceção. Relatórios privados em `work/`, nenhuma repetição automática adicional.
+- TSQL-06 permanece em andamento: faltam comparação de janelas, política completa, prontidão/grants e artefato final. TSQL-07/aceite numérico/portal não encerrados. Sem novo commit ou push nesta rodada; estados oficiais do PRD preservados.
+
+
+### 05/11/2026 — regressão Backend ampliada antes da integração ao executor
+
+- Suíte `backend/tests` executada da raiz: 1.321 passaram, 114 skips e duas falhas de ambiente em 389,04 s. Subprocesso de schema não encontrou `app` pelo diretório de execução; teste Excel encontrou `openpyxl` ausente na venv local.
+- Instalada somente na venv de validação a dependência já declarada `openpyxl 3.1.5` (et-xmlfile 2.0.0). Reexecução dos dois testes a partir de `backend/`: dois passaram em 1,87 s. Nenhuma correção produtiva foi necessária. A suíte inteira não foi repetida depois do ajuste; resultado combinado das duas rodadas: 1.323 casos aprovados e 114 ignorados, sem alegar execução de integrações ignoradas.
+- JUnits privados: `work/text-to-sql-backend-full.xml` e `work/text-to-sql-backend-environment-recheck.xml`. Sem nova chamada Gemini, execução de candidato, banco real ou ativação de estratégia nesta rodada. Validador semântico ainda local; execução continua dependendo de prontidão, escopo e artefato aprovado. TODO 3 não encerrado.
+
+
+### 05/11/2026 — comparação F1 e composição geração/revisão
+
+- Revisão semântica suporta duas janelas distintas com dois SUM FILTER e diferença 0 menos 1. Confere cobertura de ambas, união global e filtros por medida; deriva linhagem de aliases da AST. Recusa fórmula invertida, janela misturada, resultado incompleto, ranking e truncamento. Janelas agrupadas/CTE/UNION continuam fora da F1.
+- Novo caso de uso `genai_sql_observation.observe_sql_generation`: contexto confiável → cliente HTTP existente → revisão. Recebe prazo absoluto do coordenador e aplica o menor saldo, sem reiniciar orçamento entre etapas. Esclarecimento não gera revisão; falhas de provedor e recorte inválido são propagadas, sem fallback ou executor.
+- Verificação dirigida: 158 testes passaram em 8,60 s, cobrindo comparação, observação, semântica, estrutura, parâmetros, contexto e clientes. JUnit privado `work/text-to-sql-observation.xml`. Ruff e diff aprovados. Docker inspecionado e parado: sem prova numérica PostgreSQL nesta rodada; nenhum reinício, banco real, chamada Gemini ou jornada portal.
+- Entrega de preparação/composição interna, sem chamador no coordenador público. TSQL-06 permanece aberto: prontidão/grants, artefato final e vínculo de autorização ainda pendentes. TSQL-07 continua sem execução generativa. Nenhum aceite Gold ou requisito de produto foi encerrado; mudanças locais sem commit/push.
+
+
+### 05/11/2026 — IA-03/06/08 e WEB-10: admissão interna com prontidão e revalidação
+
+- Novo `genai_sql_admission`: copia candidato/pedido, revalida escopo, relê metadados pela publicação existente e exige receita disponível para todos os meses via cliente de prontidão. Não cria plano lógico fictício. Digests ligam SQL/AST canônica, parâmetros, candidato, contexto/identidade/catálogo, publicação, relatório, controles aprovados, política e validade monotônica.
+- Revalidação repete verificações atuais, preserva prazo original e compara artefato integral. Testes cobrem mutação durante await, SQL/parâmetros, mudança de usuário, controles/política, receita indisponível, lote misto/obsoleto, relatório de outro lote e expiração sem renovação. Preparação `prepare_sql_candidate` liga geração/revisão/admissão, sem executor ou chamador público; esclarecimento permanece sem admissão.
+- Verificação dirigida: 182 testes aprovados, incluindo admissão, comparação, semântica, observação, estrutura, parâmetros, contexto e clientes. Fronteiras de metadados/publicação/prontidão usam substitutos explícitos; contratos e casos de uso são os de produção. Não é prova Gold nem grants PostgreSQL. JUnit privado `work/text-to-sql-admission.xml`; Ruff e diff aprovados.
+- TSQL-06 permanece em andamento: artefato e revalidação implementados internamente; aceite integrado exige executor restrito, snapshot/materialização, revalidação no momento do uso e prova de banco. TSQL-07 segue sem SQL generativo executado. Não houve chamada Gemini, inicialização Docker, dado real, novo commit ou push nesta rodada. Estados oficiais do PRD preservados.
+
+
+### 05/11/2026 — IA-03/06/08: materialização limitada do resultado F1
+
+- Novo `genai_sql_result.materialize_sql_result` confere aliases, ordem e tipo de colunas da revisão. Preserva Decimal finito, texto/nulo e identidade dos grupos em tuplas imutáveis; estados separam vazio, todas as medidas nulas e valores disponíveis (zero/estorno incluídos).
+- Leitura por fetchmany limita 100 linhas/16.384 bytes; excesso descarta integralmente. Cursor fecha em sucesso, divergência ou erro de leitura. Não há conexão, SQL executado, arredondamento monetário ou conversão para float nesta etapa.
+- 158 testes dirigidos de resultado/admissão/comparação/semântica/observação/estrutura/parâmetros/contexto passaram em 2,18 s; cursores e fronteiras I/O artificiais. JUnit privado `work/text-to-sql-result.xml`. Ruff dirigido e diff aprovados. Não é suíte Backend completa ou prova PostgreSQL.
+- TSQL-07 permanece em andamento: materializador pronto para integração; faltam executor, cursor server-side, revalidação ao usar a admissão, snapshot/papel restrito, cancelamento e evidência pública. TSQL-06 não encerrado. Nenhum novo commit/push ou aceite Gold nesta rodada.
+
+
+### 05/11/2026 — IA-03/06/08: executor interno e primeira prova PostgreSQL
+
+- Novo `genai_sql_executor`: admissão revalidada → snapshot Gold existente → papel efetivo restrito/READ ONLY → timeout SQL reduzido → SQL canônico com parâmetros psycopg → cursor server-side/materialização limitada → revalidação de escopo/publicação. Inclui digests internos de admissão e execução. Cancelamento aguarda limpeza da thread; SQL bloqueado depende do timeout do banco, sem promessa de cancelamento instantâneo.
+- Corrigida a composição interna para exigir engine analítico e engine operacional de prontidão separados; testes conferem a fronteira. O materializador recebe checagem de cancelamento/prazo durante a leitura.
+- 210 testes dirigidos passaram em 9,98 s (executor, resultado, admissão, observação, comparação, semântica, estrutura, parâmetros, contexto e clientes). Prova adicional real PostgreSQL 16: quatro testes passaram em 2,52 s, com cursor server-side, total/duas janelas e diferença Decimal exatos, DELETE recusado e timeout por lock com rollback e conexão devolvida/reutilizável. SQLAlchemy 2.0.52 / psycopg 3.3.6; API streaming conferida via Context7. Ruff e diff passaram.
+- Docker Desktop iniciado; somente containers descartáveis deste teste foram criados/removidos, sem volumes. Nenhuma carga ou inspeção de dado real. JUnits privados `work/text-to-sql-executor.xml` e `work/text-to-sql-executor-postgres.xml`. As fronteiras de prontidão/metadados da admissão ainda são artificiais nesta prova; snapshot e consulta PostgreSQL são reais.
+- TSQL-06/07 continuam em andamento: faltam admissão com observação real completa, evidência/síntese e HTTP público autenticado/portal. Sem chamada Gemini, novo commit/push ou conclusão de requisito do PRD. Os TODOs permanecem locais.
+
+
+### 05/11/2026 — IA-03/05/06/08: evidência exata de execução SQL
+
+- Implementado contrato independente `text-to-sql-f1-evidence-v1` espelhado Backend/GenAI, sem plano legado fictício. Proveniência inclui contexto, publicação, catálogo/dicionário, períodos/filtros, colunas/unidades e linhagem AST de medidas/dimensões; decimais são strings canônicas. Digest de resultado agora vincula linhas ao registro de execução, e o envelope verifica novamente resultado/conteúdo, com limites e estados coerentes.
+- `build_sql_evidence` exige candidato/contexto/revisão correspondentes à admissão/execução e confere prazo/escopo antes da conversão. Rejeita linhas adulteradas, unidade/linhagem divergente, valores não decimais, colunas extras ou estados falsos. Hash é integridade, não autenticação/autorização de navegador.
+- Verificações: 229 testes dirigidos Backend passaram em 8,41 s; 61 GenAI em 1,73 s, incluindo seis exemplos válidos/nove inválidos comuns e JSON Schema igual nos dois serviços. Quatro testes PostgreSQL 16 passaram em 2,65 s, cobrindo execução → evidência exata, escrita recusada e timeout. Materialização/snapshot/driver reais; metadados/prontidão da admissão ainda artificiais. Container sem volume removido; dados e senha exclusivamente sintéticos. Ruff/diff aprovados.
+- JUnits privados `work/text-to-sql-evidence-backend.xml`, `work/text-to-sql-evidence-genai.xml` e `work/text-to-sql-evidence-postgres.xml`. Sem dado Gold real, chamada Gemini, commit ou push. TSQL-07/08 continuam em andamento: faltam admissão real completa, consumo pela nova síntese/EvidenceGuard, auditoria e HTTP público/portal. Estados oficiais preservados.
+
+
+### 05/11/2026 — IA-01/02/08: benchmark real do gerador F1
+
+- Captura Gemini f1-2 comparada nos 40 casos sintéticos: 28/40 intenções exatas; 34/34 candidatos SQL rejeitados pelo revisor Backend antes de execução; 30/34 candidatos estavam sem placeholders/parâmetros ligados. Não houve execução SQL nem conexão Gold. O resultado reprova qualidade semântica do gerador nesta rodada.
+- Prompt `text-to-sql-f1-3` explicita placeholders nomeados, formas SQL F1, comparação com `SUM FILTER`, ordenação e diferença entre esclarecimento e operação não suportada. Piloto opt-in de seis casos teve três respostas inválidas e um 503; nenhum candidato válido. Reserva conservadora acumulada estimada: US$ 0,984136 sob teto de US$ 1,00; custo efetivo não determinado por telemetria incompleta. A rodada foi interrompida sem retry.
+- Logs de falha agora identificam classes seguras de resposta inválida sem armazenar conteúdo: JSON malformado, violação do contrato, geração incompleta, contexto divergente ou forma inválida. Verificações finais: 33 testes dirigidos passaram em 2,13 s; Ruff, compileall e diff-check passaram. TSQL-05 permanece aberto porque as metas de entendimento/SQL não foram atingidas. Evidências privadas ficam em `work/`; sem commit/push.
+- f1-4 capturada nos 40 casos sintéticos, sem execução SQL: 20/40 intenções exatas; 23 candidatos passaram a revisão semântica Backend, sete foram rejeitados e sete solicitações falharam antes de gerar candidato (3 HTTP 503, 4 violações de contrato). Comparativo f1-2: 28/40 intenções exatas, 0 SQL aprovados. f1-4 melhora a validade estrutural, mas reduz a acurácia de intenção; não caracteriza melhora geral. Limite inferior de custo estimado US$ 0,0664836, reserva conservadora US$ 0,518079, valor exato desconhecido. Sem DSN PostgreSQL descartável e Docker disponível; sem números executados.
+- Piloto Gemini f1-5 em nove casos sintéticos, sem execução SQL: 5/9 estados/intenção exatos; três candidatos passaram o revisor semântico; dois pedidos anuais preservaram período/filtro, mas geraram SQL sem cobertura integral e foram rejeitados; dois casos tiveram `contract_validation`. Comparação, série mensal e classificações fora do escopo passaram. Reserva f1-4+f1-5: US$ 0,664165 conservadores; limite inferior US$ 0,0153688; valor exato desconhecido.
+- Avaliação Gemini f1-6 nos 40 casos sintéticos: 24/40 intenções exatas; 18 candidatos SQL passaram o revisor estrutural+semântico Backend, incluindo um que deveria esclarecer uma ambiguidade; 11 casos falharam antes de gerar candidato (6 indisponibilidades 503 e 5 violações de contrato). Entre os 29 pedidos suportados, 17 geraram SQL, 3 foram esclarecidos indevidamente e 9 falharam; dos 8 esclarecimentos esperados, 5 foram corretos, 1 virou SQL e 2 falharam; os três pedidos fora do escopo foram recusados corretamente. Uma série explicitamente de 2026 usou 2025. Sem execução SQL. Avaliação privada: `work/text-to-sql-f1-gemini-f1-6-evaluation.json`; 38 capturas brutas retidas e duas avaliações de campos sem captura bruta preservadas.
+- Prompt f1-7, piloto de quatro casos: 2/4 intenções exatas; corrigiu ano explícito na série mensal e mês ambíguo sem ano, mas ainda esclareceu indevidamente um intervalo explícito de janeiro a junho e teve uma resposta inválida. Sem avaliação f1-7 nos 40 casos. Reserva conservadora acumulada f1-4 a f1-7: US$ 1,291319 sob o teto autorizado de US$ 1,30; limite inferior US$ 0,1425857; custo exato desconhecido. Evidência privada: `work/text-to-sql-f1-gemini-f1-7-evaluation.json`.
+- TSQL-05 segue aberto: apesar de 40 tentativas f1-6, a qualidade ficou em 24/40 e 11 saídas falharam; f1-7 foi parcial. Faltam corrigir falsos esclarecimentos/ambiguidade e a instabilidade de contrato, avaliar f1-7 nos 40 casos sob teto aprovado e reconciliar numericamente em PostgreSQL descartável. Não há DSN configurado e o Docker daemon está indisponível nesta máquina.
+
+
+### 06/11/2026 — correção f1-8 do esclarecimento e contrato
+
+- Removida contradição: o prompt exigia interpretação em esclarecimentos, enquanto o contrato exige interpretation=null, sql=null, parameters={} e result_columns=[]. Agora as instruções coincidem com a validação local.
+- Primeiro semestre explicitamente corresponde a janeiro–junho; um intervalo parcial explícito substitui o pedido anual anterior e não exige confirmar novamente o período já solicitado.
+- 34 testes dirigidos passaram em 1,81 s. Sem novas chamadas pagas: ganho semântico e redução de violações de contrato ainda não medidos no Gemini. TSQL-05 permanece aberto; não substituir resultados f1-6/f1-7 por expectativa de melhoria.
+
+
+### 06/11/2026 — preservação da evidência e retomada da captura
+
+- O runner recusa arquivo de saída existente sem --resume, antes de abrir cliente/provedor. Isso impede repetir a sobrescrita dos dois registros anuais f1-6.
+- Retomada não repete tentativas cuja resposta não foi persistida; elas continuam registradas e reservadas no orçamento. Observações duplicadas ou fora da seleção são rejeitadas.
+- Reservas não finitas (NaN/infinito) são rejeitadas.
+- Verificação: 38 testes dirigidos de gerador, telemetria e captura passaram em 1,61 s; Ruff passou. Sem chamadas remotas nesta rodada, sem execução SQL e sem novo aceite TSQL-05.
+
+
+### 06/11/2026 — diagnóstico seguro das violações do contrato
+
+- Falhas do gerador passam a registrar validation_fields com somente nomes de campos canônicos permitidos; nomes desconhecidos viram other e falhas no envelope viram envelope. Não registra entrada, valores, caminho interno, mensagem de validação ou saída do modelo.
+- Teste injeta parâmetro inválido e campo extra privado: identifica parameters/other sem expor nomes ou conteúdo. 39 testes dirigidos passaram em 1,12 s; Ruff passou.
+- Docker Desktop iniciado para tentar disponibilizar PostgreSQL descartável; daemon ainda não respondeu. Nenhuma consulta SQL ou chamada paga nesta continuação. TSQL-05 permanece aberto; autorização de novo teto de API solicitada, não presumida.
+
+
+### 06/11/2026 — avaliação completa f1-8 e piloto f1-9
+
+- f1-8: 40/40 IDs observados com captura bruta retida e sem repetir tentativas. 22/40 intenções exatas; 15 candidatos passaram o revisor Backend, nenhum foi rejeitado. Quinze solicitações falharam sem candidato: nove erros de contrato em interpretation e seis indisponibilidades do provedor. Duas paráfrases de acompanhamento ainda esclareceram indevidamente; uma série mensal errou o ano. Fonte privada: work/text-to-sql-f1-gemini-f1-8-capture.json e work/text-to-sql-f1-gemini-f1-8-evaluation.json.
+- f1-9 explicita combinações válidas de operação/janelas/agrupamento/metadados de ranking e restringe interpretação preenchida ao estado sql_candidate. Piloto dos oito casos problemáticos: 8/8 saídas válidas de contrato, 4/8 intenções exatas, três SQL aprovados e três rejeitados no revisor. Dois acompanhamentos ainda esclareceram indevidamente e dois rankings herdaram a análise anterior. Isso não comprova melhora geral ou regressão zero. Evidência privada: work/text-to-sql-f1-gemini-f1-9-evaluation.json.
+- Chave informada pela pessoa usuária como Free Tier: estimativas pelo preço pago são referências conservadoras, não cobrança confirmada. Nenhuma configuração de faturamento alterada. Sem SQL executado, daemon Docker indisponível.
+- TSQL-05 continua aberto por falha de qualidade; versão f1-9 só tem piloto, não uma matriz completa. Pendências: isolamento semântico da pergunta atual frente ao histórico, precisão dos rankings, coerência SQL/interpretação e validação numérica independente.
+
+
+### 06/11/2026 — IA-03/06: barreira runtime de schema F1 e inventário de relações
+
+- A admissão F1 agora compara a publicação conectada com catálogo/modelos instalados antes de aceitar o candidato; o executor repete colunas, tipos, precisão, grão e SELECT efetivo dentro do snapshot somente leitura antes do SQL. O verificador operacional `check_genai_runtime.py` reutiliza a conferência. Nenhum valor Gold é lido por essa barreira.
+- O mapa futuro registra chaves/grãos, cardinalidades estruturais candidatas e riscos de fanout entre faturamento, bairro, DEC/FEC e projeções por UC. Os modelos não declaram Foreign Keys; as cardinalidades seguem hipóteses do grão e não habilitam JOIN. F1 mantém uma única fonte.
+- Verificações locais: `python -m pytest --noconftest tests/test_genai_sql_live_catalog.py tests/test_genai_publication.py -q -p no:cacheprovider --tb=short`: 16 passaram, 19 cenários PostgreSQL foram ignorados. Admissão/executor/catálogo: 38 testes passaram em execução dirigida com stub somente de importação para `pwdlib` ausente; hashing de senha não foi exercitado. `compileall` passou. Ruff passou nos arquivos alterados ignorando somente dois avisos preexistentes (`S110`, `BLE001`) no `check_genai_runtime.py`.
+- Após o daemon Docker ficar disponível, a publicação ativa `gold-csv-v2` foi conferida em 06/11/2026 pelo papel `venergy_genai_reader`, em transações `READ ONLY` e com consultas apenas a metadados/tabelas de controle. As 15 tabelas e 239 colunas de Gold v2, incluindo tipos e grãos, coincidem com os modelos; 69 colunas têm SELECT efetivo dentro da matriz aprovada e não há leitura fora dela, escrita, acesso a sequências/funções de aplicação ou privilégios elevados. Nenhuma linha analítica foi consultada e nenhuma permissão foi alterada. Guard de drift segue comprovado por testes locais; não se provocou drift na publicação. TSQL-03 concluída; IA-01/03/06 não mudam de estado. Detalhes e limites em [TSQL-03 — schema ativo e relações candidatas](plans/2026-11-06-tsql03-schema-live-joins.md).
+
+### 06/11/2026 — IA-01/02/08: precedência conversacional e competência SQL f1-10
+
+- Prompt `text-to-sql-f1-10` distingue a solicitação atual do histórico antes de conferir cobertura e exige parâmetros SQL `YYYY-MM` para competência textual, preservando datas completas apenas na interpretação.
+- Três casos problemáticos observados com Gemini real: três intenções exatas, três SQL aprovados e três resultados reconciliados com referências independentes em PostgreSQL 16 artificial. A captura anterior f1-9 dos mesmos IDs teve zero resultados quantitativos corretos (duas divergências, uma rejeição técnica). Não agrega taxas entre versões nem declara 40/40.
+- 69 testes de gerador/contrato/captura/telemetria passaram; Ruff passou. Container artificial removido; nenhuma execução sobre Gold real nesta rodada. Revisor: conferência local pelo agente, sem revisão independente.
+- Pessoa usuária manteve teto US$ 2; reserva conservadora acumulada US$ 1,985884 após três chamadas, impedindo outra rodada completa. TSQL-05 e estados oficiais IA permanecem abertos. Evidência e reprodução: [piloto f1-10](plans/2026-11-06-tsql05-f1-10.md), artefatos privados em `work/`.
+
+### 06/11/2026 — IA-01/02/08: cobertura dos 40 casos de desenvolvimento
+
+- Ampliada a observação após reconciliação conservadora do orçamento; runner permite reduzir limite de saída e impede retomada com limite divergente. Prompt f1-11 exige LIMIT literal; f1-12 exige cobertura independente de ambas as janelas comparadas.
+- Seleção corrigida com proveniência por caso: 29 SQL reconciliados em PostgreSQL 16 artificial e 11 estados não quantitativos esperados. Evidências f1-10/11/12 identificadas; não constitui taxa global nem regressão uniforme da f1-12. Falhas anteriores e 503/429 foram preservados.
+- 71 testes locais passaram; Ruff passou. Container artificial removido; nenhuma consulta gerada contra Gold real, commit ou push. Reserva final US$ 1,945078, teto mantido US$ 2; falta a matriz uniforme final para fechar TSQL-05. Estados oficiais IA preservados. Evidência: [conferência por caso](plans/2026-11-06-tsql05-conferencia-40.md).
+
+
+### 06/11/2026 — IA-01/02/08: aceite uniforme TSQL-05 em observação
+
+- Matriz completa f1-12, temperatura 0, saída 1.536 tokens: 40 intenções exatas; 29 consultas reconciliadas contra referências independentes em PostgreSQL 16 artificial e 11 estados esperados. Quatro indisponibilidades preservadas e retestadas na mesma configuração, 44 tentativas ao todo; não declara disponibilidade perfeita na primeira tentativa.
+- TSQL-05 concluída no escopo de observação. Estados oficiais IA preservados; sem ativação pública ou consultas geradas contra Gold real. Corpus de desenvolvimento exposto, não holdout independente.
+- Teto US$ 2,50 autorizado antes da rodada; reserva final US$ 2,319857. Código final já validado por 71 testes e Ruff; sem alteração posterior de implementação. Evidência: [aceite final TSQL-05](plans/2026-11-06-tsql05-aceite-final.md); relatório por ID e resultados privados em work/. Revisor: agente local, sem revisão independente.
+
+
+### 06/11/2026 — consistência do status do benchmark TSQL-02
+
+- A seção detalhada TSQL-02 já registrava benchmark artificial e baseline concluídos, mas a tabela inicial do TODO ainda os indicava pendentes. O resumo foi sincronizado com os critérios/evidências existentes; nenhuma implementação ou meta foi alterada.
+- Conferência de integridade: os três arquivos de benchmark/referência/reserva coincidem com o SHA-256 congelado. Relatórios preservam denominador 40: planner antigo 17 correspondências observáveis/23 divergências; SQL legado 8 coincidências/5 divergências/27 não executados. Não são métricas da geração final.
+- Holdout independente, revisão externa e aceite de produção seguem fora dessa conclusão, na promoção TSQL-12. Estados oficiais IA preservados. Fonte: docs/plans/2026-11-05-text-to-sql-f1-benchmark.md e seção TSQL-02 do TODO_3 local. Verificação documental e de hashes; sem nova chamada ao provedor ou execução de testes/banco nesta rodada.
+
+### 06/11/2026 — IA-03/06/08 e WEB-10 — validação interna SQL F1
+
+- Corrigida introspecção Float/Numeric e atualizada a fixture PostgreSQL para o schema Gold v2 completo. Matriz estrutural/semântica/admissão/executor: 151 testes passaram, incluindo 13 PostgreSQL; Ruff e compileall dirigidos passaram.
+- Mutações de SQL, parâmetro, identidade, publicação lógica, política, prazo e digest impedem comandos ao leitor; grant revogado e drift físico impedem execução do candidato dentro do snapshot. Um teste prova que DEC/FEC `observed_uncertified` não habilita consulta de faturamento. Os critérios e limites estão resumidos no [TODO do Text-to-SQL](plans/TODO_3_Text_to_SQL_Generativo.md); o relatório separado não compõe esta etapa.
+- Entrega de integração interna do validador F1; prontidão/metadados da admissão ainda artificiais nessa prova. Sem chamada Gemini, chat/portal generativo ou aceite Gold real; estados oficiais preservados.
+
+### 06/11/2026 — TSQL-07 — composição interna de execução F1
+
+- `run_sql_question` compõe geração, admissão, execução restrita e evidência no mesmo prazo/escopo; candidato de teste é artificial, execução PostgreSQL é real no container descartável. Total e comparação reconciliados em R$ 150,03, R$ 80,00 e R$ 70,03; 13 testes PostgreSQL passaram.
+- A composição ainda não tem endpoint público autenticado, síntese ou portal; sem lote Gold real. Marco interno E1 somente; estados oficiais preservados. Ver TODO 3 e testes `test_genai_sql_executor_postgres.py`.
+
+### 06/11/2026 — TSQL-07 — rota autenticada opt-in
+
+- Criada `POST /api/v1/ai/sql-analyses`, com permissão individual `ai:ask`, Gold v2, leitor restrito, escopo atual e resposta sem SQL/parâmetros. `GENAI_SQL_EXECUTION_ENABLED=false` por padrão e no Compose; teste confirma autenticação e estado desligado.
+- A rota delega à composição interna de execução/evidência. Execução bem-sucedida pelo endpoint ainda não foi provada; teste PostgreSQL atual chama a pipeline diretamente. Não ativar a flag antes dessa prova. Estados oficiais permanecem inalterados.
+
+### 06/11/2026 — TSQL-07 — prova HTTP autenticada e SQL PostgreSQL
+
+- `POST /api/v1/ai/sql-analyses` passou com sessão individual, escopo F1 reduzido a receita/dimensões permitidas, SQL executado pelo leitor restrito em PostgreSQL 16 e evidência reconciliada por SELECT de controle independente. 4 testes da rota e 13 testes da fronteira PostgreSQL passaram. Gemini e readiness foram substituídos; banco artificial.
+- SQL e parâmetros não aparecem na resposta pública. A configuração permanece desligada por padrão. Faltam teste com integração real Gemini/readiness e aceite de lote Gold autorizado; estados oficiais preservados.
+
+### 06/11/2026 — TSQL-07 — evidência da chamada autenticada
+
+- Evidência detalhada da rota E1 em [integração HTTP TSQL-07](plans/2026-11-06-tsql07-integracao-http-e1.md): 19 testes passaram, incluindo execução do SQL via rota autenticada em PostgreSQL descartável e reconciliação independente. Provedor/readiness foram simulados e a flag permanece desligada por padrão.
+- Não comprova lote Gold real, qualidade Gemini ou todos os casos F1; TSQL-07 continua aberta.
+
+### 06/11/2026 — TSQL-07 — execução F1 reconciliada e encerramento do escopo
+
+- A rota autenticada percorreu os sete oráculos numéricos da F1 e um caso de ano incompleto. No PostgreSQL 16 sintético, os sete resultados coincidiram exatamente com consultas independentes do fixture; o oitavo retornou esclarecimento de período sem executar SQL. Evidência/JUnit privado em `work/tsql07-backend.xml`; suíte Backend dirigida: 19 passaram.
+- `EvidenceGuard.validate_sql_evidence` revalida digest, publicação, contexto, catálogo, métrica/dimensões autorizadas e tamanho no envelope Text-to-SQL, inclusive comparação composta, sem construir plano determinístico legado. Suíte GenAI dirigida: 27 passaram; JUnit privado em `work/tsql07-genai.xml`.
+- Gold v2 ativa conferida separadamente em transação READ ONLY, sob `venergy_genai_reader`: seis meses atuais e seis comparáveis tinham cobertura; série, total por mês, total por classe, comparação e ranking passaram controles SQL independentes. Só estados/contagens foram retidos; fingerprint sanitizado da publicação: `0efb887c4bd7f24a0c29e5e3555c69c0`.
+- **TSQL-07 concluída para execução/evidência F1.** Os testes HTTP usam candidato e prontidão artificiais; a Gold ativa foi consultada por SQL direto, não pela rota. Não houve chamada Gemini, auditoria durável ou jornada do portal. Síntese/tabela/portal seguem em TSQL-08; auditoria/rollout e serviço real permanecem nas etapas correspondentes. Estados oficiais dos requisitos IA/DE não foram alterados.
+
+### 06/11/2026 — TSQL-08 — primeira projeção de resposta e tabela F1
+
+- `SqlAnalysisResponse` agora inclui `text-to-sql-f1-presentation-v1`, uma projeção determinística ligada ao digest da evidência. A conclusão usa os valores aprovados; a tabela preserva as linhas e decimais canônicos, com unidade, período e filtros em metadados.
+- Vazio e medida integralmente nula permanecem estados distintos. O Backend não arredonda nem atribui causas. Critérios de TSQL-08 e estados oficiais IA/WEB continuam abertos: ainda faltam testes funcionais, narrativa Gemini com referências tipadas, consumidor/visualização no portal e jornada visual.
+- Verificações funcionais não executadas nesta rodada; esta entrada registra progresso parcial, não aceite de integração nem conclusão de requisito do PRD.
+
+### 06/11/2026 — TSQL-08 — projeção integrada ao portal e trilha de auditoria
+
+- A resposta F1 ganhou texto/tabela determinísticos vinculados à evidência; a interface opt-in mostra Gold v2, publicação, período, filtros, universo agrupado e referência de auditoria. O Frontend confere digest, esquema das colunas e igualdade de cada célula com a evidência antes de exibir.
+- Gráfico deriva das mesmas linhas, sem arredondar a tabela. Séries temporais com lacunas/desordem ou valores acima da precisão segura não geram gráfico; a tabela exata continua visível. Estados vazio/nulo ficam distintos.
+- A rota grava eventos sanitizados e falha sem publicar uma resposta quantitativa quando não consegue confirmar auditoria, publicação atual ou escopo. A F1 não chama Gemini após o SQL; narrativa Gemini tipada não foi implementada e a chave não foi chamada nesta rodada.
+- Verificações: 62 testes Frontend passaram; `npm run build` passou; lint dirigido passou com um aviso preexistente de `react(set-state-in-effect)`; 7 testes Backend de apresentação/contrato passaram; Ruff e `compileall` passaram. Não foi possível rodar o teste HTTP integrado: o `TestClient` travou ao inicializar seu portal asyncio no ambiente Windows (stack parada em `socket.accept`), não havia `TEST_TEXT_TO_SQL_URL` configurado e o daemon Docker estava indisponível.
+- TSQL-08 e estados oficiais IA/WEB permanecem abertos: não houve jornada visual, execução ponta a ponta da rota nesta rodada nem revisão humana da resposta. Evidências de implementação e pendências: [TODO 3 — Text-to-SQL](plans/TODO_3_Text_to_SQL_Generativo.md#tsql-08--síntese-tabela-e-gráfico-na-mesma-execução) e [contrato F1](contracts/text-to-sql-f1.md#projeção-de-apresentação-f1--integrada-aceite-tsql-08-pendente).
+
+### 06/11/2026 — TSQL-08 — refinamento da apresentação F1 e validação local
+
+- A resposta passa a indicar explicitamente que faturamento não confirma recebimento/pagamento; rótulos de competência foram localizados em português. A fonte curta informa Gold v2 e data da publicação, e o escopo da visualização inclui filtros e universo. A tabela exata pode ser percorrida por teclado.
+- Verificações: 65 testes em quatro arquivos do Assistente passaram; `npm run build` passou; lint dirigido passou com aviso `react(set-state-in-effect)` em `AssistentePage.tsx:653`; 9 testes unitários Backend da apresentação, Ruff dirigido e `compileall` passaram.
+- A tentativa do teste integrado HTTP foi interrompida por bloqueio no `TestClient`/portal asyncio em Windows; não há `TEST_TEXT_TO_SQL_URL`. `npm run test:motion` não executou porque o Chromium do Playwright não está instalado. Sem jornada visual, integração completa ou revisão humana; sem nova chamada Gemini por limite da reserva acumulada.
+- TSQL-08 continua aberta. Perguntas compostas, execução HTTP PostgreSQL descartável, navegador suportado e revisão humana permanecem pendentes. Evidência e critérios atualizados em [TODO 3 — TSQL-08](plans/TODO_3_Text_to_SQL_Generativo.md#tsql-08--síntese-tabela-e-gráfico-na-mesma-execução).
+
+### 06/11/2026 — TSQL-08 — HTTP descartável e jornada visual F1
+
+- Suíte da rota autenticada passou: 13 testes Backend em Linux contra PostgreSQL 16 descartável com dados sintéticos; provedor e readiness foram simulados. Nenhuma consulta à Gold ativa ou chamada Gemini foi feita.
+- Playwright no Microsoft Edge percorreu F1-01 a F1-08 em sequência, em desktop e mobile, com respostas de fixture sintética. Conferiu contexto, esclarecimento anual, valores da tabela, fonte/publicação, limitação, auditoria, gráfico, teclado, viewport sem overflow e ausência de erros de página. `npm run test:motion` passou com movimento normal e reduzido; 65 testes Frontend, build, Prettier, Ruff e `compileall` passaram. Oxlint mantém aviso conhecido de `react(set-state-in-effect)` em `AssistentePage.tsx:653`.
+- Evidências são separadas: jornada visual intercepta a API; teste HTTP exerce rota e PostgreSQL sem navegador. Pedido composto ainda não tem cobertura estruturada de todas as partes, e não há revisão humana registrada de clareza/utilidade/naturalidade ou acessibilidade por leitor de tela. TSQL-08 permanece aberta; estados oficiais IA/WEB não mudam. Capturas sintéticas privadas em `work/tsql8-visual-review/`; detalhes e limites em [TODO 3 — TSQL-08](plans/TODO_3_Text_to_SQL_Generativo.md#tsql-08--síntese-tabela-e-gráfico-na-mesma-execução).
+
+### 06/11/2026 — TSQL-08 — jornada integrada e ramos de falha corrigidos
+
+- A jornada Edge F1-01 a F1-08 passou em desktop e mobile pelo login de sessão e rota HTTP reais até PostgreSQL 16 descartável. Foram verificados texto, tabela, visualização, fonte/publicação, limitação, auditoria, continuação após esclarecimento e teclado. O cliente que fornece candidatos e readiness são simulados; sem chamada Gemini ou acesso à Gold ativa.
+- Corrigido o contrato do esclarecimento: Backend serializa propriedades nulas; o Frontend agora as aceita somente nos estados não quantitativos, preservando validação de campos incompatíveis. A resposta de tabela dimensional mantém `unit: null` explicitamente.
+- Testes de integração comprovam que zero grupos retorna estado vazio; provedor indisponível, publicação alterada e falha da auditoria final após SQL não devolvem resposta quantitativa. Backend: 13 testes passaram; Frontend: 562 testes em 77 arquivos passaram; build, lint, Ruff, compileall, movimento normal/reduzido e jornada passaram. Permanecem avisos de depreciação Starlette e lint listados no TODO 3.
+- TSQL-08 e estados oficiais IA/WEB continuam em aberto: pedidos com múltiplas análises precisam de cobertura estruturada, e falta revisão humana de clareza/utilidade/naturalidade, contraste e leitor de tela. Detalhes, comandos e limites em [TODO 3 — TSQL-08](plans/TODO_3_Text_to_SQL_Generativo.md#tsql-08--síntese-tabela-e-gráfico-na-mesma-execução).
+
+### 2026-11-06 — IA-01/02 e TSQL-08 — benchmark de linguagem convencional
+
+- O planejamento Gold v2 ganhou cobertura para paráfrases de consumo residencial/comercial, faturamento por classe, preço médio do kWh, atendimento, interrupções, rankings e referências temporais relativas a junho/2026. A expressão “setores” foi ligada a classes de consumo conforme esclarecimento da pessoa usuária. “Volume residencial” no contexto de Henrique permanece distinto de consumo medido: a Gold v2 atual não publica energia faturada em kWh e a resposta oferece a métrica medida apenas como alternativa explícita.
+- Na rodada inicial, o benchmark determinístico tinha 91 casos de perguntas e esclarecimentos e testes dos campos do plano; dois testes do provedor verificavam as ambiguidades e a regra temporal enviadas ao Gemini. Uma sonda real fez três chamadas sem retry: duas retornaram HTTP 503; a terceira classificou incorretamente “volume residencial” como consumo medido (6.317 tokens de entrada e 112 de saída reportados). O adaptador agora converte proposta pronta nesse caso ambíguo em esclarecimento; a correção foi verificada com cliente simulado e ainda requer nova medição Gemini.
+- Verificações em Docker/Linux: oito arquivos dirigidos, 349 testes aprovados em 26,48 s; `ruff check` dos arquivos alterados, `compileall` e `git diff --check` passaram. Sem execução SQL, consulta a valores Gold ou prova de resposta numérica ponta a ponta. O relatório sanitizado da sonda será incluído na etapa de avaliação ampliada.
+- **IA-01/02 permanecem `Pendente` e TSQL-08 permanece aberta.** O resultado mede compreensão/plano em parte determinística; não demonstra 100%, correção universal do Gemini, números reconciliados ou integração de produção. Revisão humana do vocabulário e nova chamada ao Gemini continuam necessárias.
+
+### 2026-11-06 — IA-01/02 e TSQL-08 — expansão da bateria de linguagem cotidiana
+
+- A [matriz de linguagem convencional](../ai-agent/tests/test_conventional_language_matrix.py) adiciona 486 cenários determinísticos. Cruza paráfrases de consumo e faturamento com cinco classes, três municípios e quatro formas de escrever o mesmo mês; cobre também 48 formulações de “há N meses”, 22 janelas “últimos N meses” e perguntas simples sobre preço, atendimento, satisfação, interrupções, conta de luz, painel solar, pagamento e volume ambíguo. Com a matriz anterior de 92 casos, são 578 casos de linguagem no planejamento.
+- A primeira execução da matriz encontrou 140 falhas: 132 porque o fixture sintético não declarava Jaboatão dos Guararapes entre os valores geográficos disponíveis; as outras oito expuseram paráfrases de conta de energia, duração sem luz, quedas/apagões, solicitações e avaliação do atendimento. O fixture passou a declarar esse município e o vocabulário Gold foi ampliado nas interpretações seguras; ambiguidades seguem pedindo esclarecimento.
+- A primeira execução completa do `ai-agent` também encontrou 33 falhas, incluindo três expectativas antigas contrárias ao contrato semântico, 29 comparações de logs que ignoravam a telemetria opcional nula e uma dependência de `app.agent` dentro do provedor. Os oráculos semânticos foram alinhados à distinção entre volume faturado, consumo medido e ranking por bairro; o autor do escopo foi injetado no provedor, preservando a checagem de leitura e removendo a dependência arquitetural.
+- A matriz de 486 casos chama `QuestionInterpreter` legado. Ela é mantida como regressão de compatibilidade; não mede o gerador Text-to-SQL nem o Gemini no fluxo novo.
+- Verificação final em container Linux efêmero, com o repositório montado somente para leitura: matriz nova, 486/486; regressão dirigida de nove arquivos, 836/836; suíte completa de 106 arquivos, 5.256 aprovados e 45 skips em 169,59 s. `ruff check` dos arquivos Python alterados, `compileall` de `app` e `tests` e `git diff --check` passaram. Docker Compose não foi usado porque o `.env` local não está configurado.
+- Escopo: os testes verificam interpretação/plano e esclarecimento sem Gemini, SQL ou leitura de linhas Gold. A sonda real continua em 0/3 correspondências (duas HTTP 503 e uma interpretação incorreta) e não foi repetida por limite de chamadas. A execução numérica ponta a ponta e a revisão humana continuam pendentes; IA-01/02 permanecem `Pendente` e TSQL-08 permanece aberta.
+
+### 06/11/2026 — TSQL-08 — implementação automatizada concluída
+
+- Conforme critérios da TSQL-08, a projeção determinística, estados vazios/falhas, jornada Edge F1-01 a F1-08 e apresentação de tabela/gráfico ligados à mesma evidência foram verificados em sessão/rota reais e PostgreSQL descartável; provedor e readiness são sintéticos. As evidências e comandos estão em [TODO 3 — TSQL-08](plans/TODO_3_Text_to_SQL_Generativo.md#tsql-08--síntese-tabela-e-gráfico-na-mesma-execução).
+- Pedidos com múltiplas análises independentes ficam fora da F1 por decisão da pessoa usuária; não devem resultar em resposta quantitativa parcial. O reconhecimento/recusa será coberto na avaliação Text-to-SQL da TSQL-12.
+- A implementação automatizada da TSQL-08 está concluída. O critério de revisão humana de clareza, utilidade, naturalidade, contraste e leitor de tela permanece pendente, conforme combinado. Estados oficiais IA/WEB não foram alterados; não se declara aceite Gemini, Gold real ou promoção.
+
+### 06/11/2026 — TSQL-09 — continuidade assinada na rota F1 (fatia inicial)
+
+- A rota Text-to-SQL recebe e devolve token de contexto vinculado à sessão, conversa, escopo, catálogo e publicação atuais. O histórico F1 passa a usar o armazenamento privado versionado já existente; a geração é refeita em cada nova solicitação e o token não carrega SQL, parâmetros, linhas ou evidência. Contexto arbitrário enviado pelo cliente não é autoridade.
+- O armazenamento associa cada resposta ao proprietário, escopo, lote e fingerprint da pergunta/estratégia/publicação; usa lease para concorrência, retenção de 30 dias e preserva o histórico legado no formato 1. Replay idempotente retorna o mesmo artefato somente após conferir acesso atual, lote vigente e trilha de auditoria; a consulta SQL não é repetida. Histórico com publicação superada ou auditoria ausente/incompatível fica indisponível. Não há cache compartilhado de candidato/resultado na F1.
+- Verificações em Linux/Docker isolado, código somente leitura e sem rede: regressão Backend dirigida — **73 passaram, 1 skip**; serviço GenAI — **16 passaram**; Frontend — **49 passaram**, `npm run build` passou; Ruff, `compileall` e `git diff --check` passaram. Incluem rota HTTP real de conversa F1: contexto privado em follow-up, `refresh_context`, replay idempotente com auditoria, lote superado, evento de auditoria ausente e revogação do perfil durante a geração. Incluem também a exportação e a avaliação local da matriz de continuidade. A imagem Backend existente foi usada com SQLGlot 30.24.0 montado como pacote puro. Um aviso de depreciação Starlette/httpx permanece.
+- Sonda Gemini real `text-to-sql-f1-12` com 10 continuidades sintéticas: 8 intenções exatas com revisão SQL aprovada; uma pergunta de antecedente ambíguo virou agrupamento, e um pedido de consumo retornou `unsupported/metric_outside_f1`, mas o contrato não expõe a intenção semântica nesse estado. Nenhum SQL foi executado nem houve leitura da Gold. Reserva total documentada US$ 2,418949 dentro do teto de US$ 2,50; uso do provedor não teve tokens de pensamento para custo exato.
+- Sonda complementar Gemini `text-to-sql-f1-12`, três acompanhamentos sem SQL/Gold: “ano anterior” divergiu (total, não comparação); remover município e trocar para classe comercial foram exatos. Resultado combinado das duas sondas: 10/12 intenções observáveis exatas, 2 divergentes e 1 estado fora da F1 sem intenção semântica no contrato. Reserva conservadora acumulada: US$ 2,448651 de US$ 2,50; uso de provedor não trouxe tokens de pensamento para custo exato. As evidências privadas estão em `work/tsql09-continuity-followups-capture.json` e `work/tsql09-continuity-followups-evaluation.json`. A matriz comprova cobertura dos acompanhamentos, não aceite semântico; nova rodada Gemini excederia a reserva restante de US$ 0,051349.
+- TSQL-09 permanece em andamento. Isolamento, ausência de cache reutilizável e replay idempotente estão comprovados. A sonda inicial e a complementar identificaram divergência em “ano anterior” e antecedente ambíguo; a saída fora da F1 tampouco transporta intenção semântica. Também falta implantação/rollback entre versões. Estados oficiais IA/WEB não foram alterados.
+- O prompt foi versionado como `text-to-sql-f1-13`, explicitando comparação do mesmo intervalo no ano anterior e esclarecimento quando “esse valor” referencia vários valores por dimensão. Cinco invocações Gemini sintéticas em quatro cenários distintos passaram pela avaliação de intenção; SQL candidatos passaram pelo revisor semântico. Sem execução SQL/Gold. Reserva conservadora acumulada: US$ 2,499385 de US$ 2,50; limite inferior reportado US$ 0,0403649 e custo exato não calculável por falta de tokens de pensamento. A amostra reduzida não substitui regressão completa. Evidências privadas: `work/tsql09-prompt13-evaluation.json` e `work/tsql09-followups-prompt13-evaluation.json`.
+- TSQL-09 segue aberta: a bateria completa de regressão f1-13 excede a reserva autorizada restante; o contrato `unsupported` ainda não expõe intenção semântica fora da F1; implantação/rollback entre versões em ambiente integrado está pendente. Estados IA/WEB preservados.
+- Revalidação após f1-13, em Docker/Linux sem rede: Backend dirigido — **74 passaram, 1 skip**; `test_sql_generator.py` — **22 passaram**; `test_sql_candidate_http.py` — **16 passaram**; Ruff, `compileall` e `git diff --check` passaram. O único aviso de teste é a depreciação preexistente de Starlette/httpx. A jornada de portal continua com os 49 testes e build previamente aprovados; não houve alteração frontend nesta correção de prompt.
+- **07/11/2026 — revalidação semântica f1-16:** o contexto da F1 agora separa `semantic_registry` (IDs, rótulos, definições e unidades usados somente para reconhecimento) da métrica/fonte/colunas executáveis, que continuam restritas à receita autorizada. Em 13 perguntas sintéticas enviadas ao Gemini, **13/13 estados e intenções** coincidiram com os oráculos; 11 candidatos passaram pelo revisor semântico SQL, o consumo foi reconhecido como `energy.consumption` com período/filtro corretos e permaneceu sem SQL, e o antecedente ambíguo pediu esclarecimento. Nenhum SQL foi executado ou dado Gold consultado. Captura privada: `work/tsql09-f16-capture-final.json`; avaliação: `work/tsql09-f16-evaluation-final.json`. Não se declara TSQL-09 concluída: a implantação e rollback reais entre versões distintas ainda estão pendentes. Estados oficiais IA/WEB não foram alterados.
+- **07/11/2026 — rollback TSQL-09 comprovado:** a imagem Backend atual e a imagem do commit-base `a1ea7ae` foram implantadas em sequência contra o mesmo PostgreSQL 16 descartável. A atual leu os formatos legado e F1; a anterior manteve o legado e ocultou o F1 desconhecido com pergunta/resposta/batch nulos; restaurar a atual recuperou a leitura dos dois formatos. HTTP 200 nas três fases, sessão sintética, referência de publicação Gold v2 sintética apenas em metadados, sem linhas analíticas ou SQL executado. Containers ativos de outros worktrees não foram alterados. Relatório sanitizado em `work/tsql09-rollback-deployment-report.json`. **TSQL-09 concluída** sem alterar estados oficiais IA/WEB; esta prova não representa aceite Gold v2 nem regressão numérica.
+
+### 07/11/2026 — IA-03/05/06/08 — início da observabilidade Text-to-SQL
+
+- Backend passa a registrar eventos JSON correlacionados por etapa do caminho F1: contexto, geração, revisão semântica, admissão/readiness, revalidação, execução SQL, materialização, evidência, apresentação e HTTP. Eventos identificam estratégia, contrato, contexto, duração, estado e motivo classificado sem incluir pergunta, SQL, parâmetros, filtros, exceções ou caminho de conversa.
+- O serviço GenAI já registra modelo/prompt, latência, tentativas e tokens de uso retornados. A ligação agregada desses dados com custos e percentis do trace Backend ainda não foi implementada.
+- Verificações: **43 testes passaram, 1 skip** na suíte Backend dirigida em container Linux; integração autenticada com PostgreSQL 16 descartável — **1 passou**, com candidato/readiness sintéticos. Ruff, `compileall` e `git diff --check` dirigidos passaram. Sem chamada Gemini ou consulta à Gold publicada.
+- Isso inicia a TSQL-10, mas não fecha critério: seguem pendentes p50/p95, custo baseado em tabela de preço configurada, trilha F1 privilegiada de artefato canônico, carga/concorrência/recuperação de falhas e relatório operacional sanitizado. Estados oficiais IA/WEB não foram alterados.
+
+### 07/11/2026 — TSQL-10 — auditoria F1 e métricas agregadas
+
+- Backend registra por correlação o trace F1, catálogo (`mapping_version`/`dictionary_version`), dependências realmente instaladas, durações das etapas e falhas tipadas. O serviço GenAI registra modelo, prompt, SDK/parser/driver, tentativas e uso reportado; campos ausentes continuam desconhecidos.
+- `SqlF1AuditArtifact` é persistido no evento de resposta privilegiado após execução aprovada. Guarda o template SQL canônico parametrizado e digests de template, candidato, admissão, execução e resultado, além de contexto, lote e versões do catálogo; valores de parâmetros não são guardados. Aplica-se a retenção de 30 dias do `AuditStore`.
+- `backend/scripts/summarize_text_to_sql_trace.py` calcula p50/p95 por etapa, HTTP, fila e trabalho, agrupa falhas/tentativas/tokens/dependências sem devolver IDs ou conteúdo. Só calcula estimativa quando recebe pricebook versionado com origem e data efetiva; sem ele, custo é `null`/desconhecido.
+- CI Backend produz e publica por 14 dias um relatório baseado em fixture exclusivamente sintética. Não depende de chave de modelo. Não é medição de tráfego real.
+- Verificações em Docker/Linux: **107 testes Backend passaram** com PostgreSQL 16 descartável, incluindo rota F1 autenticada, SQL reconciliado e leitura da auditoria; **4 testes de telemetria GenAI** e **10 testes de concorrência/fila/prazo/cancelamento** passaram. Ruff dirigido, `compileall`, validação do workflow YAML, CLI do resumo sintético e `git diff --check` passaram. Permanece um aviso de depreciação Starlette/httpx.
+- Sem chamada Gemini, consulta à Gold publicada, preço real ou carga concorrente representativa. Faixas de dependência ainda não estão fixadas e faltam limiares/procedimento de alerta. **TSQL-10 permanece aberta** até as evidências restantes listadas em [TODO 3 — TSQL-10](plans/TODO_3_Text_to_SQL_Generativo.md#tsql-10--observabilidade-custo-e-operação); estados oficiais IA/WEB não mudam.
+
+### 07/11/2026 — TSQL-10 — configuração operacional, versões e recuperação
+
+- Pricebook `text-to-sql-price-book-v1` registra a tarifa Standard pública de `gemini-3.5-flash-lite` (US$ 0,30/1M tokens de entrada e US$ 2,50/1M de saída, incluindo pensamento como teto conservador), origem e data efetiva. O relatório calcula apenas estimativa superior quando uso correlacionado inclui tokens; o fixture CI usa um modelo sintético e permanece com custo desconhecido. Free Tier, créditos e faturamento efetivo não são inferidos.
+- A política `text-to-sql-alert-policy-v1` mede erro HTTP/provedor, p95 de requisição/SQL e erros de banco com tamanho mínimo de amostra; o CI executa o avaliador e publica artefato sanitizado. O procedimento está em [Operação Text-to-SQL F1](agents/text-to-sql-operations.md). Não existe encaminhamento de notificações externas nesta entrega.
+- Dependências diretas foram fixadas (Backend e GenAI: SQLGlot 30.24.0; Backend e testes GenAI: SQLAlchemy 2.1.6; Backend e opção PostgreSQL do GenAI: psycopg 3.3.6; adaptador Gemini: google-genai 2.34.0). As imagens-base estão fixadas por digest e as dependências/runtime/testes estão travadas nos arquivos `requirements.lock` e `requirements-dev.lock`. Rebuild limpo, `pip check` e regressões passaram; os locks fixam versões, mas não hash de cada artefato.
+- Recuperação sob pressão no pool foi validada com PostgreSQL 16 descartável: erro 503 sem detalhe interno enquanto a única conexão fica ocupada e recuperação para HTTP 200 após liberar. Burst sintético de 100 chamadas respeitou limite de quatro execuções concorrentes. São provas funcionais locais, não benchmark de capacidade ou tráfego real.
+- Testes em Docker: rota F1/PostgreSQL — **4 passaram**; controlador/carga sintética — **11 passaram**; resumo, pricebook e alertas — **7 passaram**; regressão Backend dirigida — **111 passaram**; suíte completa GenAI — **5.258 passaram, 45 skips**; `pip check` passou nas duas imagens reconstruídas; o sumário sintético resultou em custo `unknown` e zero alertas. Ruff, compilação Python com cache temporário, YAML e `git diff --check` passaram. Não houve chamada Gemini, falha HTTP 429 real, consulta Gold ativa ou medição de tráfego de produção.
+- **TSQL-10 permanece aberta** até amostra integrada Gemini autorizada, carga representativa no ambiente alvo e integração dos alertas com o coletor/canal operacional. A reserva autorizada de API anterior (US$ 2,50) foi praticamente consumida (US$ 2,499385); esta mudança não fez chamadas ao provedor nem alterou os estados oficiais IA/WEB.
+
+### 07/11/2026 — TSQL-10 — amostra real e correções de telemetria
+
+- Duas solicitações reais e correlacionadas a `gemini-3.5-flash-lite` foram resumidas em artefato privado sanitizado: HTTP 502 nas duas, ambas por envelope inválido; HTTP p50/p95 2.313/2.429 ms e geração p50/p95 2.057/2.290 ms. O provedor reportou 9.564 tokens de entrada, 960 de saída e 10.524 totais em duas tentativas. As métricas descrevem somente essa amostra de falhas e não representam latência/qualidade operacional.
+- O teto de custo calculado com tarifa Standard pública foi US$ 0,0052692, não cobrança confirmada; o plano Free Tier/créditos e faturamento efetivo não foram verificados. A estimativa excedeu a reserva conservadora anterior de US$ 2,50 (US$ 2,499385), sem contar uma chamada anterior cujo log se perdeu no reinício. Não serão feitas outras chamadas sob a autorização anterior. Uma chamada prévia gerou candidato, mas readiness recusou admissão devido a C03/C10 pendentes; nenhuma consulta SQL foi executada.
+- Corrigido o evento HTTP da rota F1 no middleware, sanitizada a resposta HTTP de `SqlAdmissionDenied`, incluído o fixture contratual na imagem Backend e corrigida a contagem duplicada de tentativa/uso pelo sumarizador. A suíte dirigida em Docker/Linux foi observada com **97 aprovados e 17 skips**; `compileall` e cinco testes locais do sumarizador passaram. Docker não estava acessível nesta continuação, portanto as verificações não foram repetidas agora.
+- **TSQL-10 permanece aberta:** faltam carga representativa no ambiente-alvo, evidência operacional de recuperação 429/schema drift e integração dos alertas com coletor/canal. A amostra Gemini só demonstrou coleta correlacionada de falhas. Estados oficiais IA/WEB não foram alterados.
+- Revalidação no Docker com PostgreSQL 16 descartável e fixture sintética montada em somente leitura. Passaram 26 testes da rota autenticada, executor PostgreSQL, sumarizador e avaliador de alertas. O executor bloqueou SQL após mudanças de schema e grants no banco descartável. A rota autenticada executou SQL e reconciliou o resultado com a referência independente. A validação operacional na Gold ativa, a carga representativa, a recuperação após 429 real e a entrega de alertas ao canal operacional continuam pendentes.
+- Gold ativa no Docker local: `assert_live_f1_catalog` passou em transação somente leitura com o leitor configurado e todas as dimensões F1. Conferidos schema físico, tipos, grão e grants de leitura exigidos. O diagnóstico integrado de prontidão continuou sem comprovação para junho/2026. Nenhuma linha analítica foi consultada. O teste de mutação de schema e grants permanece restrito ao PostgreSQL descartável.
+- Carga local da branch em Docker com `TEST_TEXT_TO_SQL_LOAD=1`, PostgreSQL 16 descartável, autenticação real da aplicação em SQLite temporário com conexões separadas e gerador simulado. As 120 requisições autenticadas retornaram 200 e preservaram as linhas da referência. Concorrência 1/4/8: p50 100,7/360,5/725,5 ms, p95 106,7/453,5/868,8 ms e vazão 9,73/10,77/10,62 req/s. A suíte de rota e alertas passou com 8 testes, incluindo recuperação após 503 por pressão no pool. A primeira execução com SQLite em memória compartilhado falhou em concorrência 8 por disputa na conexão da fixture. A imagem de runtime GenAI não inclui pytest para repetir a suíte do gerador. Sem chamadas Gemini. A carga mede a rota ASGI com pool analítico de uma conexão e fixture sintética. Recuperação após 429 real, prontidão integrada da Gold e entrega ao canal operacional seguem pendentes.
+- Diagnóstico integrado repetido no Docker com o mesmo banco de prontidão da rota F1 (DATABASE_URL), serviço GenAI interno e competência junho/2026. O comando concluiu com gold-readiness-v2 e lote ready. Faturamento F1 permaneceu unavailable por control_pending. Nenhum controle foi aprovado durante a checagem e nenhuma chamada Gemini foi feita.
+- Gold real no Docker local: diagnóstico integrado de junho/2026 com C01/C02/C04 retornou lote ready e faturamento.receita available. Aprovações registradas na configuração local ignorada pelo Git. Backend recriado e configuração efetiva conferida com Text-to-SQL habilitado. O diagnóstico não fez chamada ao Gemini nem executou pergunta no portal.
+- Alertas em Docker local: o CLI `evaluate_text_to_sql_alerts.py` agora aceita webhook HTTP(S) explícito. Quatro testes passaram e Ruff dirigido passou. Coletor efêmero na rede local recebeu alerta sintético `http_error_ratio` com HTTP 202 e confirmou payload sem IDs, pergunta ou SQL. Isso comprova transporte local e sanitização, sem configurar destino externo permanente.
+- O aceite de carga e alertas foi exercitado no Docker local com dados sintéticos e coletor efêmero. A TSQL-10 continua aberta para recuperação após 429 real do Gemini. A mensagem “confirmo o valor” não especificou o novo teto acumulado, então nenhuma chamada nova foi feita. Carga, prontidão Gold, schema/grants e entrega ao coletor local têm evidências separadas acima.
+
+### 07/11/2026 — TSQL-10 — 429 Gemini e retorno após rate limit
+
+- Com autorização explícita de teto acumulado de US$ 3, o runner enviou 20 contextos sintéticos F1 ao Gemini, uma tentativa por caso, sem execução SQL. Houve **1 HTTP 429 real** na 20ª solicitação. Depois de aguardar 60 segundos, foram feitas duas solicitações adicionais e ambas retornaram sem novo 429, mas falharam na validação do envelope (`contract_validation`); portanto a recuperação da quota no transporte foi observada, mas não uma resposta F1 válida.
+- O runner limitou a saída a 1.024 tokens na sequência e 2.048 na confirmação. Reserva conservadora acumulada máxima registrada: **US$ 2,766101 de US$ 3**, deixando margem reservada de US$ 0,233899. Tarifa Standard é estimativa superior, não cobrança observada; uso incompleto impediu cálculo exato. Capturas privadas ignoradas pelo Git em `work/tsql10-gemini-*`.
+- Nenhum candidato foi executado. A TSQL-10 segue aberta até obter resposta F1 válida após o rate limit e carga representativa do ambiente operacional. Estados IA/WEB preservados.
+- Tentativa suplementar real `F1-06-V0` após o 429: uma chamada ao gerador Text-to-SQL, sem novo 429, rejeitada como `ModelProviderInvalidResponse`/`contract_validation` (`validation_fields=envelope`). Não houve candidato aceito nem SQL executado. Uso reportado: 3.596 tokens de entrada, 550 de saída e 4.146 totais; tokens de pensamento ausentes. Limite inferior pela tarifa Standard: US$ 0,0024538; reserva conservadora acumulada: **US$ 2,776756 de US$ 3**. Artefato privado ignorado: `work/tsql10-gemini-final-recovery-attempt.json`.
+- **TSQL-10 permanece aberta:** recuperação do rate limit no transporte confirmada, mas resposta F1 válida após o 429 e carga representativa operacional continuam sem evidência. Estados IA/WEB preservados.
+
+### 08/11/2026 — IA-01/02/03/06/08 — rota Text-to-SQL para capacidades Gold v2
+
+- Cinco consultas (CON-04, satisfação mensal/acumulada, atendimento acumulado e receita por bairro) passaram pela rota HTTP autenticada com Gemini real f1-29, execução somente leitura na Gold v2 ativa e reconciliação com SQL agregado independente. Cada caso consultou o readiness real e validou métrica/fonte da evidência. Dois casos de GD completam os sete cenários da suíte opt-in com candidato determinístico; estes não chamaram Gemini.
+- As cinco respostas selecionadas passaram pelo contrato de geração e pela revisão semântica antes da admissão. Isso comprova integração nesses exemplos, não a bateria generativa completa, paráfrases/holdout ou a tela do Assistente. Não houve alteração de controles, grants ou publicação.
+- A reserva conservadora acumulada ficou estimada em US$ 3,4251 de US$ 3,50, com cerca de US$ 0,0749 restantes; o custo exato não é conhecido porque tokens de pensamento não foram informados. Nenhuma nova chamada Gemini será feita nesta rodada. O gate de origem do navegador recusou abrir a página local, sem tentativa de contorno.
+- O checklist de estrutura ganhou uma recusa explícita para JOIN entre fatos de receita e consumo. A reexecução, sem Gemini, de `test_genai_sql_structure.py` e `test_genai_sql_live_gold_route.py` passou: **78 testes em 139,60 s**, incluindo sete consultas Gold com candidatos fixos e readiness real.
+- Bloqueios que permanecem: aceite visual; bateria completa de avaliação, revisão humana dos rótulos e holdout; regra e cobertura empresarial para agregar DEC/FEC; zero linhas da decomposição Gold v2 para as janelas solicitadas; integração composta; prova de cardinalidade/população/fan-out necessária para liberar JOIN. Reparo permanece desligado, sem orçamento/revalidação implementados. **IA-01/02 e demais estados oficiais permanecem inalterados.**
+
+### 08/11/2026 — TSQL-11 — continuidade ponderada e staging preço-volume por CSV
+
+- F1 v12 integra a agregação ponderada de DEC/FEC entre competências/alimentadores com a regra legada, sem somar índices publicados. A consulta pública autenticada na Gold ativa para jan–mar/2026 reconciliou valor e população incluída/excluída com SQL independente; C11/cobertura permaneceu incompleto, e a evidência preservou `observed_uncertified` e o aviso. A execução foi feita no Docker Linux com candidato controlado e readiness real; não houve Gemini nessa prova.
+- A staging da decomposição preço-volume foi preparada localmente a partir dos CSVs e manifestos Gold v2. Para jul/2024–jun/2025 contra jul/2025–jun/2026, foram reconciliados 1.106 grupos com `consumo_receita_bairro`, com resíduo absoluto máximo de aproximadamente R$ 0,0000000081. Os artefatos ficam em diretório local ignorado pelo Git; não se usou Databricks nem se alterou a publicação ativa. Resta integrar a origem de staging tipada à rota/evidência composta.
+- Consumo médio por UC também passou uma vez pela rota com Gemini real e SQL independente. O runner de teste não retornou tokens/custo; nenhum valor foi atribuído a essa chamada.
+- Regressão completa Backend: 3.541 testes aprovados e 148 ignorados. Rota live DEC/FEC repetida após atualizar o Backend Docker: 1 aprovada, 8 casos fora da seleção. Permanecem aceite visual, integração da análise composta preço-volume e critérios de promoção TSQL-12; estados oficiais IA/WEB não foram alterados. Nenhum commit ou push foi feito.
+- Em 08/11, a pessoa usuária confirmou que o modo F1 e a interface do Assistente estão funcionando e visualmente adequados. Naquele registro a composição preço-volume ainda aguardava integração; a atualização concluída está documentada logo abaixo.
+
+### 08/11/2026 — Composição preço-volume pela rota Text-to-SQL F1
+
+- A rota autenticada responde à solicitação explícita de decomposição preço-volume do consumo e faturamento para jul/2024–jun/2025 contra jul/2025–jun/2026. A consulta agregada de consumo usa SQLAlchemy e `diagnostico_receita` na Gold v2 ativa; a decomposição é carregada de CSV/manifesto Gold v2 em volume Docker somente leitura, como staging separada. Nenhum JOIN entre fatos é executado.
+- Antes de responder, a rota confere readiness e cobertura Gold para os 24 meses, lote ativo igual ao lote de origem do manifesto, janelas e método esperados, estrutura e contagem de grupos e SHA-256 do CSV/manifesto. Revalida publicação e escopo. A evidência composta tipada contém ambos os lotes/digests e ressalvas sobre população diferente, staging não ativa e preço observado sem causalidade/tarifa regulada.
+- Chamada local autenticada retornou `answered`: 11 municípios com queda de consumo, 977 detalhes bairro/classe e seis grupos `SEM_BASE_COMUM` preservados sem fabricar efeitos preço/volume/interação. O CSV completo contém 1.106 grupos; a Gold ativa permanece sem a tabela para essas janelas e não foi alterada.
+- O Assistente agora renderiza uma tabela acessível com consumo e os componentes publicados. `npm run build` e `python -m compileall -q app` passaram. A rota usa uma operação composta tipada e consulta fixa, sem geração Gemini de SQL nessa solicitação; não houve chamada paga de geração. Nenhum commit ou push foi feito.
+
+
+### 08/11/2026 — TSQL-11 — ticket médio e preço observado na F1
+
+- F1 v13 incorporou `billing.average_ticket` e `billing.effective_tariff` com as fórmulas e arredondamentos do catálogo Gold v2, seleção de métrica, schema, semântica SQL fechada, controles/cobertura, evidência e resposta apresentada. O preço usa apenas a receita e o consumo comparáveis da mesma população e a mensagem esclarece que não é tarifa homologada.
+- A rota HTTP autenticada consultou a Gold ativa com readiness real e reconciliação SQL independente para Recife/junho/2026: ticket médio R$ 246,65; preço observado 0,7557 R$/kWh. Os dois testes usaram candidatos fixos e não chamaram Gemini. A validação visual anterior do modo F1 permanece confirmada; a validação de geração Gemini para estas novas intenções ainda não foi feita. Nenhum dado, controle, grant ou publicação foi alterado. Não houve commit ou push.
+
+
+### 08/11/2026 — TSQL-11 — validação final das métricas Gold v2
+
+- Após reconstruir o serviço GenAI da branch para aceitar o contrato F1 v13, os testes opt-in `average-ticket` e `effective-tariff` passaram pela rota HTTP autenticada com Gemini real e Gold ativa: **2 passaram, 9 foram selecionados fora**. Readiness real foi consultado para o lote e ambos os resultados reconciliaram com SQL independente: R$ 246,65/UC faturada e R$ 0,7557/kWh observado, em Recife/junho/2026.
+- O perfil Gold v2 tem 15 métricas. A conferência não encontrou outra operação cotidiana com regra, controles e cobertura aprovados que ainda precise ser portada. `network.interruption_events` continua bloqueada por controle/cobertura pendentes; perdas elétricas não têm fórmula/fonte Gold definida. DEC/FEC multi-período funciona com aviso `observed_uncertified`. Custo exato das duas chamadas Gemini não foi informado. TSQL-12 continua responsável pelo benchmark de 596 perguntas, revisão global dos rótulos e holdout.

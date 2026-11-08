@@ -1,0 +1,491 @@
+{
+  "valid": [
+    {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "sql_candidate",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+      "parameters": {
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        },
+        "competency": {
+          "type": "string",
+          "value": "2026-06"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-06-01",
+            "end": "2026-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": []
+      },
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ]
+    },
+    {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "needs_clarification",
+      "clarification": {
+        "question": "Qual dos dois períodos você quer detalhar por mês?",
+        "missing_fields": [
+          "period",
+          "context"
+        ]
+      }
+    },
+    {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "unsupported",
+      "unsupported_reason": {
+        "code": "operation_outside_f1",
+        "message": "Participação percentual ainda não pertence à F1."
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "clarification_with_sql",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "clarification": {
+          "question": "Qual dos dois períodos você quer detalhar por mês?",
+          "missing_fields": [
+            "period",
+            "context"
+          ]
+        },
+        "sql": "SELECT 1"
+      }
+    },
+    {
+      "id": "self_authorized_flag",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "sql_candidate",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "competency": {
+            "type": "string",
+            "value": "2026-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": []
+        },
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "validated": true
+      }
+    },
+    {
+      "id": "boolean_as_integer",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "sql_candidate",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+        "parameters": {
+          "municipality": {
+            "type": "integer",
+            "value": true
+          },
+          "competency": {
+            "type": "string",
+            "value": "2026-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": []
+        },
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ]
+      }
+    },
+    {
+      "id": "partial_month",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "sql_candidate",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "competency": {
+            "type": "string",
+            "value": "2026-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-29"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": []
+        },
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ]
+      }
+    },
+    {
+      "id": "duplicate_alias",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "sql_candidate",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "competency": {
+            "type": "string",
+            "value": "2026-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": []
+        },
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          },
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ]
+      }
+    },
+    {
+      "id": "missing_currency_unit",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "sql_candidate",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "competency": {
+            "type": "string",
+            "value": "2026-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": []
+        },
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "comparison_missing_second_window",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "sql_candidate",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "competency": {
+            "type": "string",
+            "value": "2026-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "comparison",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": []
+        },
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ranking_missing_order_and_limit",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "sql_candidate",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "competency": {
+            "type": "string",
+            "value": "2026-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "ranking",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": []
+        },
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ]
+      }
+    },
+    {
+      "id": "clarification_missing_fields",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "clarification": {
+          "question": "Qual dos dois períodos você quer detalhar por mês?",
+          "missing_fields": []
+        }
+      }
+    },
+    {
+      "id": "metric_outside_f1",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "sql_candidate",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "competency": {
+            "type": "string",
+            "value": "2026-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "energy.consumption",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": []
+        },
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ]
+      }
+    }
+  ]
+}

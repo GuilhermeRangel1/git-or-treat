@@ -1,5 +1,6 @@
 """Persistência operacional com propriedade, retenção e reserva idempotente."""
 
+import json
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import uuid4
@@ -12,7 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.models.ai_conversations import CONVERSATIONS as C
 from app.models.ai_conversations import EXCHANGES as E
-from app.schemas.ai import AIQuestionResponse, AIQuestionText
+from app.schemas.ai import AIConversationTurn, AIQuestionResponse, AIQuestionText
+from app.schemas.sql_analysis import SqlAnalysisResponse
 from app.services.conversation_memory import (
     ConversationMemory,
     MemoryRequest,
@@ -29,6 +31,29 @@ def now():
 
 def aware(value):
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+def sql_replay_audit_matches(response, events, *, reference, scope, batch):
+    """Confere a linha de auditoria original antes de devolver um replay F1."""
+    row = next((item for item in events if item.get("id") == reference), None)
+    if row is None or row.get("service") != "backend" or not isinstance(row.get("event"), dict):
+        return False
+    event = row["event"]
+    expected_evidence = (
+        response.evidence.evidence_digest if response.evidence is not None else None
+    )
+    expected_outcome = "refused" if response.status == "unsupported" else "success"
+    return (
+        event.get("correlation_id") == response.correlation_id
+        and event.get("stage") == "response"
+        and event.get("outcome") == expected_outcome
+        and event.get("caller_ref") == scope.caller_ref
+        and event.get("source_id") == "gold.local"
+        and event.get("metric_id") == "billing.revenue"
+        and event.get("batch_ref") == batch
+        and event.get("evidence_ref") == expected_evidence
+        and (response.evidence is None or response.evidence.batch_ref == batch)
+    )
 
 
 class ConversationStore:
@@ -144,17 +169,23 @@ class ConversationStore:
         items = []
         for entry in exchanges:
             response = None
+            sql_response = None
             question = None
-            available = entry["format_version"] == 1 and entry["scope_digest"] == scope
+            available = entry["format_version"] in {1, 2} and entry["scope_digest"] == scope
             if available:
                 try:
                     if entry["question"] is not None:
                         question = QUESTION_TEXT.validate_python(entry["question"])
-                    if entry["response"] is not None:
+                    if entry["format_version"] == 1 and entry["response"] is not None:
                         parsed = AIQuestionResponse.model_validate(entry["response"])
                         if not document_response_is_current(parsed):
                             available = False
                         response = parsed.model_dump(mode="json", exclude={"continuation_token"})
+                    elif entry["format_version"] == 2 and entry["response"] is not None:
+                        parsed_sql = SqlAnalysisResponse.model_validate(entry["response"])
+                        sql_response = parsed_sql.model_dump(
+                            mode="json", exclude={"continuation_token"}
+                        )
                 except (ValidationError, TypeError):
                     available = False
             items.append(
@@ -163,6 +194,11 @@ class ConversationStore:
                     "state": entry["state"] if available else "unavailable",
                     "question": question if available else None,
                     "response": response if available else None,
+                    "sql_response": sql_response if available else None,
+                    "batch_ref": (
+                        entry["batch"]
+                        if available and entry["format_version"] == 2 else None
+                    ),
                 }
             )
         return {
@@ -282,6 +318,154 @@ class ConversationStore:
         context = self.context(conversation, scope)
         self.db.commit()  # Encerra também a transação de leitura antes do modelo.
         return None, context, attempt
+
+    def reserve_sql(
+        self, conversation, request_id, question, scope, *,
+        batch_ref, refresh_context=False, expected_publication=None,
+    ):
+        """Reserva uma tentativa F1 e só reproduz respostas F1 da mesma identidade."""
+        row = self.owned(conversation, lock=True)
+        request_material = json.dumps(
+            {
+                "strategy": "text-to-sql-f1-v1",
+                "question": question,
+                "batch_ref": batch_ref,
+                "refresh_context": refresh_context,
+                "expected_publication": expected_publication,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        fingerprint = sha256(request_material.encode()).hexdigest()
+        previous = (
+            self.db.execute(
+                select(E).where(
+                    E.c.conversation_id == conversation, E.c.request_id == request_id
+                )
+            )
+            .mappings()
+            .first()
+        )
+        if previous is not None:
+            if (previous["format_version"] != 2
+                    or previous["request_digest"] != fingerprint
+                    or previous["scope_digest"] != scope):
+                raise HTTPException(409, "O envio não corresponde à tentativa original.")
+            if previous["state"] == "completed":
+                try:
+                    result = SqlAnalysisResponse.model_validate(previous["response"])
+                except (ValueError, TypeError):
+                    raise HTTPException(
+                        409, "Resposta histórica indisponível. Faça uma nova consulta."
+                    ) from None
+                context = self.sql_context(conversation, scope, batch_ref=batch_ref)
+                self.db.commit()
+                return result, context, None, previous["batch"]
+            if aware(previous["lease_until"]) > now():
+                raise HTTPException(409, "Esta pergunta ainda está sendo processada.")
+
+        pending = self.db.scalar(
+            select(E.c.id).where(
+                E.c.conversation_id == conversation,
+                E.c.state == "pending",
+                E.c.lease_until > now(),
+            )
+        )
+        if pending:
+            raise HTTPException(409, "Aguarde a pergunta anterior terminar.")
+        attempt = str(uuid4())
+        if previous is None:
+            count = self.db.scalar(
+                select(func.count()).select_from(E).where(E.c.conversation_id == conversation)
+            )
+            if count >= 200:
+                raise HTTPException(409, "Esta conversa atingiu o limite. Inicie outra conversa.")
+            self.db.execute(insert(E).values(
+                id=str(uuid4()), conversation_id=conversation, request_id=request_id,
+                sequence=row["revision"], attempt_id=attempt, format_version=2,
+                request_digest=fingerprint, scope_digest=scope, state="pending",
+                question=None, lease_until=now() + timedelta(seconds=90),
+            ))
+        else:
+            self.db.execute(
+                update(E).where(E.c.id == previous["id"]).values(
+                    state="pending", question=None, response=None, attempt_id=attempt,
+                    lease_until=now() + timedelta(seconds=90),
+                )
+            )
+        self.db.execute(
+            update(C).where(C.c.id == conversation, C.c.owner_id == self.owner)
+            .values(revision=row["revision"] + 1)
+        )
+        self.db.commit()
+        context = self.sql_context(conversation, scope, batch_ref=batch_ref)
+        self.db.commit()
+        return None, context, attempt, None
+
+    def sql_context(self, conversation, scope, *, batch_ref):
+        """Lê somente turnos F1 completos da mesma conversa e do mesmo escopo."""
+        self.owned(conversation)
+        rows = (
+            self.db.execute(
+                select(E).where(
+                    E.c.conversation_id == conversation,
+                    E.c.state == "completed",
+                    E.c.scope_digest == scope,
+                    E.c.batch == batch_ref,
+                ).order_by(E.c.sequence.desc()).limit(20)
+            ).mappings().all()
+        )
+        exchanges = []
+        for row in rows:
+            if row["format_version"] != 2 or not isinstance(row["response"], dict):
+                break
+            question = row["question"]
+            try:
+                if not isinstance(question, str) or question == "Pergunta não armazenada.":
+                    break
+                question = QUESTION_TEXT.validate_python(question)
+                response = SqlAnalysisResponse.model_validate(row["response"])
+            except (ValidationError, TypeError, ValueError):
+                break
+            if response.status == "answered":
+                answer = (
+                    response.compound_analysis.answer
+                    if response.compound_analysis is not None
+                    else response.presentation.answer
+                )
+            elif response.status == "needs_clarification":
+                answer = response.clarification.question
+            else:
+                # Refusal or unsupported scope starts a new semantic topic.
+                break
+            exchanges.append((AIConversationTurn(role="user", content=question),
+                              AIConversationTurn(role="assistant", content=answer[:1000])))
+        chronological = [turn for exchange in reversed(exchanges) for turn in exchange]
+        return chronological[-3:]
+
+    def finish_sql(self, conversation, request_id, attempt, question, result, batch):
+        """Persiste a resposta F1 sem token bearer; replay é validado na reserva."""
+        self.owned(conversation, lock=True)
+        changed = self.db.execute(
+            update(E).where(
+                E.c.conversation_id == conversation,
+                E.c.request_id == request_id,
+                E.c.attempt_id == attempt,
+            ).values(
+                state="completed", question=question,
+                response=result.model_dump(mode="json", exclude={"continuation_token"}),
+                anchor=question if result.status != "unsupported" else None,
+                batch=batch, lease_until=now(),
+            )
+        )
+        if changed.rowcount != 1:
+            self.db.rollback()
+            raise HTTPException(409, "A tentativa foi substituída. Atualize a conversa.")
+        self.db.execute(
+            update(C).where(C.c.id == conversation, C.c.owner_id == self.owner)
+            .values(updated_at=now(), expires_at=now() + timedelta(days=30))
+        )
+        self.db.commit()
 
     def context(self, conversation, scope):
         self.owned(conversation)
