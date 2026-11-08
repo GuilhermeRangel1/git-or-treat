@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Search } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
 import type { SourceOptions } from "@/shared/analytics/sourceOptions";
-import UCPagination from "./UCPagination";
+import Pagination from "@/shared/ui/Pagination";
 import type { UCSearchResponse } from "./contract";
 
 const inputClass =
@@ -16,6 +16,7 @@ type Props = {
   optionsLoading: boolean;
   optionsError: Error | null;
   page: number;
+  pageSize: number;
   results: UCSearchResponse | undefined;
   isFetching: boolean;
   error: Error | null;
@@ -25,6 +26,7 @@ type Props = {
     classe: string;
   }) => void;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
   onSelect: (ucId: string) => void;
   onRetry: () => void;
   onRetryOptions: () => void;
@@ -38,11 +40,13 @@ export default function UC360SearchPanel({
   optionsLoading,
   optionsError,
   page,
+  pageSize,
   results,
   isFetching,
   error,
   onSearch,
   onPageChange,
+  onPageSizeChange,
   onSelect,
   onRetry,
   onRetryOptions,
@@ -252,12 +256,14 @@ export default function UC360SearchPanel({
           ))}
         </ul>
       )}
-      {results && results.pagination.total_pages > 1 && (
-        <UCPagination
+      {results && results.pagination.total > 0 && (
+        <Pagination
           label="Paginação dos resultados da busca"
           page={page}
           totalPages={results.pagination.total_pages}
           onPageChange={onPageChange}
+          pageSize={pageSize}
+          onPageSizeChange={onPageSizeChange}
         />
       )}
     </section>

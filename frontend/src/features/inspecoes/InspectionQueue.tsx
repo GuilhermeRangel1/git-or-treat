@@ -5,8 +5,6 @@ import {
   ArrowUp,
   ArrowUpDown,
   ArrowUpRight,
-  ChevronLeft,
-  ChevronRight,
   Info,
   Search,
 } from "lucide-react";
@@ -24,6 +22,7 @@ import {
   inspectionPrimary,
 } from "./inspection-ui";
 import { DEFAULT_PAGE_SIZE } from "./queue-query";
+import Pagination from "@/shared/ui/Pagination";
 
 function evidenceUrl(params: URLSearchParams, uc: string) {
   const next = new URLSearchParams(params);
@@ -314,40 +313,6 @@ function QueueHeader({
   );
 }
 
-function PageSizeSelect({
-  value,
-  onChange,
-  className,
-}: {
-  value: number;
-  onChange: (size: string) => void;
-  className: string;
-}) {
-  // Links com outro page_size válido mantêm o valor: a opção só entra nesse caso.
-  const sizes = Array.from(new Set([5, 10, 20, 50, value])).sort(
-    (left, right) => left - right,
-  );
-  return (
-    <label className={className}>
-      <span>Por página</span>
-      <span className="block w-20">
-        <select
-          aria-label="Por página"
-          className={inspectionControl}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          {sizes.map((size) => (
-            <option key={size} value={size}>
-              {size}
-            </option>
-          ))}
-        </select>
-      </span>
-    </label>
-  );
-}
-
 export default function InspectionQueue({
   result,
   params,
@@ -469,11 +434,6 @@ export default function InspectionQueue({
             )}
           </select>
         </label>
-        <PageSizeSelect
-          className="block shrink-0 space-y-2 text-sm"
-          value={pageSize}
-          onChange={(size) => updateQueueOption("page_size", size)}
-        />
       </div>
       {items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-2 py-10 text-center">
@@ -697,38 +657,16 @@ export default function InspectionQueue({
         </>
       )}
       {page.total > 0 ? (
-        <nav
-          aria-label="Paginação da fila"
-          className="flex flex-wrap items-center justify-between gap-3"
-        >
-          <p className="text-xs text-muted">
-            Página {page.page} de {page.total_pages} · {page.total} UC(s) no
-            recorte
-          </p>
-          <PageSizeSelect
-            className="ml-auto hidden items-center gap-2 text-sm md:flex"
-            value={pageSize}
-            onChange={(size) => updateQueueOption("page_size", size)}
-          />
-          <div className="flex gap-2">
-            <button
-              className={inspectionAction}
-              disabled={page.page <= 1}
-              onClick={() => goTo(page.page - 1)}
-            >
-              <ChevronLeft size={15} aria-hidden="true" />
-              Anterior
-            </button>
-            <button
-              className={inspectionAction}
-              disabled={page.page >= page.total_pages}
-              onClick={() => goTo(page.page + 1)}
-            >
-              Próxima
-              <ChevronRight size={15} aria-hidden="true" />
-            </button>
-          </div>
-        </nav>
+        <Pagination
+          label="Paginação da fila"
+          page={page.page}
+          totalPages={page.total_pages}
+          pageSize={pageSize}
+          onPageChange={goTo}
+          onPageSizeChange={(size) =>
+            updateQueueOption("page_size", String(size))
+          }
+        />
       ) : null}
     </section>
   );

@@ -1,15 +1,18 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import UCPagination from "./UCPagination";
+import Pagination from "./Pagination";
 
-it("permite navegar por números e identifica a página atual em listas longas", () => {
+it("navega por números e permite alterar a quantidade por página", () => {
   const onPageChange = vi.fn();
+  const onPageSizeChange = vi.fn();
   render(
-    <UCPagination
+    <Pagination
       page={5}
       totalPages={20}
       label="Paginação"
+      pageSize={20}
       onPageChange={onPageChange}
+      onPageSizeChange={onPageSizeChange}
     />,
   );
   expect(screen.getByRole("button", { name: "Página 5" })).toHaveAttribute(
@@ -20,5 +23,9 @@ it("permite navegar por números e identifica a página atual em listas longas",
     screen.queryByRole("button", { name: "Página 10" }),
   ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Página 6" }));
+  fireEvent.change(screen.getByLabelText("Por página"), {
+    target: { value: "50" },
+  });
   expect(onPageChange).toHaveBeenCalledWith(6);
+  expect(onPageSizeChange).toHaveBeenCalledWith(50);
 });

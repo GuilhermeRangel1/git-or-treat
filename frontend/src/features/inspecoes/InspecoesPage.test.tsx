@@ -848,7 +848,9 @@ it("abre evidências reproduzíveis e volta preservando a página e os filtros",
     screen.getByRole("heading", { name: "O que define a posição na fila" }),
   ).toBeVisible();
   await user.click(screen.getByRole("link", { name: "Voltar à fila" }));
-  expect(await screen.findByText(/Página 2 de 2/)).toBeVisible();
+  expect(
+    await screen.findByRole("button", { name: "Página 2" }),
+  ).toHaveAttribute("aria-current", "page");
   expect(screen.getByLabelText("URL atual")).toHaveTextContent(
     "municipio=Recife&page_size=1&page=2",
   );
@@ -1034,15 +1036,21 @@ it("pagina pelo servidor e mantém estimativa ausente distinta de zero", async (
   vi.stubGlobal("fetch", fetch);
   const user = userEvent.setup();
   mount("/inspecoes?page_size=1");
-  await screen.findByText(/Página 1 de 2/);
-  await user.click(screen.getByRole("button", { name: "Próxima" }));
-  expect(await screen.findByText(/Página 2 de 2/)).toBeVisible();
+  await user.click(await screen.findByRole("button", { name: "Página 2" }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Página 2" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    ),
+  );
   expect(screen.getAllByText("Estimativa indisponível")).toHaveLength(2);
   expect(
     screen.queryByRole("region", { name: "Resumo do recorte da fila" }),
   ).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Ver fundamentos" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
+  expect(
+    screen.queryByRole("button", { name: "Página 3" }),
+  ).not.toBeInTheDocument();
 });
 
 it("mantém filtros como rascunho no diálogo e fecha com Escape devolvendo foco", async () => {
@@ -1405,10 +1413,7 @@ it.each(pageSizeLayouts)(
     );
     expect(request.searchParams.get("page_size")).toBe("5");
     const controls = screen.getByLabelText("Controles da fila");
-    for (const select of [
-      within(footer).getByLabelText("Por página"),
-      within(controls).getByLabelText("Por página"),
-    ]) {
+    for (const select of [within(footer).getByLabelText("Por página")]) {
       expect(select).toHaveValue("5");
       expect(sizeOptions(select)).toEqual(["5", "10", "20", "50"]);
     }

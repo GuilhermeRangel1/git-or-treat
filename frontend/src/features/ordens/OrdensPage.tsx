@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { Order } from "@/shared/api/orders";
 import { getOrderDetail, searchOrders } from "@/shared/api/orders";
 import Button from "@/shared/ui/Button";
+import Pagination from "@/shared/ui/Pagination";
 import FieldFiles from "@/shared/inspections/FieldFiles";
 import OrderActionsDialog from "./OrderActionsDialog";
 import OrderFoundationsDialog from "./OrderFoundationsDialog";
@@ -277,39 +278,21 @@ export default function OrdensPage() {
                 {orders.data.pagination.page} de{" "}
                 {orders.data.pagination.total_pages}.
               </p>
-              {orders.data.pagination.total_pages > 1 ||
+              {orders.data.pagination.total > 0 ||
               orders.data.pagination.page > 1 ? (
-                <nav
-                  aria-label="Paginação das ordens"
-                  className="flex flex-wrap items-center justify-between gap-3"
-                >
-                  <Button
-                    variant="outline"
-                    leftIcon={<ArrowLeft size={16} aria-hidden="true" />}
-                    disabled={orders.data.pagination.page <= 1}
-                    onClick={() => changePage(orders.data!.pagination.page - 1)}
-                  >
-                    Anterior
-                  </Button>
-                  <span className="text-sm text-muted">
-                    {orders.data.pagination.total} ordem(ns) · página{" "}
-                    {orders.data.pagination.page}
-                    {orders.data.pagination.total_pages > 0
-                      ? ` de ${orders.data.pagination.total_pages}`
-                      : " · sem páginas com resultados"}
-                  </span>
-                  <Button
-                    variant="outline"
-                    rightIcon={<ArrowRight size={16} aria-hidden="true" />}
-                    disabled={
-                      orders.data.pagination.page >=
-                      orders.data.pagination.total_pages
-                    }
-                    onClick={() => changePage(orders.data!.pagination.page + 1)}
-                  >
-                    Próxima
-                  </Button>
-                </nav>
+                <Pagination
+                  label="Paginação das ordens"
+                  page={orders.data.pagination.page}
+                  totalPages={orders.data.pagination.total_pages}
+                  pageSize={parsed.pageSize}
+                  onPageChange={changePage}
+                  onPageSizeChange={(size) => {
+                    const next = new URLSearchParams(params);
+                    next.set("page_size", String(size));
+                    next.delete("page");
+                    setParams(next);
+                  }}
+                />
               ) : null}
             </>
           ) : null}

@@ -66,6 +66,7 @@ type Props = {
     onSelectHistory: (section: UCHistorySection) => void;
     onHistorySection: (section: UCHistorySection) => void;
     onHistoryPage: (page: number) => void;
+    onHistoryPageSize?: (size: number) => void;
     onPeriodApply: (start: string, end: string) => void;
   };
 };
@@ -266,6 +267,7 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                   onRetry={actions.onHistoryRetry}
                   onSelectSection={actions.onHistorySection}
                   onPageChange={actions.onHistoryPage}
+                  onPageSizeChange={actions.onHistoryPageSize}
                 />
                 <div className="grid gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
                   {unit.filters.section === "meters" && (

@@ -44,6 +44,7 @@ export default function UC360Page() {
     "municipio",
     "classe",
     "search_page",
+    "search_page_size",
     "start",
     "end",
   ]) {
@@ -76,6 +77,7 @@ export default function UC360Page() {
     !selectedUCId &&
       !state.invalid.length &&
       Boolean(state.q || state.municipio || state.classe),
+    state.searchPageSize,
   );
   const overview = useUCOverview(
     selectedUCId,
@@ -90,6 +92,7 @@ export default function UC360Page() {
     state.end,
     state.historyPage,
     !state.invalid.length,
+    state.historyPageSize,
   );
   const series = useUCSeries(
     selectedUCId,
@@ -156,6 +159,7 @@ export default function UC360Page() {
             optionsLoading={catalog.isPending}
             optionsError={catalog.error}
             page={state.searchPage}
+            pageSize={state.searchPageSize}
             results={search.data}
             isFetching={search.isFetching}
             error={search.error}
@@ -167,6 +171,12 @@ export default function UC360Page() {
               next.set("search_page", String(page));
               setParams(next);
             }}
+            onPageSizeChange={(size) => {
+              const next = new URLSearchParams(params);
+              next.set("search_page_size", String(size));
+              next.delete("search_page");
+              setParams(next);
+            }}
             onSelect={(ucId) => {
               const detailParams = new URLSearchParams();
               if (state.q) detailParams.set("q", state.q);
@@ -175,6 +185,11 @@ export default function UC360Page() {
               if (state.classe) detailParams.set("classe", state.classe);
               if (state.searchPage > 1)
                 detailParams.set("search_page", String(state.searchPage));
+              if (state.searchPageSize !== 20)
+                detailParams.set(
+                  "search_page_size",
+                  String(state.searchPageSize),
+                );
               if (state.start && state.end) {
                 detailParams.set("start", state.start);
                 detailParams.set("end", state.end);
@@ -293,6 +308,12 @@ export default function UC360Page() {
             onHistoryPage: (page) => {
               const next = new URLSearchParams(params);
               next.set("history_page", String(page));
+              setParams(next);
+            },
+            onHistoryPageSize: (size) => {
+              const next = new URLSearchParams(params);
+              next.set("history_page_size", String(size));
+              next.delete("history_page");
               setParams(next);
             },
             onPeriodApply: (start, end) =>

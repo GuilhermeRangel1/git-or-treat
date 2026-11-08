@@ -3,7 +3,7 @@ import { AlertCircle, ArrowUpRight, X } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
 import type { UCHistory, UCHistoryItem, UCStatus } from "./contract";
 import { signedValueTone } from "@/shared/ui/signedValue";
-import UCPagination from "./UCPagination";
+import Pagination from "@/shared/ui/Pagination";
 import type { UCHistorySection } from "./uc360-state";
 import {
   formatUCCompetence,
@@ -219,6 +219,7 @@ export function HistoryPanel({
   onRetry,
   onSelectSection,
   onPageChange,
+  onPageSizeChange,
 }: {
   section: UCHistorySection | null;
   history?: UCHistory;
@@ -227,6 +228,7 @@ export function HistoryPanel({
   onRetry: () => void;
   onSelectSection: (section: UCHistorySection) => void;
   onPageChange: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
 }) {
   const columns = section
     ? historyColumns[section].filter((key) => {
@@ -385,12 +387,14 @@ export function HistoryPanel({
               {emptyHistoryMessage(history.metadata.status, section)}
             </p>
           )}
-          {history.pagination.total_pages > 1 && (
-            <UCPagination
+          {history.pagination.total > 0 && (
+            <Pagination
               label="Paginação do histórico"
               page={history.pagination.page}
               totalPages={history.pagination.total_pages}
               onPageChange={onPageChange}
+              pageSize={history.pagination.page_size}
+              onPageSizeChange={(size) => onPageSizeChange?.(size)}
             />
           )}
           {history.metadata.limitations.some(

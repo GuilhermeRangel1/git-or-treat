@@ -465,6 +465,11 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 08/11/2026 — WEB-03 / WEB-04 / WEB-05 — paginação das jornadas
+
+- UC 360, Inspeções e Ordens usam navegação numérica à esquerda e seleção de quantidade por página à direita. A busca e o histórico da UC passam a enviar o tamanho escolhido à API; trocar a quantidade retorna à primeira página e preserva os filtros. Em Ordens, a quantidade não é repetida no resumo de filtros. Sem mudança de estado dos requisitos.
+- Arquivos: `frontend/src/shared/ui/Pagination.tsx` e features `uc360`, `inspecoes` e `ordens`. Verificações: 174 testes direcionados, `npm run build`, `npm run lint`, `npm run check:boundaries`, `npm run format:check` e `git diff --check` passaram; lint com dois avisos preexistentes. Sem inspeção visual no navegador nem jornada com API real nesta alteração.
+
 ### 08/11/2026 — WEB-03 — simplificação dos estados nas tabelas
 
 - A coluna Situação do histórico de consumo foi retirada. Estados parciais ou indisponíveis continuam identificados junto às competências afetadas; a coluna Dados do resumo e outras situações de negócio permanecem nas respectivas tabelas. Sem mudança de contrato ou estado do requisito.
