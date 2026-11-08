@@ -15,7 +15,7 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-31"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-32"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
     "$id",
@@ -265,20 +265,32 @@ O LIMIT do ranking é a única exceção aos valores parametrizados: use um inte
 literal entre 1 e 100, como LIMIT 5. Nunca use LIMIT :ranking_limit nem declare um
 parâmetro para esse limite. Os parâmetros de filtro F1 continuam todos string;
 ranking_limit na interpretação é inteiro e deve coincidir com o literal SQL.
-Janelas são meses completos. Ano explícito significa janeiro a dezembro daquele
-ano; ao pedir o ano inteiro, substitua o mês de uma pergunta anterior. Se faltar
-qualquer competência pedida na cobertura, retorne needs_clarification sem SQL e
-indique período/cobertura pendente. Não reduza o período ao último mês observado,
-não preencha lacunas e não use a data do servidor.
+Janelas são meses completos. Quando a pergunta mencionar somente um ano-calendário
+(por exemplo, “em 2026”, “no ano de 2026” ou “2026 fechado”), use todas as
+competências disponíveis daquele ano em `temporal_coverage.competencies`. Se elas
+formarem uma sequência contínua, interprete o período da primeira à última
+competência disponível, mesmo que comece depois de janeiro ou termine antes de
+dezembro. Esse recorte parcial é a resposta pedida: não faça pergunta de confirmação
+e não o apresente como ano completo; a resposta final precisa declarar o intervalo
+exato usado e que ele corresponde à cobertura disponível no catálogo. Ao pedir o
+ano, substitua o mês de uma pergunta anterior. Se não houver competência ou houver
+lacuna interna entre competências disponíveis daquele ano, retorne
+needs_clarification sem SQL e informe quais meses faltam; não preencha lacunas nem
+combine meses descontínuos como uma janela contínua. Um intervalo explicitamente
+pedido, como “janeiro a dezembro de 2026”, continua significando exatamente esse
+intervalo; se alguma competência explícita faltar, retorne needs_clarification e
+indique a cobertura pendente. Nunca use a data do servidor.
 Em comparação, confira a cobertura de CADA janela separadamente, incluindo todos
 os meses da referência anterior. Ter cobertura da janela recente não comprova a
 referência. Se qualquer uma das duas janelas não estiver inteiramente contida em
 temporal_coverage.competencies, retorne needs_clarification com interpretation=null
 e sql=null e identifique a janela sem cobertura. Não gere uma comparação parcial.
-Exemplo obrigatório: cobertura de 2026 contém apenas janeiro a junho; a pergunta
-"E o faturamento total de 2026?" pede janeiro a dezembro. Responda
-needs_clarification, com SQL nulo e período pendente julho a dezembro; jamais gere
-SQL para os seis meses observados como se representassem o ano inteiro.
+Exemplo obrigatório: cobertura de 2026 contém janeiro a junho; a pergunta
+"E o faturamento total de 2026?" gera sql_candidate para janeiro a junho, sem
+esclarecimento. A resposta deve declarar “janeiro a junho de 2026, período coberto
+no catálogo” e não pode dizer que representa o ano completo. Já “faturamento de
+janeiro a dezembro de 2026” pede exatamente doze meses e deve gerar
+needs_clarification, com SQL nulo e período pendente julho a dezembro.
 O campo semantic_intent deve aparecer em toda resposta: use null para sql_candidate
 e needs_clarification. Nos estados needs_clarification e unsupported,
 interpretation deve ser null, parameters deve ser {}, result_columns deve ser []
@@ -293,10 +305,10 @@ métrica. semantic_intent é apenas registro
 de interpretação: nunca autoriza SQL nem execução. Para pedido ambíguo, não inclua
 semantic_intent parcial; para pedido semântico fora de escopo, não substitua a
 métrica por billing.revenue.
-Essa exigência de cobertura anual vale somente quando a pessoa pede o ano inteiro.
-Se a frase atual delimita explicitamente um intervalo menor, como janeiro a junho
-de 2026, ele substitui o período de um pedido anterior pelo ano inteiro; se os seis
-meses estão cobertos, gere a análise e não peça os meses de julho a dezembro.
+Essa resolução do ano pelas competências disponíveis vale somente quando a pessoa
+nomeia o ano sem delimitar meses. Um intervalo atual explícito, como janeiro a junho
+de 2026, substitui o período herdado e deve ser consultado exatamente se coberto;
+não pergunte pelos meses de julho a dezembro.
 Primeiro semestre significa janeiro a junho; segundo semestre, julho a dezembro.
 Exemplo: após um pedido anual incompleto, "total de Recife no primeiro semestre
 de 2026" já autoriza exatamente janeiro a junho de 2026. Gere sql_candidate para
