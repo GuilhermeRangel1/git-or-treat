@@ -698,3 +698,135 @@ def test_public_route_domain_policy_without_sql(
     assert calls == ([question] if model_calls else [])
     assert audits[-1].stage == "response" and audits[-1].model_calls == model_calls
     assert audits[-1].source_calls == 0
+
+
+@pytest.mark.skipif(
+    not os.getenv("TEST_TEXT_TO_SQL_URL"),
+    reason="Configure PostgreSQL descartável em TEST_TEXT_TO_SQL_URL.",
+)
+def test_public_route_executes_legacy_gd_consumption_mapping(client, monkeypatch):
+    from app.api.v1.endpoints import ai as endpoint
+    from app.schemas.genai_internal import QuestionPlanRequest
+    from tests.test_genai_sql_semantics import gd_consumption_query
+
+    owner_url = make_url(os.environ["TEST_TEXT_TO_SQL_URL"])
+    assert owner_url.database == "text_to_sql_f1_test"
+    owner = create_engine(owner_url)
+    with owner.begin() as connection:
+        connection.exec_driver_sql("DROP SCHEMA IF EXISTS gold_v2 CASCADE")
+        connection.exec_driver_sql("DROP SCHEMA IF EXISTS gold CASCADE")
+        connection.exec_driver_sql("DROP ROLE IF EXISTS venergy_genai_reader")
+        connection.exec_driver_sql("CREATE SCHEMA gold")
+        connection.exec_driver_sql("CREATE SCHEMA gold_v2")
+        connection.exec_driver_sql(
+            "CREATE TABLE gold.publicacao_atual (schema_version text, lote text, publication_id text)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO gold.publicacao_atual VALUES "
+            "('gold-csv-v2', 'GOLD_20000101T000000Z_aaaaaaaa', "
+            "'12345678-1234-4123-8123-123456789abc')"
+        )
+        TABLES["diagnostico_receita"].create(connection)
+        TABLES["consumo_receita_bairro"].create(connection)
+        TABLES["consumo_mensal_uc"].create(connection)
+        connection.execute(TABLES["diagnostico_receita"].insert(), [
+            {"competencia": "2026-06", "municipio": "Recife",
+             "classe_consumo": "RESIDENCIAL", "subgrupo_tarifario": "FIXTURE",
+             "bandeira_tarifaria": "BASE", "possui_gd": "Sim",
+             "receita_total_reais": 100, "consumo_total_kwh": 12.5},
+            {"competencia": "2026-06", "municipio": "Recife",
+             "classe_consumo": "COMERCIAL", "subgrupo_tarifario": "FIXTURE",
+             "bandeira_tarifaria": "BASE", "possui_gd": "Não",
+             "receita_total_reais": 50, "consumo_total_kwh": 30},
+        ])
+        connection.exec_driver_sql(
+            "CREATE ROLE venergy_genai_reader LOGIN NOSUPERUSER NOBYPASSRLS "
+            "PASSWORD 'synthetic-test-only'"
+        )
+        connection.exec_driver_sql(
+            "GRANT USAGE ON SCHEMA gold, gold_v2 TO venergy_genai_reader"
+        )
+        connection.exec_driver_sql(
+            "GRANT SELECT ON gold.publicacao_atual, gold_v2.diagnostico_receita, "
+            "gold_v2.consumo_receita_bairro, gold_v2.consumo_mensal_uc "
+            "TO venergy_genai_reader"
+        )
+    reader = create_engine(
+        owner_url.set(username="venergy_genai_reader", password="synthetic-test-only"),
+        hide_parameters=True, pool_size=1, max_overflow=0,
+    )
+    scope = AccessScope.model_validate({
+        "caller_ref": "session:" + "a" * 64,
+        "profile_id": "v-energy-grid-360-gold", "source_id": "gold.local",
+        "allowed_operations": ["read"],
+        "allowed_metric_ids": ["billing.revenue", "energy.consumption"],
+        "allowed_dimension_ids": ["geography.municipality", "customer.consumption_class",
+                                  "generation.distributed"],
+    })
+
+    class Generator:
+        async def generate_sql_candidate(self, payload, *, correlation_id):
+            context = json.loads(payload.contents)
+            request = QuestionPlanRequest.model_validate({
+                "question": context["question"], "context": context["context"],
+                "remaining_timeout_ms": payload.remaining_timeout_ms,
+                "batch_ref": context["publication"], "access_scope": scope.model_dump(mode="json"),
+                "temporal_coverage": [context["temporal_coverage"]],
+                "dimension_value_coverage": [
+                    item for item in context["dimension_values"]
+                    if item["dimension_id"] != "generation.distributed"
+                ],
+            })
+            candidate, _ = gd_consumption_query(request)
+            candidate = candidate.model_copy(update={"context_version": payload.context_version})
+            return SqlGenerationResponse(
+                correlation_id=correlation_id,
+                generation_contract_version=payload.generation_contract_version,
+                candidate=candidate,
+            )
+
+        async def evaluate_readiness(self, _engine, **kwargs):
+            return GoldReadinessReport.model_validate({
+                "readiness_version": "gold-readiness-v2",
+                "batch_ref": kwargs["expected_batch_ref"], "lot_state": "ready",
+                "capabilities": {
+                    "faturamento.receita": {"status": "available"},
+                    "consumo.mensal_uc": {"status": "available"},
+                },
+            })
+
+    app = client.app
+    overrides = app.dependency_overrides
+    original_overrides = overrides.copy()
+    original_client = getattr(app.state, "genai_question_client", None)
+    overrides[get_question_gold_resources] = lambda: (reader, lambda: scope)
+    overrides[endpoint.get_sql_genai_question_client] = Generator
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", True)
+    monkeypatch.setattr(settings, "GENAI_GOLD_APPROVED_CONTROLS", frozenset({"C01", "C02", "C03", "C04", "C10"}))
+    login_as_profile(client, monkeypatch, "commercial", username="sql-gd-route")
+    strict_client = TestClient(app, raise_server_exceptions=True)
+    strict_client.cookies.update(client.cookies)
+    strict_client.headers.update(client.headers)
+    try:
+        response = strict_client.post("/api/v1/ai/sql-analyses", json={
+            "question": "Qual foi o consumo das unidades com geração distribuída em Recife em junho de 2026?"
+        })
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["status"] == "answered"
+        assert body["evidence"]["rows"] == [["12.50"]]
+        assert body["presentation"]["rows"][0]["cells"] == ["12.50"]
+        assert body["presentation"]["filters"] == [
+            "Município: Recife", "Geração distribuída (cadastro): Sim",
+        ]
+        assert "sql" not in body and "parameters" not in body
+    finally:
+        overrides.clear()
+        overrides.update(original_overrides)
+        if original_client is None:
+            app.state.__dict__.pop("genai_question_client", None)
+        else:
+            app.state.genai_question_client = original_client
+        reader.dispose()
+        owner.dispose()

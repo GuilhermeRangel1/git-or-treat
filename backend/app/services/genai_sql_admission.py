@@ -23,7 +23,7 @@ from app.services.genai_sql_context import build_sql_generation_context
 from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_semantics
 from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
 
-SQL_ADMISSION_POLICY_VERSION = "text-to-sql-f1-admission-2"
+SQL_ADMISSION_POLICY_VERSION = "text-to-sql-f1-admission-3"
 OBSERVED_CONTINUITY_WARNING = "Valores observados; cobertura do alimentador não certificada."
 
 
@@ -50,6 +50,15 @@ def _digest(value) -> str:
                             allow_nan=False, separators=(",", ":"),
                             default=_canonical_scalar)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _request_digest(request: QuestionPlanRequest) -> str:
+    """Canonicaliza os campos set-like do escopo antes de vincular o pedido."""
+    material = request.model_dump(mode="json")
+    scope = material["access_scope"]
+    for field in ("allowed_operations", "allowed_metric_ids", "allowed_dimension_ids"):
+        scope[field] = sorted(scope[field])
+    return _digest(material)
 
 
 def _canonical_scalar(value):
@@ -89,7 +98,7 @@ async def admit_sql_candidate(
     candidate = SqlGenerationCandidate.model_validate_json(candidate.model_dump_json())
     request = QuestionPlanRequest.model_validate_json(request.model_dump_json())
     candidate_digest = _digest(candidate.model_dump(mode="json"))
-    request_digest = _digest(request.model_dump(mode="json"))
+    request_digest = _request_digest(request)
     deadline = GenAIRequestDeadline(
         min(deadline.expires_at, deadline.clock() + request.remaining_timeout_ms / 1000),
         deadline.clock,
@@ -172,7 +181,7 @@ async def admit_sql_candidate(
     _require(resolve_scope() == request.access_scope)
     deadline.remaining_seconds(60)
     _require(_digest(original_candidate.model_dump(mode="json")) == candidate_digest
-             and _digest(original_request.model_dump(mode="json")) == request_digest)
+             and _request_digest(original_request) == request_digest)
     readiness_digest = _digest(report.model_dump(mode="json"))
     material = {
         "context": context.context_version, "candidate": candidate_digest,

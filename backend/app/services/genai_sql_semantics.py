@@ -10,7 +10,12 @@ from sqlglot import exp, parse_one
 
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.schemas.sql_generation import SqlGenerationCandidate
-from app.services.genai_sql_context import F1_DIMENSIONS, build_sql_generation_context
+from app.services.genai_sql_context import (
+    F1_DIMENSIONS,
+    build_sql_generation_context,
+    mentions_gd,
+    requested_gd_filter_value,
+)
 from app.services.genai_sql_structure import (
     SqlStructureRejected,
     SqlStructureReview,
@@ -208,6 +213,29 @@ def review_sql_semantics(
         _require(all(normalize(value) in authorized for item in neighborhood_filters
                      for value in item.values),
                  "Bairro solicitado não está no vocabulário Gold autorizado.")
+    gd_filters = [item for item in intent.filters
+                  if item.dimension_id == "generation.distributed"]
+    expected_gd = requested_gd_filter_value(request.question, request.context)
+    if expected_gd is None:
+        _require(not mentions_gd(request.question, request.context),
+                 "Pedido de GD ambíguo exige esclarecimento.")
+        _require(not gd_filters, "Filtro GD não foi solicitado explicitamente.")
+    else:
+        _require(intent.metric_id == "energy.consumption"
+                 and len(gd_filters) == 1
+                 and gd_filters[0].operator == "eq"
+                 and len(gd_filters[0].values) == 1,
+                 "Consumo com GD exige o filtro cadastral explícito.")
+        normalize = lambda value: "".join(
+            char for char in unicodedata.normalize("NFD", value.casefold())
+            if not unicodedata.combining(char)
+        )
+        gd_values = next((item["values"] for item in context["dimension_values"]
+                          if item["dimension_id"] == "generation.distributed"), [])
+        expected_value = normalize(expected_gd)
+        _require(normalize(gd_filters[0].values[0]) == expected_value
+                 and expected_value in {normalize(value) for value in gd_values},
+                 "Filtro GD diverge da pergunta ou do vocabulário Gold.")
     _require(not (_BACKEND_DERIVED_COLUMNS & {item.name for item in candidate.result_columns}),
              "Alias reservado para medida derivada pelo Backend.")
     _require((intent.operation != "monthly_series" or "competency" in intent.group_by)

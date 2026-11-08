@@ -29,7 +29,8 @@ ParameterName = Annotated[str, StringConstraints(strict=True,
                                                 pattern=r"^[a-z][a-z0-9_]{0,62}$")]
 Scalar = StrictStr | StrictInt | StrictFloat | StrictBool
 Dimension = Literal["geography.municipality", "geography.neighborhood",
-                    "customer.consumption_class", "network.feeder"]
+                    "customer.consumption_class", "network.feeder",
+                    "generation.distributed"]
 
 
 class ClosedModel(BaseModel):

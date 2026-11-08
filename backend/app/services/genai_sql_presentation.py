@@ -32,6 +32,7 @@ _FILTER_DIMENSIONS = {
     "geography.neighborhood": "Bairro",
     "customer.consumption_class": "Classe de consumo",
     "network.feeder": "Alimentador",
+    "generation.distributed": "Geração distribuída (cadastro)",
 }
 _F1_LIMITATIONS = (
     "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",

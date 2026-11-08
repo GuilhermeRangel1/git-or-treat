@@ -23,6 +23,7 @@ from app.services.genai_sql_structure import SqlStructureRejected
 from app.services.gold_catalog import GoldCatalogIncompatible
 from tests.test_genai_sql_admission import Environment
 from tests.test_genai_sql_comparison import comparison
+from tests.test_genai_sql_semantics import gd_consumption_query
 from tests.test_genai_sql_semantics import query
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
@@ -52,12 +53,16 @@ def engines():
                 "'12345678-1234-4123-8123-123456789abc')")
             TABLES["diagnostico_receita"].create(connection)
             connection.execute(text("INSERT INTO gold_v2.diagnostico_receita "
-                "(competencia, municipio, classe_consumo, subgrupo_tarifario, bandeira_tarifaria, possui_gd, receita_total_reais) VALUES "
-                "(:month, :city, :class, 'SINTETICO', 'SINTETICA', 'NAO', :value)"), [
-                {"month": "2026-06", "city": "Recife", "class": "RESIDENCIAL", "value": "100.01"},
-                {"month": "2026-06", "city": "Recife", "class": "COMERCIAL", "value": "50.02"},
-                {"month": "2025-06", "city": "Recife", "class": "RESIDENCIAL", "value": "80.00"},
-                {"month": "2026-06", "city": "Olinda", "class": "RESIDENCIAL", "value": "900.00"},
+                "(competencia, municipio, classe_consumo, subgrupo_tarifario, bandeira_tarifaria, possui_gd, receita_total_reais, consumo_total_kwh) VALUES "
+                "(:month, :city, :class, 'SINTETICO', 'SINTETICA', :gd, :value, :kwh)"), [
+                {"month": "2026-06", "city": "Recife", "class": "RESIDENCIAL",
+                 "gd": "Sim", "value": "100.01", "kwh": 12.5},
+                {"month": "2026-06", "city": "Recife", "class": "COMERCIAL",
+                 "gd": "Não", "value": "50.02", "kwh": 30.0},
+                {"month": "2025-06", "city": "Recife", "class": "RESIDENCIAL",
+                 "gd": "Sim", "value": "80.00", "kwh": 10.0},
+                {"month": "2026-06", "city": "Olinda", "class": "RESIDENCIAL",
+                 "gd": "Sim", "value": "900.00", "kwh": 999.0},
             ])
             connection.exec_driver_sql("CREATE ROLE venergy_genai_reader LOGIN "
                 "NOSUPERUSER NOBYPASSRLS PASSWORD 'synthetic-test-only'")
@@ -111,18 +116,52 @@ def test_real_restricted_snapshot_executes_canonical_candidate(sql_request, engi
             "WHERE competencia = '2026-06' AND municipio = 'Recife'"
         )).scalar_one()
     if mode == "comparison":
-        assert run.evidence.rows == (("150.03", "80.00", "70.03"),)
+        assert run.evidence.rows == (("150.03", "80.00", "70.03", "87.54"),)
         with owner.connect() as control:
             independent_previous = control.execute(text(
                 "SELECT SUM(receita_total_reais) FROM gold_v2.diagnostico_receita "
                 "WHERE competencia = '2025-06' AND municipio = 'Recife'"
             )).scalar_one()
         assert run.evidence.rows[0] == (str(independent_total), str(independent_previous),
-                                         str(independent_total - independent_previous))
+                                         str(independent_total - independent_previous),
+                                         "87.54")
     else:
         assert run.evidence.rows == ((str(independent_total),),)
     assert run.evidence.batch_ref == request.batch_ref
     assert run.evidence.status == "available"
+    assert reader.pool.checkedout() == 0
+
+
+def test_real_restricted_snapshot_preserves_explicit_gd_consumption_filter(sql_request, engines):
+    owner, reader = engines
+    candidate, request = gd_consumption_query(sql_request)
+    env = Environment(request)
+    env.analytic_engine, env.readiness_engine = reader, owner
+    publication = GoldPublicationContext.capture(reader)
+    env.execution_snapshot = publication.execution_snapshot
+    env.assert_current = publication.assert_current
+    env.generated_candidate = candidate
+
+    async def generate_sql_candidate(payload, *, correlation_id):
+        from app.schemas.sql_generation import SqlGenerationResponse
+
+        assert "possui_gd" in payload.contents
+        return SqlGenerationResponse(
+            correlation_id=correlation_id,
+            generation_contract_version=env.generated_candidate.generation_contract_version,
+            candidate=env.generated_candidate,
+        )
+
+    env.generate_sql_candidate = generate_sql_candidate
+    run = asyncio.run(run_sql_question(request, **env.kwargs()))
+    assert run.evidence is not None
+    with owner.connect() as control:
+        expected = control.execute(text(
+            "SELECT SUM(consumo_total_kwh) FROM gold_v2.diagnostico_receita "
+            "WHERE competencia = '2026-06' AND municipio = 'Recife' AND possui_gd = 'Sim'"
+        )).scalar_one()
+    assert run.evidence.rows == ((format(expected, ".2f"),),)
+    assert run.evidence.rows == (("12.50",),)
     assert reader.pool.checkedout() == 0
 
 
