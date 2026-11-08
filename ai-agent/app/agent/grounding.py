@@ -54,9 +54,8 @@ def _number_candidates(token: str) -> set[Decimal]:
                 and len(groups[1]) == 3
             ):
                 candidates.add(sign * Decimal(f"{''.join(groups)}{exponent}"))
-        elif all(len(group) == 3 for group in groups[1:]):
-            if 1 <= len(groups[0]) <= 3:
-                candidates.add(sign * Decimal(f"{''.join(groups)}{exponent}"))
+        elif all(len(group) == 3 for group in groups[1:]) and 1 <= len(groups[0]) <= 3:
+            candidates.add(sign * Decimal(f"{''.join(groups)}{exponent}"))
         return {value for value in candidates if value.is_finite()}
     except (DecimalException, ValueError):
         return set()
