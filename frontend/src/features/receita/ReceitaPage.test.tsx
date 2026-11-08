@@ -443,7 +443,7 @@ it("mostra as janelas Gold separadas da comparação mensal e sinaliza base inco
       name: /A receita aumentou/,
     }),
   ).toBeVisible();
-  expect(screen.getByText(/1 grupos com base incompleta/)).toBeVisible();
+  expect(screen.getByText("Dados parciais · R$")).toBeVisible();
   expect(
     screen.getByRole("heading", { name: "O que ajuda a explicar a variação" }),
   ).toBeVisible();

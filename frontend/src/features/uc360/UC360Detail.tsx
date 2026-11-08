@@ -1,4 +1,5 @@
 import { Search } from "lucide-react";
+import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import type { RefObject } from "react";
 import type { UCHistory, UCOverview } from "./contract";
 import { ErrorMessage, HistoryPanel } from "./UC360History";
@@ -8,7 +9,6 @@ import UC360Interpretation from "./UC360Interpretation";
 import { UC360SupportMetrics } from "./UC360Metrics";
 import UC360PeriodForm from "./UC360PeriodForm";
 import { currentMeterMessage } from "./uc360-format";
-import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import type { UCHistorySection } from "./uc360-state";
 
 type Props = {

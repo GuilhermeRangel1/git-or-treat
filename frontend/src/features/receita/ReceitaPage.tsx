@@ -1,4 +1,3 @@
-﻿import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
@@ -234,9 +233,6 @@ export default function ReceitaPage() {
         </div>
       ) : null}
 
-      <div className="flex justify-end">
-        <IndicatorHelp screen="receita" />
-      </div>
       <section
         aria-label="Filtros aplicados"
         className="mt-2 flex min-h-[92px] min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4 xl:flex-nowrap"
@@ -334,15 +330,6 @@ export default function ReceitaPage() {
               </dl>
             </div>
           </div>
-          {analysisWindows ? (
-            <p className="text-xs text-muted">
-              {businessComparison
-                ? "Primeiro ano × últimos 12 meses disponíveis. "
-                : "Comparação fixada para este diagnóstico. "}
-              Os filtros alteram o município, bairro e classe. Para localizar
-              quando ocorreu a mudança, consulte o histórico deste recorte.
-            </p>
-          ) : null}
           {(parsed.refinements.municipio ||
             parsed.refinements.bairro ||
             parsed.refinements.classe) && (
