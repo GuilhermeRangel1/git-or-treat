@@ -465,6 +465,11 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 08/11/2026 — WEB-04 / WEB-05 / WEB-06 — paginação e ajuda
+
+- Operação posiciona a ajuda junto ao subtítulo e usa a paginação compartilhada no ranking e nas ocorrências; alterar a quantidade reinicia a página. Inspeções e Ordens unem listas e paginação na mesma superfície; em Inspeções a ação de investigar fica abaixo do bloco. Sem mudança de estado dos requisitos.
+- Verificações: 234 testes direcionados de Operação, Inspeções, Ordens, UC 360 e paginação passaram; após unir as superfícies, 69 testes de Inspeções e Ordens e build passaram. Lint, fronteiras, formatação e `git diff --check` passaram antes do ajuste visual final, com dois avisos preexistentes de lint. Sem nova inspeção visual ou jornada com API real.
+
 ### 08/11/2026 — WEB-01 — alinhamento da ajuda no Panorama
 
 - O acesso “Entenda os indicadores” acompanha a linha do subtítulo do Panorama, com quebra em telas estreitas. Alteração de apresentação em `frontend/src/features/panorama/PanoramaPage.tsx`, sem mudança de dados ou estado do requisito.

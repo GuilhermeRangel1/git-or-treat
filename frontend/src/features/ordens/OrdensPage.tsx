@@ -226,74 +226,78 @@ export default function OrdensPage() {
                   <p>{savedFeedback}</p>
                 </div>
               ) : null}
-              {visibleOrders.length > 0 ? (
-                <OrdersTable
-                  orders={visibleOrders}
-                  onSelect={openActions}
-                  onFoundations={openFoundations}
-                />
-              ) : orders.data.pagination.total > 0 ? (
-                <div className="rounded-xl border border-border bg-surface p-6 text-sm text-muted">
-                  Esta página não contém ordens. O total do recorte é{" "}
-                  {orders.data.pagination.total}; volte a uma página anterior.
-                </div>
-              ) : (
-                <div className="grid gap-3 rounded-xl border border-border bg-surface p-6 text-sm text-muted">
-                  <p>
-                    {parsed.ucId ||
-                    parsed.status ||
-                    parsed.priority ||
-                    parsed.hasResult !== null
-                      ? "Nenhuma ordem corresponde aos filtros aplicados."
-                      : "Nenhuma ordem foi cadastrada ainda."}
-                  </p>
-                  <p>
-                    Ordens são criadas a partir de uma suspeita selecionada na
-                    fila de inspeção.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <Link
-                      className="min-h-11 inline-flex items-center underline underline-offset-4"
-                      to="/inspecoes"
-                    >
-                      Ir para a fila de inspeção
-                    </Link>
-                    {parsed.ucId ||
-                    parsed.status ||
-                    parsed.priority ||
-                    parsed.hasResult !== null ? (
+              <div className="space-y-4 rounded-xl bg-surface">
+                {visibleOrders.length > 0 ? (
+                  <OrdersTable
+                    orders={visibleOrders}
+                    onSelect={openActions}
+                    onFoundations={openFoundations}
+                  />
+                ) : orders.data.pagination.total > 0 ? (
+                  <div className="rounded-xl border border-border bg-surface p-6 text-sm text-muted">
+                    Esta página não contém ordens. O total do recorte é{" "}
+                    {orders.data.pagination.total}; volte a uma página anterior.
+                  </div>
+                ) : (
+                  <div className="grid gap-3 rounded-xl border border-border bg-surface p-6 text-sm text-muted">
+                    <p>
+                      {parsed.ucId ||
+                      parsed.status ||
+                      parsed.priority ||
+                      parsed.hasResult !== null
+                        ? "Nenhuma ordem corresponde aos filtros aplicados."
+                        : "Nenhuma ordem foi cadastrada ainda."}
+                    </p>
+                    <p>
+                      Ordens são criadas a partir de uma suspeita selecionada na
+                      fila de inspeção.
+                    </p>
+                    <div className="flex flex-wrap gap-3">
                       <Link
                         className="min-h-11 inline-flex items-center underline underline-offset-4"
-                        to="/ordens"
+                        to="/inspecoes"
                       >
-                        Limpar recorte
+                        Ir para a fila de inspeção
                       </Link>
-                    ) : null}
+                      {parsed.ucId ||
+                      parsed.status ||
+                      parsed.priority ||
+                      parsed.hasResult !== null ? (
+                        <Link
+                          className="min-h-11 inline-flex items-center underline underline-offset-4"
+                          to="/ordens"
+                        >
+                          Limpar recorte
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              <p className="sr-only" aria-live="polite">
-                {orders.data.pagination.total} ordem(ns) no recorte. Página{" "}
-                {orders.data.pagination.page} de{" "}
-                {orders.data.pagination.total_pages}.
-              </p>
-              {orders.data.pagination.total > 0 ||
-              orders.data.pagination.page > 1 ? (
-                <Pagination
-                  label="Paginação das ordens"
-                  page={orders.data.pagination.page}
-                  totalPages={orders.data.pagination.total_pages}
-                  pageSize={parsed.pageSize}
-                  onPageChange={changePage}
-                  onPageSizeChange={(size) => {
-                    const next = new URLSearchParams(params);
-                    next.set("page_size", String(size));
-                    next.delete("page");
-                    setParams(next);
-                  }}
-                />
-              ) : null}
+                <p className="sr-only" aria-live="polite">
+                  {orders.data.pagination.total} ordem(ns) no recorte. Página{" "}
+                  {orders.data.pagination.page} de{" "}
+                  {orders.data.pagination.total_pages}.
+                </p>
+                {orders.data.pagination.total > 0 ||
+                orders.data.pagination.page > 1 ? (
+                  <div className="px-4 pb-4">
+                    <Pagination
+                      label="Paginação das ordens"
+                      page={orders.data.pagination.page}
+                      totalPages={orders.data.pagination.total_pages}
+                      pageSize={parsed.pageSize}
+                      onPageChange={changePage}
+                      onPageSizeChange={(size) => {
+                        const next = new URLSearchParams(params);
+                        next.set("page_size", String(size));
+                        next.delete("page");
+                        setParams(next);
+                      }}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </>
           ) : null}
         </>

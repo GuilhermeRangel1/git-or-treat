@@ -435,64 +435,163 @@ export default function InspectionQueue({
           </select>
         </label>
       </div>
-      {items.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 px-2 py-10 text-center">
-          <Search size={28} className="text-muted" aria-hidden="true" />
-          <h3 className="font-heading text-lg font-semibold">
-            {page.total === 0
-              ? "Nenhuma UC nesta fila"
-              : "Página sem resultados"}
-          </h3>
-          <p className="max-w-md text-sm text-muted">
-            {page.total === 0
-              ? gold
-                ? "Nenhuma UC neste recorte da publicação atual. Isso não comprova ausência de perdas."
-                : "Nenhuma suspeita neste recorte. Isso não comprova ausência de perdas."
-              : "Esta página não contém UCs. Volte à primeira página."}
-          </p>
-          <button
-            className={inspectionAction}
-            onClick={() =>
-              page.total === 0 ? onChange(new URLSearchParams()) : goTo(1)
-            }
-          >
-            {page.total === 0 ? "Limpar filtros" : "Primeira página"}
-          </button>
-        </div>
-      ) : (
-        <>
-          {gold ? (
-            <>
-              <div className="hidden overflow-hidden rounded-xl bg-surface p-4 md:block">
-                <table className="w-full table-fixed text-left">
-                  <caption className="caption-top pb-4 text-left text-sm font-normal text-muted">
-                    <span>
-                      Estimativas condicionais:{" "}
-                      {result.data.summary.estimated_units} UCs disponíveis e{" "}
-                      {result.data.summary.unavailable_estimate_units} sem
-                      estimativa válida.
-                    </span>
-                    <span className="sr-only">
-                      Categorias, motivos, energia a recuperar e acesso ao
-                      detalhe
-                    </span>
+      <div className="space-y-4 rounded-xl bg-surface p-4">
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 px-2 py-10 text-center">
+            <Search size={28} className="text-muted" aria-hidden="true" />
+            <h3 className="font-heading text-lg font-semibold">
+              {page.total === 0
+                ? "Nenhuma UC nesta fila"
+                : "Página sem resultados"}
+            </h3>
+            <p className="max-w-md text-sm text-muted">
+              {page.total === 0
+                ? gold
+                  ? "Nenhuma UC neste recorte da publicação atual. Isso não comprova ausência de perdas."
+                  : "Nenhuma suspeita neste recorte. Isso não comprova ausência de perdas."
+                : "Esta página não contém UCs. Volte à primeira página."}
+            </p>
+            <button
+              className={inspectionAction}
+              onClick={() =>
+                page.total === 0 ? onChange(new URLSearchParams()) : goTo(1)
+              }
+            >
+              {page.total === 0 ? "Limpar filtros" : "Primeira página"}
+            </button>
+          </div>
+        ) : (
+          <>
+            {gold ? (
+              <>
+                <div className="hidden overflow-hidden rounded-xl bg-surface p-4 md:block">
+                  <table className="w-full table-fixed text-left">
+                    <caption className="caption-top pb-4 text-left text-sm font-normal text-muted">
+                      <span>
+                        Estimativas condicionais:{" "}
+                        {result.data.summary.estimated_units} UCs disponíveis e{" "}
+                        {result.data.summary.unavailable_estimate_units} sem
+                        estimativa válida.
+                      </span>
+                      <span className="sr-only">
+                        Categorias, motivos, energia a recuperar e acesso ao
+                        detalhe
+                      </span>
+                    </caption>
+                    <colgroup>
+                      <col className="w-[26%]" />
+                      <col className="w-[26%]" />
+                      <col className="w-[32%]" />
+                      <col className="w-[16%]" />
+                    </colgroup>
+                    <thead className="font-sans text-xs leading-[18px] text-muted">
+                      <tr className="h-11">
+                        {[
+                          {
+                            label: "Posição / UC / categoria",
+                            column: "queue_position",
+                            info: priorityRule,
+                          },
+                          { label: "Motivo" },
+                          {
+                            label: "Energia a recuperar",
+                            column: ENERGY_FIELD,
+                          },
+                          { label: "Ação" },
+                        ].map(({ label, column, info }) => (
+                          <QueueHeader
+                            key={label}
+                            label={label}
+                            column={column}
+                            info={info}
+                            field={field}
+                            direction={direction}
+                            onSort={sortBy}
+                            className="pr-2 text-left font-normal"
+                          />
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="text-sm leading-[22px]">
+                      {(items as GoldInspectionItem[]).map((item) => (
+                        <tr
+                          key={item.uc_id}
+                          className="h-14 border-t border-border/60 align-middle transition-colors hover:bg-surface-hover"
+                        >
+                          <th
+                            scope="row"
+                            className="break-words py-3 pr-2 text-left font-medium"
+                          >
+                            <p className="mb-1 text-xs text-muted">
+                              Posição oficial na fila: {item.queue_position}
+                            </p>
+                            <p>{item.uc_id}</p>
+                            <p>{item.category ?? "Sem categoria"}</p>
+                          </th>
+                          <td className="break-words py-3 pr-2">
+                            {item.reason ?? "Não informado"}
+                          </td>
+                          <td className="py-3 pr-2 text-sm">
+                            <GoldRecoverySummary item={item} />
+                          </td>
+                          <td className="py-1">
+                            <EvidenceLink item={item} params={params} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="space-y-3 md:hidden">
+                  <p className="px-1 text-sm text-muted">
+                    Estimativas condicionais:{" "}
+                    {(result as GoldQueueEnvelope).data.summary.estimated_units}{" "}
+                    UCs disponíveis e{" "}
+                    {
+                      (result as GoldQueueEnvelope).data.summary
+                        .unavailable_estimate_units
+                    }{" "}
+                    sem estimativa válida.
+                  </p>
+                  {(items as GoldInspectionItem[]).map((item) => (
+                    <GoldItemCard
+                      key={item.uc_id}
+                      item={item}
+                      params={params}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
+                <table className="w-full table-fixed text-left text-sm">
+                  <caption className="sr-only">
+                    Suspeitas com prioridade, motivo, energia estimada e acesso
+                    ao detalhe
                   </caption>
                   <colgroup>
-                    <col className="w-[26%]" />
-                    <col className="w-[26%]" />
-                    <col className="w-[32%]" />
-                    <col className="w-[16%]" />
+                    <col className={legacyGold ? "w-[25%]" : "w-[20%]"} />
+                    <col className={legacyGold ? "w-[50%]" : "w-[36%]"} />
+                    {!legacyGold && <col className="w-[22%]" />}
+                    <col className={legacyGold ? "w-[25%]" : "w-[22%]"} />
                   </colgroup>
-                  <thead className="font-sans text-xs leading-[18px] text-muted">
-                    <tr className="h-11">
+                  <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
+                    <tr>
                       {[
                         {
-                          label: "Posição / UC / categoria",
-                          column: "queue_position",
+                          label: "UC / prioridade",
+                          column: "priority",
                           info: priorityRule,
                         },
-                        { label: "Motivo" },
-                        { label: "Energia a recuperar", column: ENERGY_FIELD },
+                        { label: "Motivo da suspeita" },
+                        ...(!legacyGold
+                          ? [
+                              {
+                                label: "Energia estimada",
+                                column: ENERGY_FIELD,
+                              },
+                            ]
+                          : []),
                         { label: "Ação" },
                       ].map(({ label, column, info }) => (
                         <QueueHeader
@@ -503,34 +602,41 @@ export default function InspectionQueue({
                           field={field}
                           direction={direction}
                           onSort={sortBy}
-                          className="pr-2 text-left font-normal"
+                          className="px-3 pb-3 text-left font-normal"
                         />
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="text-sm leading-[22px]">
-                    {(items as GoldInspectionItem[]).map((item) => (
+                  <tbody>
+                    {(items as QueueItem[]).map((item) => (
                       <tr
                         key={item.uc_id}
-                        className="h-14 border-t border-border/60 align-middle transition-colors hover:bg-surface-hover"
+                        className="border-t border-border/60 align-middle transition-colors hover:bg-surface-hover"
                       >
                         <th
                           scope="row"
-                          className="break-words py-3 pr-2 text-left font-medium"
+                          className="break-words px-3 py-3 text-left font-normal"
                         >
-                          <p className="mb-1 text-xs text-muted">
-                            Posição oficial na fila: {item.queue_position}
+                          <p className="font-sans leading-[22px]">
+                            {item.uc_id} /{" "}
+                            {item.priority_label ??
+                              formatNumber(item.priority ?? 0)}
                           </p>
-                          <p>{item.uc_id}</p>
-                          <p>{item.category ?? "Sem categoria"}</p>
                         </th>
-                        <td className="break-words py-3 pr-2">
-                          {item.reason ?? "Não informado"}
-                        </td>
-                        <td className="py-3 pr-2 text-sm">
-                          <GoldRecoverySummary item={item} />
-                        </td>
-                        <td className="py-1">
+                        <td className="px-3 py-3 leading-5">{item.reason}</td>
+                        {!legacyGold && (
+                          <td className="px-3 py-3">
+                            <p className="font-medium">
+                              {energy(item.potential_recoverable_energy_kwh)}
+                            </p>
+                            <p className="mt-1 text-xs leading-4 text-muted">
+                              {item.potential_recoverable_energy_kwh === null
+                                ? "Insumos indisponíveis"
+                                : "Projeção hipotética"}
+                            </p>
+                          </td>
+                        )}
+                        <td className="px-3 py-3">
                           <EvidenceLink item={item} params={params} />
                         </td>
                       </tr>
@@ -538,136 +644,44 @@ export default function InspectionQueue({
                   </tbody>
                 </table>
               </div>
+            )}
+            {!gold ? (
               <div className="space-y-3 md:hidden">
-                <p className="px-1 text-sm text-muted">
-                  Estimativas condicionais:{" "}
-                  {(result as GoldQueueEnvelope).data.summary.estimated_units}{" "}
-                  UCs disponíveis e{" "}
-                  {
-                    (result as GoldQueueEnvelope).data.summary
-                      .unavailable_estimate_units
-                  }{" "}
-                  sem estimativa válida.
-                </p>
-                {(items as GoldInspectionItem[]).map((item) => (
-                  <GoldItemCard key={item.uc_id} item={item} params={params} />
+                {(items as QueueItem[]).map((item) => (
+                  <ItemCard
+                    key={item.uc_id}
+                    item={item}
+                    params={params}
+                    hideEstimate={legacyGold}
+                  />
                 ))}
               </div>
-            </>
-          ) : (
-            <div className="hidden overflow-x-auto rounded-xl bg-surface p-4 md:block">
-              <table className="w-full table-fixed text-left text-sm">
-                <caption className="sr-only">
-                  Suspeitas com prioridade, motivo, energia estimada e acesso ao
-                  detalhe
-                </caption>
-                <colgroup>
-                  <col className={legacyGold ? "w-[25%]" : "w-[20%]"} />
-                  <col className={legacyGold ? "w-[50%]" : "w-[36%]"} />
-                  {!legacyGold && <col className="w-[22%]" />}
-                  <col className={legacyGold ? "w-[25%]" : "w-[22%]"} />
-                </colgroup>
-                <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
-                  <tr>
-                    {[
-                      {
-                        label: "UC / prioridade",
-                        column: "priority",
-                        info: priorityRule,
-                      },
-                      { label: "Motivo da suspeita" },
-                      ...(!legacyGold
-                        ? [{ label: "Energia estimada", column: ENERGY_FIELD }]
-                        : []),
-                      { label: "Ação" },
-                    ].map(({ label, column, info }) => (
-                      <QueueHeader
-                        key={label}
-                        label={label}
-                        column={column}
-                        info={info}
-                        field={field}
-                        direction={direction}
-                        onSort={sortBy}
-                        className="px-3 pb-3 text-left font-normal"
-                      />
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(items as QueueItem[]).map((item) => (
-                    <tr
-                      key={item.uc_id}
-                      className="border-t border-border/60 align-middle transition-colors hover:bg-surface-hover"
-                    >
-                      <th
-                        scope="row"
-                        className="break-words px-3 py-3 text-left font-normal"
-                      >
-                        <p className="font-sans leading-[22px]">
-                          {item.uc_id} /{" "}
-                          {item.priority_label ??
-                            formatNumber(item.priority ?? 0)}
-                        </p>
-                      </th>
-                      <td className="px-3 py-3 leading-5">{item.reason}</td>
-                      {!legacyGold && (
-                        <td className="px-3 py-3">
-                          <p className="font-medium">
-                            {energy(item.potential_recoverable_energy_kwh)}
-                          </p>
-                          <p className="mt-1 text-xs leading-4 text-muted">
-                            {item.potential_recoverable_energy_kwh === null
-                              ? "Insumos indisponíveis"
-                              : "Projeção hipotética"}
-                          </p>
-                        </td>
-                      )}
-                      <td className="px-3 py-3">
-                        <EvidenceLink item={item} params={params} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {!gold ? (
-            <div className="space-y-3 md:hidden">
-              {(items as QueueItem[]).map((item) => (
-                <ItemCard
-                  key={item.uc_id}
-                  item={item}
-                  params={params}
-                  hideEstimate={legacyGold}
-                />
-              ))}
-            </div>
-          ) : null}
-          <div className="flex flex-col gap-3">
-            <Link
-              className={`${inspectionPrimary} w-full sm:w-fit`}
-              to={evidenceUrl(params, items[0].uc_id)}
-              aria-label={`Investigar ${items[0].uc_id}`}
-            >
-              Investigar {items[0].uc_id}
-              <ArrowUpRight size={16} aria-hidden="true" />
-            </Link>
-          </div>
-        </>
+            ) : null}
+          </>
+        )}
+        {page.total > 0 ? (
+          <Pagination
+            label="Paginação da fila"
+            page={page.page}
+            totalPages={page.total_pages}
+            pageSize={pageSize}
+            onPageChange={goTo}
+            onPageSizeChange={(size) =>
+              updateQueueOption("page_size", String(size))
+            }
+          />
+        ) : null}
+      </div>
+      {items.length > 0 && (
+        <Link
+          className={`${inspectionPrimary} w-full sm:w-fit`}
+          to={evidenceUrl(params, items[0].uc_id)}
+          aria-label={`Investigar ${items[0].uc_id}`}
+        >
+          Investigar {items[0].uc_id}
+          <ArrowUpRight size={16} aria-hidden="true" />
+        </Link>
       )}
-      {page.total > 0 ? (
-        <Pagination
-          label="Paginação da fila"
-          page={page.page}
-          totalPages={page.total_pages}
-          pageSize={pageSize}
-          onPageChange={goTo}
-          onPageSizeChange={(size) =>
-            updateQueueOption("page_size", String(size))
-          }
-        />
-      ) : null}
     </section>
   );
 }
