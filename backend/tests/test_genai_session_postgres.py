@@ -23,16 +23,18 @@ from sqlalchemy.orm import Session
 from app.api.v1.endpoints.auth import router as auth_router
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.genai_gold_access import get_genai_gold_access_resolver
-from app.core.genai_gold_access import build_profile_access_scope
-from app.core.platform_access import PlatformProfile
-from app.core.platform_identity import PlatformIdentity
+from app.core.genai_gold_access import (
+    build_profile_access_scope,
+    get_genai_gold_access_resolver,
+)
 from app.core.genai_gold_database import (
     GOLD_READER_ROLE,
     create_genai_gold_engine,
     get_genai_gold_engine,
 )
 from app.core.passwords import hash_password
+from app.core.platform_access import PlatformProfile
+from app.core.platform_identity import PlatformIdentity
 from app.models.auth import AuthSession, AuthUser
 from app.models.gold_load import BATCH
 from app.models.gold_v2_load import TABLES
@@ -818,12 +820,32 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                                 ("Quadra B", "2001-01", 1000), ("Quadra B", "2001-04", 990),
                             ]
                         ])
+                    GENAI_TRANSPORT_EVENTS.clear()
+                    reader_sql.clear()
                     ranking = public_client.post("/api/v1/ai/questions", headers=origin, json={
                         "question": "Qual bairro de Luz Clara mais perdeu consumo medido residencial entre janeiro de 2001 e abril de 2001?",
                     }).json()
                     assert ranking["status"] == "answered", ranking
                     assert "Quadra A" in ranking["answer"] and "Quadra B" not in ranking["answer"]
                     assert "-50 kWh" in ranking["answer"]
+
+                    # “Volume residencial” não especifica uma métrica publicada pela Gold.
+                    GENAI_TRANSPORT_EVENTS.clear()
+                    reader_sql.clear()
+                    volume = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                        "question": "Qual bairro de Luz Clara mais perdeu volume residencial entre janeiro de 2001 e abril de 2001?",
+                    })
+                    assert volume.status_code == 200, volume.text
+                    volume_body = volume.json()
+                    assert volume_body["status"] == "needs_clarification", volume_body
+                    assert "energia faturada" in volume_body["message"]
+                    assert "consumo medido" in volume_body["message"]
+                    assert not volume_body["answer"]
+                    assert not volume_body["evidence"]
+                    assert [item["path"] for item in GENAI_TRANSPORT_EVENTS] == [
+                        "/api/v1/internal/question-plans",
+                    ]
+                    assert not reader_sql
                 finally:
                     with owner.begin() as comparison_write:
                         comparison_write.execute(TABLES["consumo_receita_bairro"].delete().where(
