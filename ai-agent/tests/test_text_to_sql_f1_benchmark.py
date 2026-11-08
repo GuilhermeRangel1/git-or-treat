@@ -138,7 +138,8 @@ def test_freeze_and_split_prevent_silent_oracle_changes():
         (root / "ai-agent/tests/fixtures/text_to_sql_f1_freeze.json").read_text(encoding="utf-8")
     )
     for relative, expected_hash in lock["files"].items():
-        assert hashlib.sha256((root / relative).read_bytes()).hexdigest() == expected_hash
+        contents = (root / relative).read_bytes().replace(b"\r\n", b"\n")
+        assert hashlib.sha256(contents).hexdigest() == expected_hash
     benchmark = json.loads(
         (root / "ai-agent/tests/fixtures/text_to_sql_f1_benchmark.json").read_text(encoding="utf-8")
     )
