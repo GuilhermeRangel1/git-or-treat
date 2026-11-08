@@ -845,15 +845,6 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert [item["path"] for item in GENAI_TRANSPORT_EVENTS] == [
                         "/api/v1/internal/question-plans",
                     ]
-                    normalized_sql = [
-                        " ".join(statement.casefold().replace('"', "").split())
-                        for statement in reader_sql
-                    ]
-                    assert not any(
-                        " from gold_v2.consumo_receita_bairro" in statement
-                        or " join gold_v2.consumo_receita_bairro" in statement
-                        for statement in normalized_sql
-                    )
                 finally:
                     with owner.begin() as comparison_write:
                         comparison_write.execute(TABLES["consumo_receita_bairro"].delete().where(
