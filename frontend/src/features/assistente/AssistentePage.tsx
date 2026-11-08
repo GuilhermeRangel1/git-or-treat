@@ -792,7 +792,7 @@ export default function AssistentePage() {
       question,
       context,
       conversation_id: conversationId,
-      ...(historyEnabled && !sqlF1Mode
+      ...(historyEnabled
         ? {
             history_request_id: crypto.randomUUID(),
             refresh_context: false,
@@ -829,7 +829,7 @@ export default function AssistentePage() {
     requestAbort.current = abortController;
     setRequestPhase("consulting");
     try {
-      const saveHistory = historyEnabled && !sqlF1Mode;
+      const saveHistory = historyEnabled;
       if (saveHistory && !savedIdRef.current) {
         const created = await createConversation(conversationId);
         if (!current()) return;
@@ -1254,7 +1254,9 @@ export default function AssistentePage() {
           </div>
           {sqlF1Mode && (
             <p className="mt-2 px-1 text-xs leading-4 text-muted">
-              Consulta Gold v2; esta conversa não será salva.
+              {historyEnabled
+                ? "Esta conversa ficará no seu histórico privado."
+                : "Esta conversa ficará disponível apenas durante esta sessão."}
             </p>
           )}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs leading-4 text-muted">
@@ -1265,11 +1267,7 @@ export default function AssistentePage() {
                 <>
                   <span aria-hidden="true">·</span>
                   <Check aria-hidden="true" className="size-3.5" />
-                  {sqlF1Mode
-                    ? "conversa temporária"
-                    : historyEnabled
-                      ? "histórico privado"
-                      : "conversa temporária"}
+                  {historyEnabled ? "histórico privado" : "conversa temporária"}
                 </>
               )}
             </span>

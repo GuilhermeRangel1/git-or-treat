@@ -128,7 +128,7 @@ describe("cliente do chat", () => {
     expect(isGoldPublicationStale()).toBe(false);
   });
 
-  it("mantém consultas F1 na rota pública mesmo com campos de histórico", async () => {
+  it("salva consultas F1 pela rota de conversas mantendo o contrato F1", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({}), {
         status: 200,
@@ -149,11 +149,14 @@ describe("cliente do chat", () => {
         "sql_f1",
       )).rejects.toThrow("Não foi possível apresentar a resposta.");
     const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/v1/ai/sql-analyses");
+    expect(url).toBe(
+      "/api/v1/ai/conversations/8abf4322-17ab-4a75-98f1-29481ee9f456/questions",
+    );
     expect(JSON.parse(String(options.body))).toEqual({
-      contract_version: "v1",
+      request_id: "c0f6d390-c3a2-4d4f-b72c-31e070df9f77",
       question: "E no ano anterior?",
-      conversation_id: "8abf4322-17ab-4a75-98f1-29481ee9f456",
+      strategy: "sql_f1",
+      refresh_context: false,
     });
   });
 
