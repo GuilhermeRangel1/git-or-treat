@@ -112,7 +112,20 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
       evidence_digest: "a".repeat(64),
     },
   };
-  const fetchMock = vi.fn().mockResolvedValue(jsonResponse(response));
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      jsonResponse({
+        id: "8abf4322-17ab-4a75-98f1-29481ee9f456",
+        title: "Nova conversa",
+        revision: 1,
+        created_at: "2026-11-08T12:00:00Z",
+        updated_at: "2026-11-08T12:00:00Z",
+        expires_at: "2026-12-08T12:00:00Z",
+        message_count: 0,
+      }),
+    )
+    .mockResolvedValueOnce(jsonResponse(response));
   vi.stubGlobal("fetch", fetchMock);
   const user = userEvent.setup();
   renderPage();
@@ -138,21 +151,28 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
   expect(
     screen.getByLabelText("Resultados em tabela; use as setas para rolar"),
   ).toHaveAttribute("tabindex", "0");
+  expect(screen.getByText("Fonte: dados internos da Grid 360")).toBeVisible();
+  expect(screen.getByText(/Detalhes da fonte/)).toBeVisible();
   expect(
-    screen.getByText(
-      /Fonte: Diagnóstico de receita · Gold v2, publicação de 06\/11\/2026/,
-    ),
+    screen.getByText(/Gold v2, publicação de 06\/11\/2026/),
+  ).not.toBeVisible();
+  await user.click(screen.getByText("Detalhes da fonte"));
+  expect(
+    screen.getByText(/Gold v2, publicação de 06\/11\/2026/),
   ).toBeVisible();
-  expect(screen.getByText(/Registro de auditoria confirmado/)).toBeVisible();
+  expect(screen.getByText(/Registro de auditoria:/)).toBeVisible();
   expect(
     screen.getByRole("region", { name: "Faturamento por município" }),
   ).toBeVisible();
   const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-  expect(url).toBe("/api/v1/ai/sql-analyses");
+  expect(url).toBe(
+    "/api/v1/ai/conversations/8abf4322-17ab-4a75-98f1-29481ee9f456/questions",
+  );
   expect(JSON.parse(String(options.body))).toEqual({
-    contract_version: "v1",
+    request_id: expect.any(String),
     question: "Quanto foi o faturamento por município em 2025?",
-    conversation_id: expect.any(String),
+    strategy: "sql_f1",
+    refresh_context: false,
   });
 });
 

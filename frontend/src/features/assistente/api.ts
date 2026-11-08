@@ -52,8 +52,7 @@ export async function askAIQuestion(
       409,
     );
   const { history_request_id, refresh_context, ...publicRequest } = request;
-  const saved =
-    strategy === "legacy" && Boolean(history_request_id && request.conversation_id);
+  const saved = Boolean(history_request_id && request.conversation_id);
   const path =
     strategy === "sql_f1"
       ? saved
