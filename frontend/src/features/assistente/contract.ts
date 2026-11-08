@@ -32,8 +32,7 @@ export type AIQuestionError = {
 
 export type SqlAnalysisPresentation = {
   contract_version:
-    | "text-to-sql-f1-presentation-v1"
-    | "text-to-sql-f1-presentation-v2";
+    "text-to-sql-f1-presentation-v1" | "text-to-sql-f1-presentation-v2";
   state: "ready" | "empty" | "all_measures_null";
   operation:
     "total" | "monthly_series" | "grouped_total" | "ranking" | "comparison";
@@ -428,7 +427,8 @@ function decodeSqlAnalysisPresentation(
     (column) => column.semantic_id === "period_0_growth_percent",
   );
   if (
-    (value.contract_version === "text-to-sql-f1-presentation-v2") !== hasGrowth
+    (value.contract_version === "text-to-sql-f1-presentation-v2") !==
+    hasGrowth
   )
     return fail();
   const rows = value.rows.map((item, index) => {
@@ -465,7 +465,8 @@ function decodeSqlAnalysisPresentation(
   )
     return fail();
   return {
-    contract_version: value.contract_version as SqlAnalysisPresentation["contract_version"],
+    contract_version:
+      value.contract_version as SqlAnalysisPresentation["contract_version"],
     state: value.state as SqlAnalysisPresentation["state"],
     operation: value.operation as SqlAnalysisPresentation["operation"],
     answer: value.answer,
@@ -502,7 +503,8 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
   )
     return fail();
   const continuationToken = value.continuation_token;
-  if (continuationToken != null && !isText(continuationToken, 16000)) return fail();
+  if (continuationToken != null && !isText(continuationToken, 16000))
+    return fail();
   if (value.status === "answered") {
     const evidence = value.evidence;
     if (
@@ -523,10 +525,9 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
     const presentation = decodeSqlAnalysisPresentation(value.presentation);
     if (
       (evidence.evidence_contract_version != null &&
-        ![
-          "text-to-sql-f1-evidence-v1",
-          "text-to-sql-f1-evidence-v2",
-        ].includes(String(evidence.evidence_contract_version))) ||
+        !["text-to-sql-f1-evidence-v1", "text-to-sql-f1-evidence-v2"].includes(
+          String(evidence.evidence_contract_version),
+        )) ||
       (evidence.evidence_contract_version === "text-to-sql-f1-evidence-v2") !==
         (presentation.contract_version === "text-to-sql-f1-presentation-v2") ||
       presentation.evidence_digest !== evidence.evidence_digest ||

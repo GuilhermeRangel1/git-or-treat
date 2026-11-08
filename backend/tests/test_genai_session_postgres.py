@@ -819,7 +819,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                             ]
                         ])
                     ranking = public_client.post("/api/v1/ai/questions", headers=origin, json={
-                        "question": "Qual bairro de Luz Clara mais perdeu volume residencial entre janeiro de 2001 e abril de 2001?",
+                        "question": "Qual bairro de Luz Clara mais perdeu consumo medido residencial entre janeiro de 2001 e abril de 2001?",
                     }).json()
                     assert ranking["status"] == "answered", ranking
                     assert "Quadra A" in ranking["answer"] and "Quadra B" not in ranking["answer"]
