@@ -111,7 +111,7 @@ export default function OrdensPage() {
         <nav aria-label="Navegação das ordens">
           <Link
             ref={backToQueueRef}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="inline-flex h-11 w-52 max-w-full items-center justify-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             to="/inspecoes"
           >
             <ArrowLeft size={16} aria-hidden="true" />
