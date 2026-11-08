@@ -602,11 +602,19 @@ def test_postgres_permission_denial_isolated_by_savepoint(
     address = os.getenv("TEST_POSTGRES_URL")
     if not address:
         pytest.skip("Configure PostgreSQL descartável v_energy_test para teste de grants.")
+    admin_address = os.getenv("TEST_GOLD_READER_ADMIN_URL")
+    if not admin_address:
+        pytest.skip("Configure o administrador do PostgreSQL descartável para criar papéis de teste.")
     url = make_url(address)
     assert url.database == "v_energy_test"
+    admin_url = make_url(admin_address)
+    assert (admin_url.host, admin_url.port) == (url.host, url.port)
+    assert admin_url.database == "gold_reader_test"
+    admin_url = admin_url.set(database="v_energy_test")
 
     seed_measures(published)
     engine = create_engine(url, hide_parameters=True)
+    administrator_engine = create_engine(admin_url, hide_parameters=True)
     reader = None
     role_created = False
     role = f"tsql11_readiness_{uuid4().hex}"
@@ -620,7 +628,7 @@ def test_postgres_permission_denial_isolated_by_savepoint(
                     if rows:
                         destination.execute(table.insert(), rows)
 
-            with engine.begin() as administrator:
+            with administrator_engine.begin() as administrator:
                 administrator.exec_driver_sql(
                     f"CREATE ROLE {quoted_role} LOGIN PASSWORD '{password}'"
                 )
@@ -651,7 +659,7 @@ def test_postgres_permission_denial_isolated_by_savepoint(
             assert facts["tables"][denied_table]["present"] is False
             reader.dispose()
             reader = None
-            with engine.begin() as administrator:
+            with administrator_engine.begin() as administrator:
                 administrator.exec_driver_sql(f"DROP OWNED BY {quoted_role}")
                 administrator.exec_driver_sql(f"DROP ROLE {quoted_role}")
             role_created = False
@@ -659,10 +667,11 @@ def test_postgres_permission_denial_isolated_by_savepoint(
         if reader is not None:
             reader.dispose()
         if role_created:
-            with engine.begin() as administrator:
+            with administrator_engine.begin() as administrator:
                 administrator.exec_driver_sql(f"DROP OWNED BY {quoted_role}")
                 administrator.exec_driver_sql(f"DROP ROLE IF EXISTS {quoted_role}")
         engine.dispose()
+        administrator_engine.dispose()
 
 
 @pytest.mark.parametrize("scope", ["attendance", "domains"])

@@ -307,12 +307,14 @@ def mentions_gd(question: str, context=()) -> bool:
 
 
 def requested_sql_source_capability(question: str, metric_id: str, context=()) -> str:
-    """Seleciona a fonte de bairro apenas quando o pedido explicita esse recorte."""
+    """Seleciona a fonte agregada por bairro apenas para recortes explícitos."""
     latest_user_turn = next(
         (turn.content for turn in reversed(context) if turn.role == "user"), ""
     )
     normalized = f"{question} {latest_user_turn}".casefold()
-    if metric_id == "billing.revenue" and re.search(r"\bbairro\b", normalized):
+    if metric_id in {"billing.revenue", "energy.consumption"} and re.search(
+        r"\bbairro\b", normalized
+    ):
         return "faturamento.receita_bairro"
     return F1_METRIC_SOURCE_CAPABILITY[metric_id]
 

@@ -169,6 +169,7 @@ def test_provider_schema_uses_only_supported_gemini_json_schema_keywords():
         "text-to-sql-f1-v10",
         "text-to-sql-f1-v11",
         "text-to-sql-f1-v12",
+        "text-to-sql-f1-v13",
     ]
     assert "semantic_intent" in schema["required"]
     assert "maxItems" not in json.dumps(schema)

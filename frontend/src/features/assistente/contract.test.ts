@@ -146,39 +146,47 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
       compound_analysis: {
         contract_version: "text-to-sql-f1-compound-v1",
         answer: "A comparação foi concluída.",
-        active_gold_batch: "gold-csv-v2:GOLD_20261103T173853Z_76c37784:12345678-1234-4123-8123-123456789abc",
+        active_gold_batch:
+          "gold-csv-v2:GOLD_20261103T173853Z_76c37784:12345678-1234-4123-8123-123456789abc",
         staging_manifest_digest: "a".repeat(64),
         staging_csv_digest: "b".repeat(64),
         method: "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3",
         windows: {
-          p0_start: "2024-07", p0_end: "2025-06",
-          p1_start: "2025-07", p1_end: "2026-06",
+          p0_start: "2024-07",
+          p0_end: "2025-06",
+          p1_start: "2025-07",
+          p1_end: "2026-06",
           method: "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3",
         },
-        municipalities: [{
-          municipality: "Recife",
-          previous_consumption_kwh: "100.0",
-          current_consumption_kwh: "80.0",
-          change_kwh: "-20.0",
-          change_percent: "-20.000000",
-          revenue_by_class: [{
-            neighborhood: "Centro",
-            consumption_class: "RESIDENCIAL",
-            variation_brl: "12.50",
-            volume_effect_brl: "-3.00",
-            price_effect_brl: "14.00",
-            interaction_effect_brl: "1.50",
-            state: "CALCULADA_BASE_COMUM",
-          }, {
-            neighborhood: "Várzea",
-            consumption_class: "INDUSTRIAL",
-            variation_brl: "-2.25",
-            volume_effect_brl: null,
-            price_effect_brl: null,
-            interaction_effect_brl: null,
-            state: "SEM_BASE_COMUM",
-          }],
-        }],
+        municipalities: [
+          {
+            municipality: "Recife",
+            previous_consumption_kwh: "100.0",
+            current_consumption_kwh: "80.0",
+            change_kwh: "-20.0",
+            change_percent: "-20.000000",
+            revenue_by_class: [
+              {
+                neighborhood: "Centro",
+                consumption_class: "RESIDENCIAL",
+                variation_brl: "12.50",
+                volume_effect_brl: "-3.00",
+                price_effect_brl: "14.00",
+                interaction_effect_brl: "1.50",
+                state: "CALCULADA_BASE_COMUM",
+              },
+              {
+                neighborhood: "Várzea",
+                consumption_class: "INDUSTRIAL",
+                variation_brl: "-2.25",
+                volume_effect_brl: null,
+                price_effect_brl: null,
+                interaction_effect_brl: null,
+                state: "SEM_BASE_COMUM",
+              },
+            ],
+          },
+        ],
         limitations: [
           "A decomposição foi lida de staging local Gold v2, não é Gold ativa.",
           "Consumo e faturamento vêm de agregações independentes.",
@@ -192,18 +200,17 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
       sql_analysis_mode: true,
       continuation_token: "signed-continuation-token",
       sql_compound_analysis: {
-        municipalities: [{
-          municipality: "Recife",
-          revenue_by_class: [
-            { state: "CALCULADA_BASE_COMUM" },
-            { state: "SEM_BASE_COMUM", volume_effect_brl: null },
-          ],
-        }],
+        municipalities: [
+          {
+            municipality: "Recife",
+            revenue_by_class: [
+              { state: "CALCULADA_BASE_COMUM" },
+              { state: "SEM_BASE_COMUM", volume_effect_brl: null },
+            ],
+          },
+        ],
       },
-      evidence: [
-        { source: "gold.local" },
-        { source: "gold-v2.staging" },
-      ],
+      evidence: [{ source: "gold.local" }, { source: "gold-v2.staging" }],
     });
   });
 
@@ -227,7 +234,8 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
 
   it("aceita receita por bairro como dimensão da evidência Gold", () => {
     const neighborhoodResponse = JSON.parse(JSON.stringify(sqlResponse));
-    neighborhoodResponse.evidence.source_table = "gold_v2.consumo_receita_bairro";
+    neighborhoodResponse.evidence.source_table =
+      "gold_v2.consumo_receita_bairro";
     neighborhoodResponse.evidence.columns[0].name = "neighborhood";
     neighborhoodResponse.evidence.rows = [["Boa Vista", "12.50"]];
     neighborhoodResponse.presentation.columns[0] = {
@@ -241,12 +249,15 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
       { observation_id: "row_1", cells: ["Boa Vista", "12.50"] },
     ];
     const decoded = decodeSqlAnalysisResponse(neighborhoodResponse);
-    expect(decoded.sql_presentation?.columns[0].semantic_id).toBe("neighborhood");
+    expect(decoded.sql_presentation?.columns[0].semantic_id).toBe(
+      "neighborhood",
+    );
   });
 
   it("aceita atendimento acumulado sem inventar período", () => {
     const accumulatedResponse = JSON.parse(JSON.stringify(sqlResponse));
-    accumulatedResponse.evidence.evidence_contract_version = "text-to-sql-f1-evidence-v6";
+    accumulatedResponse.evidence.evidence_contract_version =
+      "text-to-sql-f1-evidence-v6";
     accumulatedResponse.evidence.source_table = "gold_v2.visao_360_uc";
     accumulatedResponse.evidence.metric_id = "service.accumulated_attendance";
     accumulatedResponse.evidence.columns = [
@@ -278,20 +289,25 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
       limitations: [
         "Histórico publicado sem intervalo conhecido ou certificação de completude histórica.",
       ],
-      columns: [{
-        key: "attendance",
-        label: "Chamados no histórico",
-        role: "measure",
-        semantic_id: "attendance_accumulated_total",
-        unit: "protocolos",
-      }],
+      columns: [
+        {
+          key: "attendance",
+          label: "Chamados no histórico",
+          role: "measure",
+          semantic_id: "attendance_accumulated_total",
+          unit: "protocolos",
+        },
+      ],
       rows: [{ observation_id: "row_1", cells: ["42"] }],
       evidence_digest: "a".repeat(64),
     };
     const decoded = decodeSqlAnalysisResponse(accumulatedResponse);
     expect(decoded).toMatchObject({
       status: "answered",
-      sql_presentation: { period: "Histórico acumulado", operation: "accumulated_total" },
+      sql_presentation: {
+        period: "Histórico acumulado",
+        operation: "accumulated_total",
+      },
     });
   });
 
@@ -455,16 +471,25 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         filters: [],
         universe: [],
         limitations: [],
-        columns: [{
-          key: "attendance", label: "Protocolos abertos", role: "measure",
-          semantic_id: "attendance_total", unit: "protocolos",
-        }],
+        columns: [
+          {
+            key: "attendance",
+            label: "Protocolos abertos",
+            role: "measure",
+            semantic_id: "attendance_total",
+            unit: "protocolos",
+          },
+        ],
         rows: [{ observation_id: "row_1", cells: ["6433"] }],
       },
     });
     expect(result).toMatchObject({
       status: "answered",
-      analysis_context: { metric: "service.attendance", metric_label: "Protocolos de atendimento", unit: "protocolos" },
+      analysis_context: {
+        metric: "service.attendance",
+        metric_label: "Protocolos de atendimento",
+        unit: "protocolos",
+      },
     });
     expect(result.visualization).toBeUndefined();
   });
@@ -478,10 +503,14 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         source_table: "gold_v2.atendimentos_uc",
         metric_id: "service.satisfaction",
         interpretation: {
-          metric_id: "service.satisfaction", operation: "average",
+          metric_id: "service.satisfaction",
+          operation: "average",
           aggregation: "average_non_null",
           periods: [{ start: "2026-06-01", end: "2026-06-30" }],
-          filters: [], group_by: [], ranking_direction: null, ranking_limit: null,
+          filters: [],
+          group_by: [],
+          ranking_direction: null,
+          ranking_limit: null,
         },
         columns: [{ name: "satisfaction", role: "measure", unit: "pontos" }],
         measure_semantics: { satisfaction: "satisfaction_average" },
@@ -491,20 +520,32 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         ...sqlResponse.presentation,
         contract_version: "text-to-sql-f1-presentation-v6",
         operation: "average",
-        answer: "A nota média de satisfação no período junho de 2026 foi 4,25 pontos.",
-        period: "2026-06", filters: [], universe: [],
+        answer:
+          "A nota média de satisfação no período junho de 2026 foi 4,25 pontos.",
+        period: "2026-06",
+        filters: [],
+        universe: [],
         limitations: [
           "Média das notas informadas; valores ausentes são excluídos e zero é válido.",
         ],
-        columns: [{ key: "satisfaction", label: "Nota média de satisfação",
-          role: "measure", semantic_id: "satisfaction_average", unit: "pontos" }],
+        columns: [
+          {
+            key: "satisfaction",
+            label: "Nota média de satisfação",
+            role: "measure",
+            semantic_id: "satisfaction_average",
+            unit: "pontos",
+          },
+        ],
         rows: [{ observation_id: "row_1", cells: ["4.25"] }],
       },
     });
     expect(result).toMatchObject({
       status: "answered",
       analysis_context: {
-        metric: "service.satisfaction", metric_label: "Nota média de satisfação", unit: "pontos",
+        metric: "service.satisfaction",
+        metric_label: "Nota média de satisfação",
+        unit: "pontos",
       },
     });
   });
@@ -518,12 +559,29 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         source_table: "gold_v2.variacao_consumo_uc",
         metric_id: "energy.gd_units",
         interpretation: {
-          metric_id: "energy.gd_units", operation: "snapshot_total",
-          aggregation: "count_non_null", periods: [],
-          filters: [{ dimension_id: "generation.distributed", operator: "eq", values: ["Sim"] }],
-          group_by: [], ranking_direction: null, ranking_limit: null,
+          metric_id: "energy.gd_units",
+          operation: "snapshot_total",
+          aggregation: "count_non_null",
+          periods: [],
+          filters: [
+            {
+              dimension_id: "generation.distributed",
+              operator: "eq",
+              values: ["Sim"],
+            },
+          ],
+          group_by: [],
+          ranking_direction: null,
+          ranking_limit: null,
         },
-        columns: [{ name: "gd_units", role: "measure", value_type: "integer", unit: "UCs" }],
+        columns: [
+          {
+            name: "gd_units",
+            role: "measure",
+            value_type: "integer",
+            unit: "UCs",
+          },
+        ],
         measure_semantics: { gd_units: "gd_units_total" },
         rows: [["42"]],
       },
@@ -531,19 +589,33 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         ...sqlResponse.presentation,
         contract_version: "text-to-sql-f1-presentation-v7",
         operation: "snapshot_total",
-        answer: "Foram identificadas 42 UCs com GD cadastrada no lote publicado.",
-        period: "Cadastro de GD no lote", filters: [], universe: [],
+        answer:
+          "Foram identificadas 42 UCs com GD cadastrada no lote publicado.",
+        period: "Cadastro de GD no lote",
+        filters: [],
+        universe: [],
         limitations: [
           "Retrato do cadastro no lote publicado; não informa quando a GD entrou em operação nem confirma geração ou injeção.",
         ],
-        columns: [{ key: "gd_units", label: "UCs com GD cadastrada",
-          role: "measure", semantic_id: "gd_units_total", unit: "UCs" }],
+        columns: [
+          {
+            key: "gd_units",
+            label: "UCs com GD cadastrada",
+            role: "measure",
+            semantic_id: "gd_units_total",
+            unit: "UCs",
+          },
+        ],
         rows: [{ observation_id: "row_1", cells: ["42"] }],
       },
     });
     expect(result).toMatchObject({
       status: "answered",
-      analysis_context: { metric: "energy.gd_units", metric_label: "UCs com GD cadastrada", unit: "UCs" },
+      analysis_context: {
+        metric: "energy.gd_units",
+        metric_label: "UCs com GD cadastrada",
+        unit: "UCs",
+      },
     });
   });
 
@@ -556,11 +628,23 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         source_table: "gold_v2.atendimentos_uc",
         metric_id: "service.accumulated_satisfaction",
         interpretation: {
-          metric_id: "service.accumulated_satisfaction", operation: "accumulated_average",
-          aggregation: "average_non_null", periods: [], filters: [], group_by: [],
-          ranking_direction: null, ranking_limit: null,
+          metric_id: "service.accumulated_satisfaction",
+          operation: "accumulated_average",
+          aggregation: "average_non_null",
+          periods: [],
+          filters: [],
+          group_by: [],
+          ranking_direction: null,
+          ranking_limit: null,
         },
-        columns: [{ name: "satisfaction", role: "measure", value_type: "decimal", unit: "pontos" }],
+        columns: [
+          {
+            name: "satisfaction",
+            role: "measure",
+            value_type: "decimal",
+            unit: "pontos",
+          },
+        ],
         measure_semantics: { satisfaction: "satisfaction_accumulated_average" },
         rows: [["4.25"]],
       },
@@ -568,13 +652,23 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         ...sqlResponse.presentation,
         contract_version: "text-to-sql-f1-presentation-v8",
         operation: "accumulated_average",
-        answer: "A média das notas individuais válidas no histórico publicado foi 4,25 pontos. O intervalo e a completude histórica não são conhecidos.",
-        period: "Histórico acumulado", filters: [], universe: [],
+        answer:
+          "A média das notas individuais válidas no histórico publicado foi 4,25 pontos. O intervalo e a completude histórica não são conhecidos.",
+        period: "Histórico acumulado",
+        filters: [],
+        universe: [],
         limitations: [
           "Média das notas válidas do histórico publicado; o intervalo e a completude histórica não são conhecidos.",
         ],
-        columns: [{ key: "satisfaction", label: "Nota média de satisfação no histórico",
-          role: "measure", semantic_id: "satisfaction_accumulated_average", unit: "pontos" }],
+        columns: [
+          {
+            key: "satisfaction",
+            label: "Nota média de satisfação no histórico",
+            role: "measure",
+            semantic_id: "satisfaction_accumulated_average",
+            unit: "pontos",
+          },
+        ],
         rows: [{ observation_id: "row_1", cells: ["4.25"] }],
       },
     });
@@ -602,7 +696,13 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
           operation: "grain_read",
           aggregation: "key_grain_read",
           periods: [{ start: "2026-06-01", end: "2026-06-30" }],
-          filters: [{ dimension_id: "network.feeder", operator: "eq", values: ["ALIM-01"] }],
+          filters: [
+            {
+              dimension_id: "network.feeder",
+              operator: "eq",
+              values: ["ALIM-01"],
+            },
+          ],
         },
         columns: [{ name: "value", role: "measure", unit: "horas por UC" }],
         rows: [["1.25"]],
@@ -611,24 +711,38 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         ...sqlResponse.presentation,
         contract_version: "text-to-sql-f1-presentation-v4",
         operation: "grain_read",
-        answer: "DEC no período junho de 2026 (Alimentador: ALIM-01): 1,25 horas por UC. Valores observados; cobertura do alimentador não certificada.",
+        answer:
+          "DEC no período junho de 2026 (Alimentador: ALIM-01): 1,25 horas por UC. Valores observados; cobertura do alimentador não certificada.",
         period: "2026-06",
         filters: ["Alimentador: ALIM-01"],
         universe: [],
-        limitations: ["Valores observados; cobertura do alimentador não certificada."],
-        columns: [{ key: "value", label: "DEC", role: "measure", semantic_id: "dec_value", unit: "horas por UC" }],
+        limitations: [
+          "Valores observados; cobertura do alimentador não certificada.",
+        ],
+        columns: [
+          {
+            key: "value",
+            label: "DEC",
+            role: "measure",
+            semantic_id: "dec_value",
+            unit: "horas por UC",
+          },
+        ],
         rows: [{ observation_id: "row_1", cells: ["1.25"] }],
       },
     });
     expect(result.analysis_context).toMatchObject({
-      metric: "network.equivalent_interruption_duration", metric_label: "DEC", unit: "horas por UC",
+      metric: "network.equivalent_interruption_duration",
+      metric_label: "DEC",
+      unit: "horas por UC",
     });
     expect(result.answer).toContain("cobertura do alimentador não certificada");
     expect(result.visualization).toBeUndefined();
   });
 
   it("aceita DEC ponderado com população elegível e excluída na evidência", () => {
-    const warning = "Valores observados; cobertura do alimentador não certificada.";
+    const warning =
+      "Valores observados; cobertura do alimentador não certificada.";
     const result = decodeSqlAnalysisResponse({
       ...sqlResponse,
       evidence: {
@@ -668,17 +782,35 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         universe: [],
         limitations: [warning],
         columns: [
-          { key: "dec_value", label: "DEC", role: "measure", semantic_id: "dec_value", unit: "horas por UC" },
-          { key: "feeders_included", label: "Alimentadores elegíveis", role: "measure", semantic_id: "feeders_included", unit: "alimentadores" },
-          { key: "feeders_excluded", label: "Alimentadores observados excluídos", role: "measure", semantic_id: "feeders_excluded", unit: "alimentadores" },
+          {
+            key: "dec_value",
+            label: "DEC",
+            role: "measure",
+            semantic_id: "dec_value",
+            unit: "horas por UC",
+          },
+          {
+            key: "feeders_included",
+            label: "Alimentadores elegíveis",
+            role: "measure",
+            semantic_id: "feeders_included",
+            unit: "alimentadores",
+          },
+          {
+            key: "feeders_excluded",
+            label: "Alimentadores observados excluídos",
+            role: "measure",
+            semantic_id: "feeders_excluded",
+            unit: "alimentadores",
+          },
         ],
         rows: [{ observation_id: "row_1", cells: ["1.25", "3", "2"] }],
       },
     });
     expect(result.sql_presentation?.operation).toBe("weighted_continuity");
-    expect(result.sql_presentation?.columns.map((column) => column.semantic_id)).toEqual([
-      "dec_value", "feeders_included", "feeders_excluded",
-    ]);
+    expect(
+      result.sql_presentation?.columns.map((column) => column.semantic_id),
+    ).toEqual(["dec_value", "feeders_included", "feeders_excluded"]);
     expect(result.limitations).toContain(warning);
   });
 
@@ -836,12 +968,29 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         source_table: "gold_v2.variacao_consumo_uc",
         metric_id: "energy.gd_consumption_drop",
         interpretation: {
-          metric_id: "energy.gd_consumption_drop", operation: "snapshot_total",
-          aggregation: "count_gd_drop", periods: [],
-          filters: [{ dimension_id: "generation.distributed", operator: "eq", values: ["Sim"] }],
-          group_by: [], ranking_direction: null, ranking_limit: null,
+          metric_id: "energy.gd_consumption_drop",
+          operation: "snapshot_total",
+          aggregation: "count_gd_drop",
+          periods: [],
+          filters: [
+            {
+              dimension_id: "generation.distributed",
+              operator: "eq",
+              values: ["Sim"],
+            },
+          ],
+          group_by: [],
+          ranking_direction: null,
+          ranking_limit: null,
         },
-        columns: [{ name: "gd_drop_units", role: "measure", value_type: "integer", unit: "UCs" }],
+        columns: [
+          {
+            name: "gd_drop_units",
+            role: "measure",
+            value_type: "integer",
+            unit: "UCs",
+          },
+        ],
         measure_semantics: { gd_drop_units: "gd_consumption_drop_units" },
         rows: [["5"]],
       },
@@ -849,13 +998,23 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         ...sqlResponse.presentation,
         contract_version: "text-to-sql-f1-presentation-v9",
         operation: "snapshot_total",
-        answer: "Foram identificadas 5 UCs nas janelas fixas jul/2022–jun/2023 vs. jul/2025–jun/2026 (Geração distribuída (cadastro): Sim).",
-        period: "jul/2022–jun/2023 vs. jul/2025–jun/2026", filters: [], universe: [],
+        answer:
+          "Foram identificadas 5 UCs nas janelas fixas jul/2022–jun/2023 vs. jul/2025–jun/2026 (Geração distribuída (cadastro): Sim).",
+        period: "jul/2022–jun/2023 vs. jul/2025–jun/2026",
+        filters: [],
+        universe: [],
         limitations: [
           "Queda bruta nas janelas fixas; exige ao menos seis meses com leitura em cada janela e não demonstra causa nem origem solar.",
         ],
-        columns: [{ key: "gd_drop_units", label: "UCs com GD e queda de consumo >30%",
-          role: "measure", semantic_id: "gd_consumption_drop_units", unit: "UCs" }],
+        columns: [
+          {
+            key: "gd_drop_units",
+            label: "UCs com GD e queda de consumo >30%",
+            role: "measure",
+            semantic_id: "gd_consumption_drop_units",
+            unit: "UCs",
+          },
+        ],
         rows: [{ observation_id: "row_1", cells: ["5"] }],
       },
     });

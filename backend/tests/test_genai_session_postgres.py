@@ -181,6 +181,7 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 db.commit()
             sql = (Path(__file__).parents[1] / "scripts/provision_genai_gold_reader.sql").read_text(encoding="utf-8")
             sql = "\n".join(line for line in sql.splitlines() if not line.startswith("\\"))
+            provision_sql = sql.replace("%", "%%")
             password = uuid4().hex
             with admin.connect().execution_options(isolation_level="AUTOCOMMIT") as administrator:
                 # A revisão de PUBLIC é explícita e ocorre apenas no banco descartável.
@@ -192,8 +193,10 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 )
                 probe_created = True
                 administrator.exec_driver_sql("REVOKE EXECUTE ON FUNCTION public.genai_private_probe() FROM PUBLIC")
-                administrator.exec_driver_sql(sql)
-                administrator.exec_driver_sql(sql)
+                # psycopg interprets % in raw SQL as a placeholder marker;
+                # double it so PostgreSQL receives the literal percent signs.
+                administrator.exec_driver_sql(provision_sql)
+                administrator.exec_driver_sql(provision_sql)
                 administrator.exec_driver_sql(f"ALTER ROLE {GOLD_READER_ROLE} PASSWORD '{password}'")
             reader_url = address.set(username=GOLD_READER_ROLE, password=password)
             monkeypatch.setattr(settings, "DATABASE_URL", owner_url.render_as_string(hide_password=False))
@@ -810,8 +813,17 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     assert "-6 kWh" in consumption["answer"]
                     assert "-20%" in consumption["answer"]
                     with owner.begin() as ranking_write:
+                        ranking_write.execute(TABLES["consumo_receita_bairro"].update().where(
+                            TABLES["consumo_receita_bairro"].c.municipio == "Lumenia",
+                            TABLES["consumo_receita_bairro"].c.bairro == "Bairro Ficticio",
+                        ).values(consumo_total_kwh=7))
+                        ranking_write.execute(TABLES["consumo_receita_bairro"].insert(), {
+                            "competencia": "2001-04", "municipio": "Lumenia",
+                            "bairro": "Bairro Ficticio", "classe_consumo": "RESIDENCIAL",
+                            "consumo_total_kwh": 7,
+                        })
                         ranking_write.execute(TABLES["consumo_receita_bairro"].insert(), [
-                            {"competencia": month, "municipio": "Luz Clara", "bairro": name,
+                            {"competencia": month, "municipio": "Lumenia", "bairro": name,
                              "classe_consumo": "RESIDENCIAL", "consumo_total_kwh": value}
                             for name, month, value in [
                                 ("Quadra A", "2001-01", 100), ("Quadra A", "2001-04", 50),
@@ -819,16 +831,26 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                             ]
                         ])
                     ranking = public_client.post("/api/v1/ai/questions", headers=origin, json={
-                        "question": "Qual bairro de Luz Clara mais perdeu volume residencial entre janeiro de 2001 e abril de 2001?",
+                        "question": "Qual bairro de Lumenia teve a maior queda no consumo medido residencial entre janeiro de 2001 e abril de 2001?",
                     }).json()
-                    assert ranking["status"] == "answered", ranking
+                    assert ranking["status"] == "answered", (
+                        ranking.get("message") or ranking.get("limitations") or ranking
+                    )
                     assert "Quadra A" in ranking["answer"] and "Quadra B" not in ranking["answer"]
                     assert "-50 kWh" in ranking["answer"]
                 finally:
                     with owner.begin() as comparison_write:
                         comparison_write.execute(TABLES["consumo_receita_bairro"].delete().where(
-                            TABLES["consumo_receita_bairro"].c.municipio == "Luz Clara",
+                            TABLES["consumo_receita_bairro"].c.municipio == "Lumenia",
+                            TABLES["consumo_receita_bairro"].c.bairro.in_(
+                                ("Quadra A", "Quadra B", "Bairro Ficticio")
+                            ),
                         ))
+                        comparison_write.execute(TABLES["consumo_receita_bairro"].insert(), {
+                            "competencia": "2001-01", "municipio": "Lumenia",
+                            "bairro": "Bairro Ficticio", "classe_consumo": "RESIDENCIAL",
+                            "receita_total_reais": 7,
+                        })
                         comparison_write.execute(TABLES["diagnostico_receita"].delete().where(
                             TABLES["diagnostico_receita"].c.municipio == "Lumenia",
                             TABLES["diagnostico_receita"].c.competencia.in_(("2001-02", "2001-04")),
@@ -1016,10 +1038,11 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 assert client.get("/api/v1/probe").status_code == 401
 
             # Contorna a aplicação e o default READ ONLY: ACL efetiva ainda bloqueia.
+            # id_uc e receita_reais em consumo_mensal_uc são explicitamente
+            # concedidos ao leitor para métricas deduplicadas e agregações; não
+            # são probes de colunas proibidas.
             engine = created_engines[0]
             forbidden = [
-                "SELECT id_uc FROM gold_v2.consumo_mensal_uc",
-                "SELECT receita_reais FROM gold_v2.consumo_mensal_uc",
                 "SELECT receita_sem_leitura_reais FROM gold_v2.diagnostico_receita",
                 "SELECT * FROM gold_v2.atendimentos_uc",
                 "SELECT * FROM public.auth_users",
@@ -1038,9 +1061,12 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
             for statement in forbidden:
                 with engine.connect() as read:
                     read.exec_driver_sql("SET TRANSACTION READ WRITE")
-                    with pytest.raises(DBAPIError) as error:
+                    try:
                         read.exec_driver_sql(statement)
-                    assert error.value.orig.sqlstate == "42501"
+                    except DBAPIError as error:
+                        assert error.orig.sqlstate == "42501", statement
+                    else:
+                        pytest.fail(f"Probe proibido foi autorizado pelo PostgreSQL: {statement}")
             # O teto do papel vale entre pools distintos, como em requisições
             # concorrentes; saturação não pode deixar conexões emprestadas.
             for existing_engine in created_engines:
@@ -1089,25 +1115,25 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                 administrator.exec_driver_sql("GRANT EXECUTE ON FUNCTION public.genai_private_probe() TO PUBLIC")
                 try:
                     with pytest.raises(DBAPIError):
-                        administrator.exec_driver_sql(sql)
+                        administrator.exec_driver_sql(provision_sql)
                     administrator.exec_driver_sql("ROLLBACK")
                 finally:
                     administrator.exec_driver_sql("REVOKE EXECUTE ON FUNCTION public.genai_private_probe() FROM PUBLIC")
                 administrator.exec_driver_sql("GRANT SELECT ON public.auth_users TO PUBLIC")
                 try:
                     with pytest.raises(DBAPIError):
-                        administrator.exec_driver_sql(sql)
+                        administrator.exec_driver_sql(provision_sql)
                     administrator.exec_driver_sql("ROLLBACK")
                 finally:
                     administrator.exec_driver_sql("REVOKE SELECT ON public.auth_users FROM PUBLIC")
                 administrator.exec_driver_sql("GRANT TEMP ON DATABASE gold_reader_test TO PUBLIC")
                 try:
                     with pytest.raises(DBAPIError):
-                        administrator.exec_driver_sql(sql)
+                        administrator.exec_driver_sql(provision_sql)
                     administrator.exec_driver_sql("ROLLBACK")
                 finally:
                     administrator.exec_driver_sql("REVOKE TEMP ON DATABASE gold_reader_test FROM PUBLIC")
-                administrator.exec_driver_sql(sql)
+                administrator.exec_driver_sql(provision_sql)
                 administrator.exec_driver_sql("DROP FUNCTION public.genai_private_probe()")
             with owner.connect() as read:
                 assert len(read.execute(select(AuthUser.id)).all()) == 2
