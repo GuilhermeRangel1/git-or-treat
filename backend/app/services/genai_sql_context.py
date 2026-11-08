@@ -19,6 +19,7 @@ F1_DIMENSIONS = {
     "geography.neighborhood": "bairro",
     "customer.consumption_class": "classe_consumo",
     "network.feeder": "id_alimentador",
+    "generation.distributed": "possui_gd",
 }
 F1_METRIC_SOURCE_CAPABILITY = {
     "billing.revenue": "faturamento.receita",
@@ -133,6 +134,74 @@ def is_periodized_accumulated_attendance_question(question: str) -> bool:
     ))
 
 
+_GD_TERM = r"(?:\bgd\b|geracao distribuida)"
+_GD_CLEAR = re.compile(r"\b(?:sem esse filtro|remova o filtro|remover o filtro|sem filtro)\b")
+_METRIC_REQUEST = re.compile(
+    r"\b(?:consumo|consumir|kwh|quilowatt|receita|faturamento|atendimento|"
+    r"protocolo|chamado|dec|fec)\b"
+)
+
+
+def _normalize_question(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value.casefold())
+    return "".join(char for char in normalized if not unicodedata.combining(char))
+
+
+def _gd_value_in_message(message: str) -> tuple[bool, str | None]:
+    normalized = _normalize_question(message)
+    if not re.search(_GD_TERM, normalized):
+        return False, None
+    negative = re.search(rf"\bsem\b[^.!?]{{0,40}}{_GD_TERM}", normalized)
+    positive = re.search(
+        rf"\b(?:com|possui|possuem|tem)\b[^.!?]{{0,40}}{_GD_TERM}", normalized
+    )
+    if negative and not positive:
+        return True, "Não"
+    if positive and not negative:
+        return True, "Sim"
+    return True, None
+
+
+def requested_gd_filter_value(question: str, context=()) -> str | None:
+    """Resolve filtro GD explícito ou herdado só em acompanhamento elíptico."""
+    mentioned, value = _gd_value_in_message(question)
+    if mentioned:
+        return value
+    current = _normalize_question(question)
+    if _GD_CLEAR.search(current) or _METRIC_REQUEST.search(current):
+        return None
+    for turn in reversed(context):
+        if turn.role != "user":
+            continue
+        mentioned, value = _gd_value_in_message(turn.content)
+        if mentioned:
+            return value
+        previous = _normalize_question(turn.content)
+        if _GD_CLEAR.search(previous) or _METRIC_REQUEST.search(previous):
+            return None
+    return None
+
+
+def mentions_gd(question: str, context=()) -> bool:
+    """Detecta GD atual/herdada sem reaplicar filtro a uma nova pergunta completa."""
+    mentioned, _ = _gd_value_in_message(question)
+    if mentioned:
+        return True
+    current = _normalize_question(question)
+    if _GD_CLEAR.search(current) or _METRIC_REQUEST.search(current):
+        return False
+    for turn in reversed(context):
+        if turn.role != "user":
+            continue
+        mentioned, _ = _gd_value_in_message(turn.content)
+        if mentioned:
+            return True
+        previous = _normalize_question(turn.content)
+        if _GD_CLEAR.search(previous) or _METRIC_REQUEST.search(previous):
+            return False
+    return False
+
+
 def requested_sql_source_capability(question: str, metric_id: str, context=()) -> str:
     """Seleciona a fonte de bairro apenas quando o pedido explicita esse recorte."""
     latest_user_turn = next((turn.content for turn in reversed(context)
@@ -181,8 +250,23 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
                                     reason="scope_unavailable")
     source = next(item for item in metric.sources
                   if item.capability_id == source_capability)
+    gd_filter_value = requested_gd_filter_value(request.question, request.context)
+    if gd_filter_value is not None and metric_id == "energy.consumption":
+        if "generation.distributed" not in scope.allowed_dimension_ids:
+            raise SqlContextUnavailable("Filtro GD não autorizado.", reason="scope_unavailable")
+        gd_values = next((item.values for item in request.dimension_value_coverage
+                          if item.dimension_id == "generation.distributed"), ())
+        normalize = lambda value: "".join(
+            char for char in unicodedata.normalize("NFD", value.casefold())
+            if not unicodedata.combining(char)
+        )
+        if normalize(gd_filter_value) not in {normalize(value) for value in gd_values}:
+            raise SqlContextUnavailable("Vocabulário GD indisponível na publicação.",
+                                        reason="dimension_values_unavailable")
     dimensions = {key: value for key, value in source.dimension_columns.items()
-                  if key in scope.allowed_dimension_ids}
+                  if key in scope.allowed_dimension_ids
+                  and (key != "generation.distributed"
+                       or gd_filter_value is not None and metric_id == "energy.consumption")}
     columns = [column for column in
                (source.temporal_column, source.measure_column, *dimensions.values())
                if column is not None]
@@ -230,6 +314,7 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
             "metric_is_billed_not_paid": metric_id == "billing.revenue",
             "metric_definition_must_be_preserved": True,
             "dimensions_use_current_registry": True,
+            "gd_filter_requires_explicit_question": metric_id == "energy.consumption",
             "aggregate_all_published_rows_before_ranking": True,
             "scope_is_not_authorized_by_model": True,
             "attendance_uses_utc_month_boundaries": metric_id == "service.attendance",

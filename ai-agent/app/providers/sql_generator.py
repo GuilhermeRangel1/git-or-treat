@@ -15,7 +15,7 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-24"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-25"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
     "$id", "$defs", "$ref", "$anchor", "type", "format", "title",
@@ -141,7 +141,14 @@ SUM(receita_total_reais) FILTER
 FROM gold_v2.diagnostico_receita
 WHERE (competencia BETWEEN :period0_start AND :period0_end
 OR competencia BETWEEN :period1_start AND :period1_end)`
-Acrescente ao WHERE todos os filtros de dimensão pedidos. Para comparação,
+Acrescente ao WHERE todos os filtros de dimensão pedidos. Para `energy.consumption`,
+aplique `generation.distributed` somente quando a pergunta atual ou um
+acompanhamento elíptico pedir explicitamente UCs com/sem GD. Use o valor cadastral
+autorizado no contexto (`Sim` ou `Não`) como parâmetro `possui_gd`; não presuma
+GD a partir de consumo, nem interprete isso como energia injetada ou como causa
+de variação. Se o pedido mencionar GD sem dizer com ou sem, peça esclarecimento.
+Nunca remova um filtro GD explícito para retornar o total geral.
+Para comparação,
 emita `period_0_revenue`, `period_1_revenue` e `revenue_difference`; janela 0 é
 sempre a mais recente e janela 1 a referência anterior, mesmo se a pergunta as
 mencionar em outra ordem. Não use UNION.

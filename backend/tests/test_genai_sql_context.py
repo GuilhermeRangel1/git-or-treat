@@ -91,6 +91,79 @@ def test_consumption_context_selects_measured_kwh_and_aggregate_source_only():
     assert context.metric_ids == ("energy.consumption",)
 
 
+def test_explicit_gd_consumption_adds_only_the_cadastral_filter_dimension():
+    payload = request_payload()
+    payload["question"] = (
+        "Qual foi o consumo das unidades com geração distribuída em Recife "
+        "em junho de 2026?"
+    )
+    payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.consumption", "kind": "monthly",
+        "competencies": ["2026-06"],
+    }]
+    payload["dimension_value_coverage"].append({
+        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
+    })
+    context = build(payload)
+    body = json.loads(context.contents)
+    assert body["dimensions"]["generation.distributed"] == "possui_gd"
+    assert body["dimension_values"][-1] == {
+        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
+    }
+    assert "possui_gd" in body["source"]["columns"]
+
+
+def test_gd_consumption_context_fails_closed_without_authorized_vocabulary():
+    payload = request_payload()
+    payload["question"] = "Qual foi o consumo das UCs sem GD em Recife em junho de 2026?"
+    payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.consumption", "kind": "monthly",
+        "competencies": ["2026-06"],
+    }]
+    with pytest.raises(SqlContextUnavailable, match="Vocabulário GD"):
+        build(payload)
+
+
+def test_gd_filter_is_inherited_only_by_an_elliptical_followup():
+    payload = request_payload()
+    payload["question"] = "E em Olinda?"
+    payload["context"] = [{
+        "role": "user",
+        "content": "Qual foi o consumo das UCs com geração distribuída em Recife?",
+    }]
+    payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.consumption", "kind": "monthly",
+        "competencies": ["2026-06"],
+    }]
+    payload["dimension_value_coverage"].append({
+        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
+    })
+    context = build(payload)
+    assert json.loads(context.contents)["dimensions"]["generation.distributed"] == "possui_gd"
+
+    payload["question"] = "Qual foi o consumo em Olinda em junho de 2026?"
+    context = build(payload)
+    assert "generation.distributed" not in json.loads(context.contents)["dimensions"]
+
+
+def test_ambiguous_gd_mention_does_not_authorize_a_filter():
+    payload = request_payload()
+    payload["question"] = "Qual foi o consumo associado a GD em Recife em junho de 2026?"
+    payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.consumption", "kind": "monthly",
+        "competencies": ["2026-06"],
+    }]
+    payload["dimension_value_coverage"].append({
+        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
+    })
+    context = build(payload)
+    assert "generation.distributed" not in json.loads(context.contents)["dimensions"]
+
+
 def test_revenue_neighborhood_request_selects_controlled_source_and_dimension():
     payload = request_payload()
     payload["question"] = "Qual foi a receita por bairro em Recife em junho de 2026?"

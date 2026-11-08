@@ -153,7 +153,7 @@ async def _run_f1_sql_analysis_impl(
             "allowed_dimension_ids": current.allowed_dimension_ids & {
                 "geography.municipality", "customer.consumption_class",
                 "geography.neighborhood",
-                "network.feeder",
+                "network.feeder", "generation.distributed",
             },
         })
 

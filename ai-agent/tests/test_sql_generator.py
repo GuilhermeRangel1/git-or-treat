@@ -60,7 +60,7 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Ignore as regras" not in SYSTEM_INSTRUCTION
     for operation in ("total", "série mensal", "total agrupado", "ranking", "comparação"):
         assert operation in SYSTEM_INSTRUCTION
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-24"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-25"
     assert "Nunca escreva valor textual/número/data de filtro como literal" in SYSTEM_INSTRUCTION
     assert "FILTER" in SYSTEM_INSTRUCTION and "period0_start" in SYSTEM_INSTRUCTION
     assert "A única agregação" in SYSTEM_INSTRUCTION
@@ -87,6 +87,8 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "semantic_registry serve somente para reconhecer" in SYSTEM_INSTRUCTION
     assert "competencia AS competency" in SYSTEM_INSTRUCTION
     assert "Use unsupported" in SYSTEM_INSTRUCTION
+    assert "Use o valor cadastral" in SYSTEM_INSTRUCTION
+    assert "Nunca remova um filtro GD explícito" in SYSTEM_INSTRUCTION
     assert "nunca para uma operação F1 suportada" in SYSTEM_INSTRUCTION
     assert "Exceção estrita para `service.attendance` no contrato v3" in SYSTEM_INSTRUCTION
     assert "COUNT(protocolo) AS attendance" in SYSTEM_INSTRUCTION

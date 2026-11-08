@@ -43,6 +43,50 @@ def consumption_query(sql_request, *, unit="kWh", metric_id="energy.consumption"
     return type(value).model_validate(payload), request
 
 
+def gd_consumption_query(sql_request, *, filter_value="Sim"):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = (
+        "Qual foi o consumo das unidades com geração distribuída em Recife "
+        "em junho de 2026?"
+    )
+    payload["access_scope"]["allowed_metric_ids"] = [
+        "billing.revenue", "energy.consumption",
+    ]
+    payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.consumption", "kind": "monthly",
+        "competencies": ["2026-06"],
+    }]
+    payload["dimension_value_coverage"].append({
+        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
+    })
+    request = type(sql_request).model_validate(payload)
+    value = candidate(
+        request,
+        "SELECT SUM(consumo_total_kwh) AS consumption "
+        "FROM gold_v2.diagnostico_receita "
+        "WHERE competencia = :month AND municipio = :city AND possui_gd = :gd",
+        parameters={
+            "month": {"type": "string", "value": "2026-06"},
+            "city": {"type": "string", "value": "Recife"},
+            "gd": {"type": "string", "value": filter_value},
+        },
+    )
+    body = value.model_dump(mode="json")
+    body["generation_contract_version"] = "text-to-sql-f1-v2"
+    body["interpretation"].update(
+        metric_id="energy.consumption",
+        filters=[
+            {"dimension_id": "geography.municipality", "operator": "eq",
+             "values": ["Recife"]},
+            {"dimension_id": "generation.distributed", "operator": "eq",
+             "values": [filter_value]},
+        ],
+    )
+    body["result_columns"][0].update(name="consumption", unit="kWh")
+    return type(value).model_validate(body), request
+
+
 def neighborhood_revenue_query(sql_request, *, group=False):
     payload = sql_request.model_dump(mode="json")
     payload["question"] = "Qual foi a receita por bairro em Recife em junho de 2026?"
@@ -292,6 +336,22 @@ def test_consumption_candidate_uses_measured_kwh_instead_of_revenue(sql_request)
     assert review.source_columns == frozenset({"competencia", "consumo_total_kwh"})
     assert review.measure_semantics == (("consumption", "energy_total"),)
     assert review.measure_value_type == "double"
+
+
+def test_explicit_gd_consumption_requires_and_preserves_the_cadastral_filter(sql_request):
+    value, request = gd_consumption_query(sql_request)
+    review = review_sql_semantics(value, request)
+    assert review.source_columns == frozenset({
+        "competencia", "municipio", "possui_gd", "consumo_total_kwh",
+    })
+    assert ("gd", "Sim") in review.parameter_items
+    assert review.measure_semantics == (("consumption", "energy_total"),)
+
+
+def test_explicit_gd_consumption_rejects_the_opposite_registry_value(sql_request):
+    value, request = gd_consumption_query(sql_request, filter_value="Não")
+    with pytest.raises(SqlStructureRejected):
+        review_sql_semantics(value, request)
 
 
 @pytest.mark.parametrize("unit,metric_id", [
