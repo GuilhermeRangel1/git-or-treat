@@ -321,12 +321,11 @@ export default function FieldFiles({
       }
     >
       {mode === "results" ? (
-        <div className="flex flex-col items-end gap-1.5 max-md:w-full max-md:items-start md:pt-1">
+        <div className="flex flex-col items-end gap-1.5 max-md:w-full max-md:items-start">
           <div className="flex flex-wrap gap-3 max-md:w-full">
             <Button
               variant="secondary"
-              size="sm"
-              className="min-h-11 whitespace-nowrap text-sm! max-md:grow md:min-h-9"
+              className="w-52 max-w-full whitespace-nowrap"
               disabled={busy}
               leftIcon={<Download size={16} aria-hidden="true" />}
               ref={templateTrigger}
@@ -336,8 +335,7 @@ export default function FieldFiles({
             </Button>
             <Button
               variant="primary"
-              size="sm"
-              className="min-h-11 whitespace-nowrap text-sm! max-md:grow md:min-h-9"
+              className="w-52 max-w-full whitespace-nowrap"
               disabled={busy}
               aria-describedby="field-file-help"
               leftIcon={<Upload size={16} aria-hidden="true" />}
