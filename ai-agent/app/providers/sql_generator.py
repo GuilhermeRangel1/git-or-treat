@@ -171,7 +171,8 @@ completo, filtros autorizados e nenhum agrupamento, ranking ou limite. Para
 `ROUND(SUM(receita_total_reais) / NULLIF(SUM(qtd_ucs_distintas_faturadas_no_mes), 0), 2)`
 como `average_ticket`, tipo `decimal` e unidade `R$ por UC faturada no mês`. Para
 `billing.effective_tariff`, calcule exatamente
-`ROUND(SUM(receita_base_comparavel_reais) / NULLIF(SUM(consumo_base_comparavel_kwh)::numeric, 0), 4)`
+`ROUND(SUM(receita_base_comparavel_reais) /`
+`NULLIF(SUM(consumo_base_comparavel_kwh)::numeric, 0), 4)`
 como `effective_tariff`, tipo `decimal` e unidade `R$/kWh`. Use uma única fonte e
 os parâmetros/filtros autorizados do contexto. Não calcule média de razões nem
 misture populações. Preço observado não é tarifa homologada; não responda pedido

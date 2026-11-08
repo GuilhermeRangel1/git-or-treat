@@ -474,8 +474,13 @@ def test_all_578_questions_use_new_context_and_f1_contract(case, synthetic_gold)
         "energy.gd_consumption_drop": "variacao_consumo_uc",
         "network.equivalent_interruption_duration": "indicadores_dec_fec",
         "network.equivalent_interruption_frequency": "indicadores_dec_fec",
-    }.get(metric, "consumo_receita_bairro" if metric == "billing.revenue"
-          and neighborhood_question else "diagnostico_receita")
+    }.get(
+        metric,
+        "consumo_receita_bairro"
+        if metric in {"billing.revenue", "energy.consumption"}
+        and neighborhood_question
+        else "diagnostico_receita",
+    )
     assert contents["source"]["table"] == expected_table
     assert set(context.column_names) == set(contents["source"]["columns"])
     assert set(contents["source"]["columns"]) == set(context.column_names)
