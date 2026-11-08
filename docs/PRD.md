@@ -224,7 +224,7 @@ Cada time deve responder à pergunta sobre a evolução da receita residencial (
 | ID | Prioridade | Estado | Requisito e critérios de aceite |
 | --- | --- | --- | --- |
 | WEB-01 | Obrigatório | Concluído | **Indicadores gerais.** A diretoria vê métricas principais com definição, unidade, competência, filtros e comparação entre períodos; indicadores reconciliados com Gold v2, banco e API. |
-| WEB-02 | Obrigatório | Concluído | **Diagnóstico explorável da receita.** Comercial investiga a variação por município, bairro e classe, separando preço/tarifa e energia/volume; recortes e totais se reconciliam, com aviso para bases insuficientes. |
+| WEB-02 | Obrigatório | Em validação | **Diagnóstico explorável da receita.** Comercial investiga a variação por município, bairro e classe, separando preço/tarifa e energia/volume; recortes e totais se reconciliam, com aviso para bases insuficientes. A revalidação V3 na publicação local de 08/11 ficou bloqueada por configuração indisponível; repetir na publicação autorizada. |
 | WEB-03 | Obrigatório | Concluído | **Visão 360 da UC.** Busca por número de UC mostra cliente/cadastro, consumo histórico, faturas, medidor instalado/histórico, GD, interrupções e chamados em uma tela coerente; ausência de dado é explícita. |
 | WEB-04 | Obrigatório | Concluído | **Fila de inspeção.** Unidades suspeitas aparecem ordenadas por prioridade, com motivo, indicadores usados e estimativa de energia a recuperar. Critério de priorização é documentado e auditável; estimativa validada na Gold v2 e reconciliada com banco e API. |
 | WEB-05 | Obrigatório | Concluído | **Ordens de inspeção.** A partir da fila, usuário cria ordem, altera status, registra resultado de campo e cancela ordem desnecessária; transições inválidas e repetição indevida são impedidas. |
@@ -464,6 +464,14 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Entrada de evidência adicionada abaixo e estado do ID alterado para `Concluído` na mesma mudança.
 
 ## 14. Registro de progresso
+
+### 08/11/2026 — WEB-01 a WEB-07 / ENT-01 / ENT-02 — revisão integrada
+
+- Conferidos os guias de frontend e engenharia contra o PRD e a evidência posterior de Workflow: corrigidas afirmações antigas sobre execução do Job, titular, ordenação e disponibilidade condicional de estimativa. Nenhum estado oficial foi promovido. A [narrativa executiva](apresentacao-diretoria.md) separa resultados totais e residenciais e explicita os limites da demonstração.
+- API: `scripts/validate-dev15-web.py --credentials work/local-auth/credentials.txt --output work/revisao-integrada-20261108/http.json` verificou 53 condições sem falhas, incluindo perfis, autenticação, acessos e identidade de uma publicação Gold v2; relatório sanitizado local/ignorado. A verificação não inclui escrita de ordens, navegador nem reconciliação SQL.
+- Frontend integrado: `npm test -- --maxWorkers=2` passou 729 testes em 90 arquivos; build, lint e fronteiras passaram (lint com dois avisos preexistentes). O ensaio de `check-receita-layout.mjs`, executado com Edge instalado e fixture artificial, passou em quatro combinações de viewport/tema, incluindo modal, drill-down, reload e overflow. Não é prova com Gold real.
+- Backend: cinco suítes de Ordens e autorização em SQLite descartável no container passaram com 99 testes, 1 ignorado e aviso de depreciação Starlette/httpx. A validação não escreveu no banco operacional; não substitui o ensaio das seis jornadas no navegador com a publicação real.
+- Receita: `scripts.check_revenue_windows`, executado no container Backend com conexão e transação somente leitura, parou porque a publicação local não disponibilizou a decomposição configurada V3. Não houve alteração dos dados. WEB-02 volta a `Em validação` até identificar e carregar, por responsável autorizado, a publicação V3 pretendida e repetir os controles de componentes e agrupamentos. A prova histórica de 06/11 segue limitada ao ambiente e publicação nela identificados. Trello não conectado; sincronização pendente.
 
 ### 08/11/2026 — Mapa — tentativa de corrigir espaço após o conteúdo
 
