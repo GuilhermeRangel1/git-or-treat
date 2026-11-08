@@ -151,7 +151,8 @@ function formatExactDecimal(value: string, unit: string | null) {
   const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   const formatted = `${negative ? "−" : ""}${grouped}${fraction ? `,${fraction}` : ""}`;
   if (unit === "R$") return `R$ ${formatted}`;
-  return unit === "%" ? `${formatted}%` : formatted;
+  if (unit === "%") return `${formatted}%`;
+  return unit === "kWh" ? `${formatted} kWh` : formatted;
 }
 
 function formatSqlPublication(batchReference: string | null | undefined) {

@@ -233,6 +233,7 @@ export function chatChartPoints(
 const SQL_DIMENSION_IDS: Record<string, string> = {
   competency: "time.competency",
   municipality: "geography.municipality",
+  neighborhood: "geography.neighborhood",
   consumption_class: "customer.consumption_class",
 };
 
@@ -254,9 +255,10 @@ export function sqlAnalysisVisualization(
     (column) => column.role === "dimension",
   );
   const measure = presentation.columns.find(
-    (column) => column.semantic_id === "revenue_total",
+    (column) => column.semantic_id === "revenue_total" || column.semantic_id === "energy_total",
   );
-  if (!dimensions.length || !measure || measure.unit !== "R$") return undefined;
+  if (!dimensions.length || !measure || (measure.unit !== "R$" && measure.unit !== "kWh")) return undefined;
+  const isEnergy = measure.unit === "kWh";
   if (kind === "line" && dimensions.length !== 1) return undefined;
   if (kind === "line") {
     const monthIndexes = presentation.rows.map((row) => {
@@ -322,9 +324,15 @@ export function sqlAnalysisVisualization(
   return {
     contract_version: "v1",
     kind,
-    metric: "billing.revenue",
+    metric: isEnergy ? "energy.consumption" : "billing.revenue",
     title:
-      kind === "line"
+      isEnergy
+        ? kind === "line"
+          ? "Consumo medido mensal"
+          : kind === "horizontal"
+            ? "Ranking de consumo medido"
+            : `Consumo medido por ${dimensions.map((item) => item.label.toLocaleLowerCase("pt-BR")).join(" e ")}`
+        : kind === "line"
         ? "Faturamento mensal"
         : kind === "horizontal"
           ? "Ranking de faturamento"

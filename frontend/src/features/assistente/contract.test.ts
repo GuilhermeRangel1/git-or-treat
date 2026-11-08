@@ -82,6 +82,10 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
     audit_reference: "abcdef0123456789abcdef0123456789",
     status: "answered",
     evidence: {
+      evidence_contract_version: "text-to-sql-f1-evidence-v1",
+      source_table: "gold_v2.diagnostico_receita",
+      metric_id: "billing.revenue",
+      coverage_quality: "certified",
       batch_ref:
         "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
       evidence_digest: "a".repeat(64),
@@ -144,6 +148,76 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
           { observation_id: "row_2", label: "Olinda", value: 975.25 },
         ],
       },
+    });
+  });
+
+  it("aceita receita por bairro como dimensão da evidência Gold", () => {
+    const neighborhoodResponse = JSON.parse(JSON.stringify(sqlResponse));
+    neighborhoodResponse.evidence.source_table = "gold_v2.consumo_receita_bairro";
+    neighborhoodResponse.evidence.columns[0].name = "neighborhood";
+    neighborhoodResponse.evidence.rows = [["Boa Vista", "12.50"]];
+    neighborhoodResponse.presentation.columns[0] = {
+      key: "neighborhood",
+      label: "Bairro",
+      role: "dimension",
+      semantic_id: "neighborhood",
+      unit: null,
+    };
+    neighborhoodResponse.presentation.rows = [
+      { observation_id: "row_1", cells: ["Boa Vista", "12.50"] },
+    ];
+    const decoded = decodeSqlAnalysisResponse(neighborhoodResponse);
+    expect(decoded.sql_presentation?.columns[0].semantic_id).toBe("neighborhood");
+  });
+
+  it("aceita atendimento acumulado sem inventar período", () => {
+    const accumulatedResponse = JSON.parse(JSON.stringify(sqlResponse));
+    accumulatedResponse.evidence.evidence_contract_version = "text-to-sql-f1-evidence-v6";
+    accumulatedResponse.evidence.source_table = "gold_v2.visao_360_uc";
+    accumulatedResponse.evidence.metric_id = "service.accumulated_attendance";
+    accumulatedResponse.evidence.columns = [
+      { name: "attendance", role: "measure", unit: "protocolos" },
+    ];
+    accumulatedResponse.evidence.rows = [["42"]];
+    accumulatedResponse.evidence.measure_semantics = {
+      attendance: "attendance_accumulated_total",
+    };
+    accumulatedResponse.evidence.dimension_semantics = {};
+    accumulatedResponse.evidence.interpretation = {
+      metric_id: "service.accumulated_attendance",
+      operation: "accumulated_total",
+      aggregation: "sum",
+      periods: [],
+      filters: [],
+      group_by: [],
+      ranking_direction: null,
+      ranking_limit: null,
+    };
+    accumulatedResponse.presentation = {
+      contract_version: "text-to-sql-f1-presentation-v5",
+      state: "ready",
+      operation: "accumulated_total",
+      answer: "No histórico publicado, foram registrados 42 protocolos.",
+      period: "Histórico acumulado",
+      filters: [],
+      universe: [],
+      limitations: [
+        "Histórico publicado sem intervalo conhecido ou certificação de completude histórica.",
+      ],
+      columns: [{
+        key: "attendance",
+        label: "Chamados no histórico",
+        role: "measure",
+        semantic_id: "attendance_accumulated_total",
+        unit: "protocolos",
+      }],
+      rows: [{ observation_id: "row_1", cells: ["42"] }],
+      evidence_digest: "a".repeat(64),
+    };
+    const decoded = decodeSqlAnalysisResponse(accumulatedResponse);
+    expect(decoded).toMatchObject({
+      status: "answered",
+      sql_presentation: { period: "Histórico acumulado", operation: "accumulated_total" },
     });
   });
 
@@ -284,6 +358,79 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
       "70.03",
       "87.54",
     ]);
+    expect(result.visualization).toBeUndefined();
+  });
+
+  it("aceita contagem de protocolos apresentada pela evidência v4", () => {
+    const result = decodeSqlAnalysisResponse({
+      ...sqlResponse,
+      evidence: {
+        ...sqlResponse.evidence,
+        evidence_contract_version: "text-to-sql-f1-evidence-v4",
+        source_table: "gold_v2.atendimentos_uc",
+        metric_id: "service.attendance",
+        columns: [{ name: "attendance", role: "measure", unit: "protocolos" }],
+        rows: [["6433"]],
+      },
+      presentation: {
+        ...sqlResponse.presentation,
+        contract_version: "text-to-sql-f1-presentation-v3",
+        operation: "total",
+        answer: "Foram abertos 6.433 protocolos no período junho de 2026.",
+        period: "2026-06",
+        filters: [],
+        universe: [],
+        limitations: [],
+        columns: [{
+          key: "attendance", label: "Protocolos abertos", role: "measure",
+          semantic_id: "attendance_total", unit: "protocolos",
+        }],
+        rows: [{ observation_id: "row_1", cells: ["6433"] }],
+      },
+    });
+    expect(result).toMatchObject({
+      status: "answered",
+      analysis_context: { metric: "service.attendance", metric_label: "Protocolos de atendimento", unit: "protocolos" },
+    });
+    expect(result.visualization).toBeUndefined();
+  });
+
+  it("aceita DEC observacional com o aviso de cobertura não certificada", () => {
+    const result = decodeSqlAnalysisResponse({
+      ...sqlResponse,
+      evidence: {
+        ...sqlResponse.evidence,
+        evidence_contract_version: "text-to-sql-f1-evidence-v5",
+        source_table: "gold_v2.indicadores_dec_fec",
+        metric_id: "network.equivalent_interruption_duration",
+        coverage_quality: "observed_uncertified",
+        interpretation: {
+          metric_id: "network.equivalent_interruption_duration",
+          operation: "grain_read",
+          aggregation: "key_grain_read",
+          periods: [{ start: "2026-06-01", end: "2026-06-30" }],
+          filters: [{ dimension_id: "network.feeder", operator: "eq", values: ["ALIM-01"] }],
+        },
+        columns: [{ name: "value", role: "measure", unit: "horas por UC" }],
+        rows: [["1.25"]],
+      },
+      presentation: {
+        ...sqlResponse.presentation,
+        contract_version: "text-to-sql-f1-presentation-v4",
+        operation: "grain_read",
+        answer: "DEC no período junho de 2026 (Alimentador: ALIM-01): 1,25 horas por UC. Valores observados; cobertura do alimentador não certificada.",
+        period: "2026-06",
+        filters: ["Alimentador: ALIM-01"],
+        universe: [],
+        limitations: ["Valores observados; cobertura do alimentador não certificada."],
+        columns: [{ key: "value", label: "DEC", role: "measure", semantic_id: "dec_value", unit: "horas por UC" }],
+        rows: [{ observation_id: "row_1", cells: ["1.25"] }],
+      },
+    });
+    expect(result.analysis_context).toMatchObject({
+      metric: "network.equivalent_interruption_duration", metric_label: "DEC", unit: "horas por UC",
+    });
+    expect(result.answer).toContain("cobertura do alimentador não certificada");
     expect(result.visualization).toBeUndefined();
   });
 
