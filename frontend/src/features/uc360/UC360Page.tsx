@@ -37,7 +37,7 @@ export default function UC360Page() {
     historyDraft.applied === state.section
       ? historyDraft.open
       : Boolean(state.section);
-  const historyDisclosureRef = useRef<HTMLDetailsElement>(null);
+  const historyDisclosureRef = useRef<HTMLDivElement>(null);
   const currentSearch = params.toString();
   const searchReturnParams = new URLSearchParams();
   for (const key of [
@@ -134,11 +134,11 @@ export default function UC360Page() {
     <div
       className={`grid w-full min-w-0 ${selectedUCId ? "mt-0 gap-6" : "mt-6 gap-4"}`}
     >
-      <div className="flex justify-end">
-        <IndicatorHelp screen="uc360" />
-      </div>
       {selectedUCId ? (
-        <nav aria-label="Navegação da unidade consumidora">
+        <nav
+          aria-label="Navegação da unidade consumidora"
+          className="flex flex-wrap items-center justify-between gap-3"
+        >
           <Link
             className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             to={`/uc-360${searchReturnQuery ? `?${searchReturnQuery}` : ""}`}
@@ -146,44 +146,51 @@ export default function UC360Page() {
             <ArrowLeft size={16} aria-hidden="true" />
             Voltar à busca
           </Link>
+          <IndicatorHelp screen="uc360" />
         </nav>
       ) : (
-        <UC360SearchPanel
-          query={state.q}
-          municipio={state.municipio}
-          classe={state.classe}
-          options={catalog.data?.data}
-          optionsLoading={catalog.isPending}
-          optionsError={catalog.error}
-          page={state.searchPage}
-          results={search.data}
-          isFetching={search.isFetching}
-          error={search.error}
-          onSearch={submitSearch}
-          onRetry={() => void search.refetch()}
-          onRetryOptions={() => void catalog.refetch()}
-          onPageChange={(page) => {
-            const next = new URLSearchParams(params);
-            next.set("search_page", String(page));
-            setParams(next);
-          }}
-          onSelect={(ucId) => {
-            const detailParams = new URLSearchParams();
-            if (state.q) detailParams.set("q", state.q);
-            if (state.municipio) detailParams.set("municipio", state.municipio);
-            if (state.classe) detailParams.set("classe", state.classe);
-            if (state.searchPage > 1)
-              detailParams.set("search_page", String(state.searchPage));
-            if (state.start && state.end) {
-              detailParams.set("start", state.start);
-              detailParams.set("end", state.end);
-            }
-            const search = detailParams.toString();
-            navigate(
-              `/uc-360/${encodeURIComponent(ucId)}${search ? `?${search}` : ""}`,
-            );
-          }}
-        />
+        <>
+          <div className="flex justify-end">
+            <IndicatorHelp screen="uc360" />
+          </div>
+          <UC360SearchPanel
+            query={state.q}
+            municipio={state.municipio}
+            classe={state.classe}
+            options={catalog.data?.data}
+            optionsLoading={catalog.isPending}
+            optionsError={catalog.error}
+            page={state.searchPage}
+            results={search.data}
+            isFetching={search.isFetching}
+            error={search.error}
+            onSearch={submitSearch}
+            onRetry={() => void search.refetch()}
+            onRetryOptions={() => void catalog.refetch()}
+            onPageChange={(page) => {
+              const next = new URLSearchParams(params);
+              next.set("search_page", String(page));
+              setParams(next);
+            }}
+            onSelect={(ucId) => {
+              const detailParams = new URLSearchParams();
+              if (state.q) detailParams.set("q", state.q);
+              if (state.municipio)
+                detailParams.set("municipio", state.municipio);
+              if (state.classe) detailParams.set("classe", state.classe);
+              if (state.searchPage > 1)
+                detailParams.set("search_page", String(state.searchPage));
+              if (state.start && state.end) {
+                detailParams.set("start", state.start);
+                detailParams.set("end", state.end);
+              }
+              const search = detailParams.toString();
+              navigate(
+                `/uc-360/${encodeURIComponent(ucId)}${search ? `?${search}` : ""}`,
+              );
+            }}
+          />
+        </>
       )}
       {state.invalid.length > 0 && (
         <div

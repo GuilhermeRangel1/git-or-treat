@@ -465,6 +465,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 06/11/2026 — WEB-03 — organização da UC 360 para atendimento
+
+- Estado preservado: WEB-03 `Concluído`; alteração de apresentação, sem mudança de dados ou contrato.
+- A identificação do titular ganhou destaque, o consumo é comparado no topo com o mesmo mês do ano anterior quando há dados, e o histórico paginado por fonte fica visível na página. Os cartões comparativos redundantes foram retirados; a tabela de consumo permanece. O período usa o seletor compartilhado de mês e ano.
+- Verificações e limites: `npm test -- src/features/uc360` passou com 37 testes; `npm run build`, `npm run lint`, `npm run check:boundaries` e `npm run format:check` passaram; lint apresentou dois avisos preexistentes fora da UC. Não houve revisão visual nem jornada autenticada com API real nesta alteração. A interface distingue ausência de evidência e não infere variação de fatura a partir do consumo.
+
+
 ### 2026-11-04 — IA-01/02/03/05/06/07/08 — consistência das consultas do Assistente
 
 - Estado do cartão adicional: `Concluído` para a entrega local descrita, com os doze aceites revisados. A integração em develop e os estados dos requisitos oficiais seguem seus próprios gates.

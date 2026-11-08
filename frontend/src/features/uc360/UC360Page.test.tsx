@@ -1,11 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/shared/analytics/sourceOptions", () => ({
@@ -369,93 +363,27 @@ describe("UC 360 search flow", () => {
     });
     renderPage("/uc-360?uc=UC-1001");
     expect((await screen.findAllByText("0 kWh")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Ajustar filtros" }));
     expect(
       screen.getByRole("group", { name: "Selecionar período" }),
     ).toBeTruthy();
     expect(
       screen.getByRole("form", { name: "Período da consulta" }).textContent,
     ).toContain("Período aplicado: 01/2025 a 02/2025");
-    const consumptionFinancial = screen.getByRole("region", {
-      name: "Consumo e financeiro",
-    });
-    expect(
-      screen.getByRole("heading", { name: "Indicadores comparativos" }),
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("heading", { name: /^Consumo medido$/ }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole("heading", { name: /^Valor faturado$/ }),
-    ).toBeNull();
-    expect(
-      within(consumptionFinancial).getByRole("heading", {
-        name: "Consumo e financeiro",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(consumptionFinancial).getByRole("heading", {
-        name: "Consumo medido (kWh)",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(consumptionFinancial).getByRole("heading", {
-        name: "Valor faturado (BRL)",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(consumptionFinancial).queryByRole("heading", {
-        name: "Valor pago (BRL)",
-      }),
-    ).toBeNull();
-    expect(
-      within(consumptionFinancial).getByText(
-        /valor efetivamente pago não está disponível/,
-      ),
-    ).toBeTruthy();
-    expect(
-      within(consumptionFinancial).queryByRole("heading", {
-        name: "Energia faturada (kWh)",
-      }),
-    ).toBeNull();
-    const billingSupport = screen.getByRole("region", {
-      name: "Apoio ao atendimento",
-    });
-    expect(
-      within(billingSupport).getByRole("heading", {
-        name: "Faturas marcadas como em aberto",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(billingSupport).getByText(/saldo atualizado não foi confirmado/),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("columnheader", { name: "Competência" }),
-    ).toBeTruthy();
-    const historyDisclosure = screen
-      .getByText("Consultar históricos")
-      .closest("details");
-    expect(historyDisclosure?.open).toBe(false);
-    expect(screen.getAllByText("R$ 105,00").length).toBeGreaterThan(0);
-    expect(screen.getByText("Variação: -100 kWh")).toBeTruthy();
-    expect(screen.getByText("-100%")).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "O que os dados mostram" }),
-    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar filtros" }));
     expect(
       screen.getByRole("heading", {
-        name: "O que ainda não dá para concluir",
+        name: "Consumo em comparação ao ano anterior",
       }),
     ).toBeTruthy();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Ver históricos e avisos" }),
-    );
     expect(
-      await screen.findByRole("heading", { name: "Dados e históricos da UC" }),
-    ).toBeTruthy();
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "Abrir histórico" })[5],
-    );
-    expect(historyDisclosure?.open).toBe(true);
+      screen.getByRole("heading", { name: "Histórico da unidade" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Indicadores comparativos" }),
+    ).toBeNull();
+    expect(screen.getAllByText("R$ 105,00").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Chamados" }));
     expect((await screen.findAllByText("CH-01")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Chamado").length).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledWith(
