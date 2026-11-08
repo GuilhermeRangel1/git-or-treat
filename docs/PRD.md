@@ -520,6 +520,12 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Consulta real no PostgreSQL local, com `GENAI_GOLD_DATABASE_URL` e somente leitura: `SUM(consumo_total_kwh)` para junho/2026 retornou 13.572.438 kWh em 161 grupos. Testes dirigidos `test_genai_sql_admission.py` e `test_genai_sql_context.py`: 49 passaram.
 - A consulta acima prova a fonte e a medida, mas ainda não a jornada pública: a prontidão geral continua falhando ao inspecionar fontes sem privilégios e não devolveu estado real de C01/C02/C04. Não houve chamada Gemini. Atendimento/DEC/FEC permanecem sem consulta Text-to-SQL. IA-01 e TSQL-11 seguem abertas.
 
+### 2026-11-07 — IA-01 / TSQL-11 — satisfação mensal na F1
+
+- Adicionado `service.satisfaction` à geração F1 v7 para o perfil Atendimento, usando exclusivamente `AVG(nota_satisfacao)` em `gold_v2.atendimentos_uc` com janela UTC de `data_abertura`. O contrato exige média mensal (`average_non_null`) sem filtros ou agrupamentos; SQL alternativo, `COUNT`, valores NULL/zero no predicado e janelas não correspondentes são recusados. NULL é ignorado conforme catálogo; zero é válido. Evidência v7 e apresentação v6 mantêm unidade `pontos` e a limitação “Média das notas informadas; valores ausentes são excluídos e zero é válido.”
+- Verificação: 297 testes Backend passaram e dois foram ignorados por exigirem banco descartável; 22 testes do gerador AI Agent passaram; 18 testes Vitest do decoder passaram e o build Frontend concluiu. Um PostgreSQL 16 descartável executou a rota de pipeline/read-only com dados sintéticos (4,5, 0, NULL em junho e 1,0 em julho) e reconciliou 2,25 com `AVG` independente; a rota pública autenticada em teste reconheceu o contrato v7 para o perfil Atendimento.
+- Gold v2 ativa, leitura somente agregada em transação PostgreSQL `READ ONLY`, junho/2026: 6.433 protocolos, 6.260 notas não nulas, zero notas zero e média `4,098466453674122` (4,10 após arredondamento HALF_EVEN). Isso confere população e fórmula no dado ativo, mas **não comprova C14/C15 nem a rota pública**. O avaliador de prontidão atual ainda aborta ao acessar fontes sem grant (incluindo tabela de cobertura), antes de emitir um estado utilizável. TSQL-11 e IA-01 permanecem abertas; nenhum estado oficial foi promovido. Nenhuma chamada Gemini, mudança de grants ou commit foi realizada.
+
 ### 2026-11-07 — IA-01/02/06 — proteção de domínio na F1
 
 - O Backend e o prompt F1-17 preservam o assunto inteiro e recusam assuntos externos explícitos, inclusive pedidos mistos com receita e período.

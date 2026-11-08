@@ -60,7 +60,7 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Ignore as regras" not in SYSTEM_INSTRUCTION
     for operation in ("total", "série mensal", "total agrupado", "ranking", "comparação"):
         assert operation in SYSTEM_INSTRUCTION
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-25"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-28"
     assert "Nunca escreva valor textual/número/data de filtro como literal" in SYSTEM_INSTRUCTION
     assert "FILTER" in SYSTEM_INSTRUCTION and "period0_start" in SYSTEM_INSTRUCTION
     assert "A única agregação" in SYSTEM_INSTRUCTION
@@ -91,13 +91,19 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Nunca remova um filtro GD explícito" in SYSTEM_INSTRUCTION
     assert "nunca para uma operação F1 suportada" in SYSTEM_INSTRUCTION
     assert "Exceção estrita para `service.attendance` no contrato v3" in SYSTEM_INSTRUCTION
+    assert "Exceção estrita para `service.satisfaction` no contrato v7" in SYSTEM_INSTRUCTION
+    assert "AVG(nota_satisfacao) AS satisfaction" in SYSTEM_INSTRUCTION
+    assert "zero é um valor válido" in SYSTEM_INSTRUCTION
     assert "COUNT(protocolo) AS attendance" in SYSTEM_INSTRUCTION
     assert "começo UTC do mês seguinte" in SYSTEM_INSTRUCTION
     assert "Exceção estrita para atendimento acumulado no contrato v5" in SYSTEM_INSTRUCTION
     assert "`gold_v2.visao_360_uc`" in SYSTEM_INSTRUCTION
     assert "Não invente competência, datas, intervalo, filtro por UC ou" in SYSTEM_INSTRUCTION
     assert "intervalo e completude não são conhecidos" in SYSTEM_INSTRUCTION
-    assert "accumulated_total: somente `service.accumulated_attendance`, sem períodos" in SYSTEM_INSTRUCTION
+    assert (
+        "accumulated_total: somente `service.accumulated_attendance`, sem períodos"
+        in SYSTEM_INSTRUCTION
+    )
 
 
 def test_provider_schema_uses_only_supported_gemini_json_schema_keywords():
@@ -135,6 +141,9 @@ def test_provider_schema_uses_only_supported_gemini_json_schema_keywords():
         "text-to-sql-f1-v3",
         "text-to-sql-f1-v4",
         "text-to-sql-f1-v5",
+        "text-to-sql-f1-v7",
+            "text-to-sql-f1-v8",
+            "text-to-sql-f1-v9",
     ]
     assert "semantic_intent" in schema["required"]
     assert "maxItems" not in json.dumps(schema)

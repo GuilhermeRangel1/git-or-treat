@@ -67,7 +67,10 @@ def _read_snapshot(
         dimension_ids=expected_scope.allowed_dimension_ids,
         metric_ids=expected_scope.allowed_metric_ids & {
             "billing.revenue", "energy.consumption", "service.attendance",
+            "service.satisfaction",
             "service.accumulated_attendance",
+            "service.accumulated_satisfaction",
+            "energy.gd_units",
             "network.equivalent_interruption_duration",
             "network.equivalent_interruption_frequency",
         },

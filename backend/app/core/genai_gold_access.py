@@ -36,6 +36,7 @@ GOLD_DIMENSIONS = frozenset({
 COMMERCIAL_METRICS = frozenset({
     "billing.revenue",
     "energy.consumption",
+    "energy.gd_units",
     "billing.average_ticket",
     "billing.effective_tariff",
     "energy.average_consumption_per_uc",
@@ -51,10 +52,11 @@ OPERATIONS_DIMENSIONS = frozenset({
 _PROFILE_GOLD_SCOPE = {
     PlatformProfile.COMMERCIAL: (COMMERCIAL_METRICS, COMMERCIAL_DIMENSIONS),
     PlatformProfile.OPERATIONS: (OPERATIONS_METRICS, OPERATIONS_DIMENSIONS),
-    # Atendimento libera somente a métrica mensal de protocolos; a análise SQL
-    # F1 restringe esse perfil a totais sem dimensão de unidade consumidora.
+    # Atendimento não libera dimensões de UC; cada métrica habilitada mantém
+    # sua própria operação e validação no contrato SQL F1.
     PlatformProfile.CUSTOMER_SERVICE: (
-        frozenset({"service.attendance", "service.accumulated_attendance"}), frozenset()
+        frozenset({"service.attendance", "service.accumulated_attendance",
+                   "service.satisfaction", "service.accumulated_satisfaction"}), frozenset()
     ),
     PlatformProfile.LOSSES: (frozenset(), frozenset()),
     PlatformProfile.ADMIN: (GOLD_METRICS, GOLD_DIMENSIONS),

@@ -5,6 +5,11 @@ import re
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.core.config import settings
 from app.core.genai_gold_database import get_question_gold_resources
 from app.models.gold_v2 import TABLES
@@ -12,11 +17,6 @@ from app.schemas.genai_internal import AccessScope
 from app.schemas.gold_readiness import GoldReadinessReport
 from app.schemas.sql_generation import SqlGenerationResponse
 from app.services.genai_audit import AuditStore
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
-from sqlalchemy.exc import SQLAlchemyError
-
 from tests.support.database import test_engine
 from tests.support.platform_auth import login_as_profile
 from tests.test_genai_sql_structure import candidate as make_candidate
@@ -33,6 +33,248 @@ def test_sql_analysis_route_is_disabled_by_default_for_authenticated_user(client
     response = client.post("/api/v1/ai/sql-analyses", json={"question": "faturamento"})
     assert response.status_code == 503, response.text
     assert response.json()["detail"] == "Análise SQL indisponível."
+
+
+def test_customer_service_public_route_recognizes_satisfaction_contract(client, monkeypatch):
+    from app.api.v1.endpoints import ai as endpoint
+
+    batch = (
+        "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:"
+        "12345678-1234-4123-8123-123456789abc"
+    )
+    scope = AccessScope.model_validate({
+        "caller_ref": "session:" + "a" * 64,
+        "profile_id": "v-energy-grid-360-gold", "source_id": "gold.local",
+        "allowed_operations": ["read"],
+        "allowed_metric_ids": ["service.attendance", "service.satisfaction"],
+        "allowed_dimension_ids": [],
+    })
+
+    class Publication:
+        batch_ref = batch
+
+        def planning_fields(self, _engine, _scope):
+            return {
+                "batch_ref": batch,
+                "temporal_coverage": [{
+                    "metric_id": "service.satisfaction", "kind": "monthly",
+                    "competencies": ["2026-06"],
+                }],
+            }
+
+        def assert_current(self, _engine):
+            return None
+
+    generated = []
+
+    class Generator:
+        async def generate_sql_candidate(self, payload, *, correlation_id):
+            body = json.loads(payload.contents)
+            generated.append(body)
+            assert body["metric"]["id"] == "service.satisfaction"
+            assert payload.generation_contract_version == "text-to-sql-f1-v7"
+            return SqlGenerationResponse(
+                correlation_id=correlation_id,
+                generation_contract_version="text-to-sql-f1-v7",
+                candidate={
+                    "generation_contract_version": "text-to-sql-f1-v7",
+                    "context_version": payload.context_version,
+                    "status": "unsupported",
+                    "semantic_intent": {"metric_id": "service.satisfaction"},
+                    "unsupported_reason": {
+                        "code": "operation_outside_f1",
+                        "message": "A solicitação não corresponde à consulta mensal disponível.",
+                    },
+                },
+            )
+
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", True)
+    monkeypatch.setattr(endpoint.GoldPublicationContext, "capture",
+                        classmethod(lambda _cls, _engine: Publication()))
+    monkeypatch.setattr(endpoint.AuditStore, "record",
+                        lambda _self, _event, **_kwargs: "a" * 32)
+    monkeypatch.setitem(
+        client.app.dependency_overrides,
+        get_question_gold_resources,
+        lambda: (test_engine, lambda: scope),
+    )
+    monkeypatch.setitem(
+        client.app.dependency_overrides,
+        endpoint.get_sql_genai_question_client,
+        Generator,
+    )
+    login_as_profile(client, monkeypatch, "customer_service", username="sql-satisfaction-route")
+
+    response = client.post("/api/v1/ai/sql-analyses", json={
+        "question": "Qual foi a nota média de satisfação em junho de 2026?",
+    })
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "unsupported"
+    assert generated and generated[0]["generation_contract_version"] == "text-to-sql-f1-v7"
+
+
+def test_customer_service_public_route_recognizes_accumulated_satisfaction(client, monkeypatch):
+    from app.api.v1.endpoints import ai as endpoint
+
+    batch = (
+        "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:"
+        "12345678-1234-4123-8123-123456789abc"
+    )
+    scope = AccessScope.model_validate({
+        "caller_ref": "session:" + "a" * 64,
+        "profile_id": "v-energy-grid-360-gold", "source_id": "gold.local",
+        "allowed_operations": ["read"],
+        "allowed_metric_ids": ["service.accumulated_satisfaction"],
+        "allowed_dimension_ids": [],
+    })
+
+    class Publication:
+        batch_ref = batch
+
+        def planning_fields(self, _engine, _scope):
+            return {
+                "batch_ref": batch,
+                "temporal_coverage": [{
+                    "metric_id": "service.accumulated_satisfaction", "kind": "none",
+                }],
+            }
+
+        def assert_current(self, _engine):
+            return None
+
+    generated = []
+
+    class Generator:
+        async def generate_sql_candidate(self, payload, *, correlation_id):
+            body = json.loads(payload.contents)
+            generated.append(body)
+            assert body["metric"]["id"] == "service.accumulated_satisfaction"
+            assert body["generation_contract_version"] == "text-to-sql-f1-v9"
+            return SqlGenerationResponse(
+                correlation_id=correlation_id,
+                generation_contract_version="text-to-sql-f1-v9",
+                candidate={
+                    "generation_contract_version": "text-to-sql-f1-v9",
+                    "context_version": payload.context_version,
+                    "status": "unsupported",
+                    "semantic_intent": {
+                        "metric_id": "service.accumulated_satisfaction",
+                    },
+                    "unsupported_reason": {
+                        "code": "operation_outside_f1",
+                        "message": "A solicitação não corresponde à média histórica disponível.",
+                    },
+                },
+            )
+
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", True)
+    monkeypatch.setattr(endpoint.GoldPublicationContext, "capture",
+                        classmethod(lambda _cls, _engine: Publication()))
+    monkeypatch.setattr(endpoint.AuditStore, "record",
+                        lambda _self, _event, **_kwargs: "a" * 32)
+    monkeypatch.setitem(
+        client.app.dependency_overrides,
+        get_question_gold_resources,
+        lambda: (test_engine, lambda: scope),
+    )
+    monkeypatch.setitem(
+        client.app.dependency_overrides,
+        endpoint.get_sql_genai_question_client,
+        Generator,
+    )
+    login_as_profile(client, monkeypatch, "customer_service",
+                     username="sql-accumulated-satisfaction-route")
+
+    response = client.post("/api/v1/ai/sql-analyses", json={
+        "question": "Qual foi a média acumulada das notas de satisfação?",
+    })
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "unsupported"
+    assert generated and generated[0]["generation_contract_version"] == "text-to-sql-f1-v9"
+
+
+def test_commercial_public_route_recognizes_gd_registry_snapshot(client, monkeypatch):
+    from app.api.v1.endpoints import ai as endpoint
+
+    batch = (
+        "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:"
+        "12345678-1234-4123-8123-123456789abc"
+    )
+    scope = AccessScope.model_validate({
+        "caller_ref": "session:" + "a" * 64,
+        "profile_id": "v-energy-grid-360-gold", "source_id": "gold.local",
+        "allowed_operations": ["read"], "allowed_metric_ids": ["energy.gd_units"],
+        "allowed_dimension_ids": ["geography.municipality", "generation.distributed"],
+    })
+
+    class Publication:
+        batch_ref = batch
+
+        def planning_fields(self, _engine, _scope):
+            return {
+                "batch_ref": batch,
+                "temporal_coverage": [{"metric_id": "energy.gd_units", "kind": "none"}],
+                "dimension_value_coverage": [{
+                    "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
+                }],
+            }
+
+        def assert_current(self, _engine):
+            return None
+
+    generated = []
+
+    class Generator:
+        async def generate_sql_candidate(self, payload, *, correlation_id):
+            body = json.loads(payload.contents)
+            generated.append(body)
+            assert body["metric"]["id"] == "energy.gd_units"
+            assert body["source"]["table"] == "variacao_consumo_uc"
+            assert body["generation_contract_version"] == "text-to-sql-f1-v8"
+            return SqlGenerationResponse(
+                correlation_id=correlation_id,
+                generation_contract_version="text-to-sql-f1-v8",
+                candidate={
+                    "generation_contract_version": "text-to-sql-f1-v8",
+                    "context_version": payload.context_version,
+                    "status": "unsupported",
+                    "semantic_intent": {"metric_id": "energy.gd_units"},
+                    "unsupported_reason": {
+                        "code": "operation_outside_f1",
+                        "message": "Esta execução de rota verifica apenas o contrato de contexto.",
+                    },
+                },
+            )
+
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", True)
+    monkeypatch.setattr(endpoint.GoldPublicationContext, "capture",
+                        classmethod(lambda _cls, _engine: Publication()))
+    monkeypatch.setattr(endpoint.AuditStore, "record",
+                        lambda _self, _event, **_kwargs: "a" * 32)
+    monkeypatch.setitem(
+        client.app.dependency_overrides,
+        get_question_gold_resources,
+        lambda: (test_engine, lambda: scope),
+    )
+    monkeypatch.setitem(
+        client.app.dependency_overrides,
+        endpoint.get_sql_genai_question_client,
+        Generator,
+    )
+    login_as_profile(client, monkeypatch, "commercial", username="sql-gd-units-route")
+
+    response = client.post("/api/v1/ai/sql-analyses", json={
+        "question": "Quantas UCs têm GD?",
+    })
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "unsupported"
+    assert generated and generated[0]["metric"]["id"] == "energy.gd_units"
 
 
 def test_sql_analysis_readiness_denial_returns_sanitized_http_error(

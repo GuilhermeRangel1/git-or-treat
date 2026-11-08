@@ -120,7 +120,13 @@ def build_sql_evidence(
 
     payload = {
         "evidence_contract_version": (
-            "text-to-sql-f1-evidence-v6"
+            "text-to-sql-f1-evidence-v7"
+            if candidate.interpretation.metric_id == "service.satisfaction"
+            else "text-to-sql-f1-evidence-v8"
+            if candidate.interpretation.metric_id == "energy.gd_units"
+            else "text-to-sql-f1-evidence-v9"
+            if candidate.interpretation.metric_id == "service.accumulated_satisfaction"
+            else "text-to-sql-f1-evidence-v6"
             if candidate.interpretation.metric_id == "service.accumulated_attendance"
             else "text-to-sql-f1-evidence-v5"
             if candidate.interpretation.metric_id in {
@@ -153,6 +159,9 @@ def build_sql_evidence(
     digest_payload = dict(payload)
     if payload["evidence_contract_version"] not in {
         "text-to-sql-f1-evidence-v5", "text-to-sql-f1-evidence-v6",
+        "text-to-sql-f1-evidence-v7",
+        "text-to-sql-f1-evidence-v8",
+        "text-to-sql-f1-evidence-v9",
     }:
         digest_payload.pop("coverage_quality", None)
     evidence = SqlEvidence.model_validate({

@@ -20,8 +20,11 @@ _MEASURES = {
     "revenue_total": "Faturamento",
     "energy_total": "Consumo medido",
     "attendance_total": "Protocolos abertos",
+    "satisfaction_average": "Nota média de satisfação",
     "dec_value": "DEC",
     "fec_value": "FEC",
+    "gd_units_total": "UCs com GD",
+    "satisfaction_accumulated_average": "Nota média de satisfação no histórico",
     "period_0_total": "Faturamento no período 1",
     "period_1_total": "Faturamento no período 2",
     "period_0_minus_period_1": "Diferença (período 1 − período 2)",
@@ -59,8 +62,10 @@ def _decimal_pt_br(value: str) -> str:
 
 
 def _period(evidence: SqlEvidence) -> str:
+    if evidence.interpretation.operation == "snapshot_total":
+        return "Cadastro de GD no lote"
     windows = evidence.interpretation.periods
-    if evidence.interpretation.operation == "accumulated_total":
+    if evidence.interpretation.operation in {"accumulated_total", "accumulated_average"}:
         return "Histórico acumulado"
     labels = tuple(f"{item.start:%Y-%m}" for item in windows)
     ends = tuple(f"{item.end:%Y-%m}" for item in windows)
@@ -83,6 +88,8 @@ def _period_phrase(start, end) -> str:
 def _filters(evidence: SqlEvidence) -> tuple[str, ...]:
     result = []
     for item in evidence.interpretation.filters:
+        if evidence.metric_id == "energy.gd_units" and item.dimension_id == "generation.distributed":
+            continue
         label = _FILTER_DIMENSIONS[item.dimension_id]
         values = ", ".join(item.values)
         result.append(f"{label}: {values}")
@@ -90,7 +97,9 @@ def _filters(evidence: SqlEvidence) -> tuple[str, ...]:
 
 
 def _universe(evidence: SqlEvidence) -> tuple[str, ...]:
-    if evidence.interpretation.operation not in {"grouped_total", "ranking", "comparison"}:
+    if evidence.interpretation.operation not in {
+        "grouped_total", "ranking", "comparison", "snapshot_total",
+    }:
         return ()
     filtered = {item.dimension_id for item in evidence.interpretation.filters}
     labels = {
@@ -119,7 +128,10 @@ def _universe(evidence: SqlEvidence) -> tuple[str, ...]:
 def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
     operation = evidence.interpretation.operation
     window = evidence.interpretation.periods[0] if evidence.interpretation.periods else None
-    scope = " no histórico acumulado" if operation == "accumulated_total" else (
+    scope = " no histórico acumulado" if operation in {
+        "accumulated_total", "accumulated_average",
+    } else (
+        " no lote publicado" if operation == "snapshot_total" else
         f" nos períodos {_period(evidence)}"
         if operation == "comparison"
         else f" no período {_period_phrase(window.start, window.end)}"
@@ -132,21 +144,27 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         }
         else "DEC" if evidence.metric_id == "network.equivalent_interruption_duration"
         else "FEC" if evidence.metric_id == "network.equivalent_interruption_frequency"
+        else "unidades consumidoras com GD cadastrada" if evidence.metric_id == "energy.gd_units"
+        else "nota média de satisfação" if evidence.metric_id == "service.accumulated_satisfaction"
         else "consumo medido" if evidence.metric_id == "energy.consumption" else "faturamento"
     )
     measure_unit = (
+        "pontos" if evidence.metric_id == "service.satisfaction"
+        else
         "protocolos" if evidence.metric_id in {
             "service.attendance", "service.accumulated_attendance",
         }
         else "horas por UC" if evidence.metric_id == "network.equivalent_interruption_duration"
         else "interrupções por UC" if evidence.metric_id == "network.equivalent_interruption_frequency"
+        else "UCs" if evidence.metric_id == "energy.gd_units"
+        else "pontos" if evidence.metric_id == "service.accumulated_satisfaction"
         else "kWh" if evidence.metric_id == "energy.consumption" else "R$"
     )
 
     def formatted(value: str) -> str:
         number = _decimal_pt_br(value)
         return (f"{number} {measure_unit}" if measure_unit in {
-            "kWh", "protocolos", "horas por UC", "interrupções por UC",
+            "kWh", "protocolos", "UCs", "pontos", "horas por UC", "interrupções por UC",
         }
                 else f"R$ {number}")
 
@@ -168,6 +186,29 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         return (f"No histórico publicado, foram registrados {formatted(value)}. "
                 "A fonte não informa o intervalo nem certifica a completude histórica.")
 
+    if operation == "snapshot_total":
+        column = next(name for name, meaning in evidence.measure_semantics.items()
+                      if meaning == "gd_units_total")
+        value = evidence.rows[0][next(
+            index for index, item in enumerate(evidence.columns) if item.name == column
+        )]
+        if value is None:
+            return "A contagem de UCs com GD cadastrada está indisponível no lote publicado."
+        return f"Foram identificadas {formatted(value)} com GD cadastrada{scope}."
+
+    if operation == "accumulated_average":
+        column = next(name for name, meaning in evidence.measure_semantics.items()
+                      if meaning == "satisfaction_accumulated_average")
+        value = evidence.rows[0][next(
+            index for index, item in enumerate(evidence.columns) if item.name == column
+        )]
+        if value is None:
+            return "Não há notas válidas no histórico publicado de satisfação."
+        return (
+            "A média das notas individuais válidas no histórico publicado foi "
+            f"{formatted(value)}. O intervalo e a completude histórica não são conhecidos."
+        )
+
     if operation == "total":
         column = next(
             item
@@ -184,6 +225,18 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         if evidence.metric_id == "service.attendance":
             return f"Foram abertos {formatted(value)}{scope}."
         return f"O consumo medido total{scope} foi {formatted(value)}."
+
+    if operation == "average":
+        column = next(
+            name for name, meaning in evidence.measure_semantics.items()
+            if meaning == "satisfaction_average"
+        )
+        value = evidence.rows[0][next(
+            index for index, item in enumerate(evidence.columns) if item.name == column
+        )]
+        if value is None:
+            return f"A nota média de satisfação está indisponível{scope}."
+        return f"A nota média de satisfação{scope} foi {formatted(value)}."
 
     if operation == "grain_read":
         meaning = ("dec_value" if evidence.metric_id == "network.equivalent_interruption_duration"
@@ -298,10 +351,16 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
 
 
 def _metric_measure_label(evidence: SqlEvidence, meaning: str) -> str:
+    if evidence.metric_id == "service.accumulated_satisfaction":
+        return "Nota média de satisfação no histórico"
+    if evidence.metric_id == "energy.gd_units":
+        return "UCs com GD cadastrada"
     if evidence.metric_id == "service.accumulated_attendance":
         return "Chamados no histórico"
     if evidence.metric_id == "service.attendance":
         return "Protocolos abertos"
+    if evidence.metric_id == "service.satisfaction":
+        return "Nota média de satisfação"
     if evidence.metric_id == "billing.revenue":
         return _MEASURES[meaning]
     if evidence.metric_id in {
@@ -360,9 +419,19 @@ def present_sql_evidence(evidence: SqlEvidence) -> SqlAnalysisPresentation:
         if evidence.metric_id == "energy.consumption"
         else _F1_LIMITATIONS if evidence.metric_id == "billing.revenue" else ()
     )
+    if evidence.metric_id == "service.satisfaction":
+        limitations = ("Média das notas informadas; valores ausentes são excluídos e zero é válido.",)
     if evidence.metric_id == "service.accumulated_attendance":
         limitations = (
             "Histórico publicado sem intervalo conhecido ou certificação de completude histórica.",
+        )
+    if evidence.metric_id == "energy.gd_units":
+        limitations = (
+            "Retrato do cadastro no lote publicado; não informa quando a GD entrou em operação nem confirma geração ou injeção.",
+        )
+    if evidence.metric_id == "service.accumulated_satisfaction":
+        limitations = (
+            "Média das notas válidas do histórico publicado; o intervalo e a completude histórica não são conhecidos.",
         )
     if evidence.coverage_quality == "observed_uncertified":
         answer += " Valores observados; cobertura do alimentador não certificada."
@@ -373,6 +442,12 @@ def present_sql_evidence(evidence: SqlEvidence) -> SqlAnalysisPresentation:
             and "period_0_growth_percent" in evidence.measure_semantics.values()
             else "text-to-sql-f1-presentation-v3"
             if evidence.metric_id == "service.attendance"
+            else "text-to-sql-f1-presentation-v6"
+            if evidence.metric_id == "service.satisfaction"
+            else "text-to-sql-f1-presentation-v7"
+            if evidence.metric_id == "energy.gd_units"
+            else "text-to-sql-f1-presentation-v8"
+            if evidence.metric_id == "service.accumulated_satisfaction"
             else "text-to-sql-f1-presentation-v5"
             if evidence.metric_id == "service.accumulated_attendance"
             else "text-to-sql-f1-presentation-v4"

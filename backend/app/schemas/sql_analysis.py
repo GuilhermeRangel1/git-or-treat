@@ -26,6 +26,9 @@ class SqlPresentationColumn(BaseModel):
         "energy_total",
         "attendance_total",
         "attendance_accumulated_total",
+        "satisfaction_accumulated_average",
+        "gd_units_total",
+        "satisfaction_average",
         "dec_value",
         "fec_value",
         "period_0_total",
@@ -52,11 +55,15 @@ class SqlAnalysisPresentation(BaseModel):
         "text-to-sql-f1-presentation-v1", "text-to-sql-f1-presentation-v2",
         "text-to-sql-f1-presentation-v3", "text-to-sql-f1-presentation-v4",
         "text-to-sql-f1-presentation-v5",
+        "text-to-sql-f1-presentation-v6",
+        "text-to-sql-f1-presentation-v7",
+        "text-to-sql-f1-presentation-v8",
     ]
     state: Literal["ready", "empty", "all_measures_null"]
     operation: Literal[
         "total", "monthly_series", "grouped_total", "ranking", "comparison",
-        "grain_read", "accumulated_total"
+        "grain_read", "accumulated_total", "average", "snapshot_total",
+        "accumulated_average"
     ]
     answer: PresentationText
     period: str = Field(min_length=1, max_length=100)

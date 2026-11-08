@@ -27,10 +27,9 @@ from app.services.genai_sql_context import (
     SqlContextUnavailable,
     build_sql_generation_context,
     is_explicit_multi_metric_question,
+    is_gd_consumption_drop_question,
     is_periodized_accumulated_attendance_question,
 )
-
-
 from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_semantics
 from app.services.genai_sql_telemetry import record_sql_stage, sql_stage
 
@@ -42,7 +41,10 @@ def _contract_version(metric_id: str) -> str:
         "billing.revenue": "text-to-sql-f1-v1",
         "energy.consumption": "text-to-sql-f1-v2",
         "service.attendance": "text-to-sql-f1-v3",
+        "service.satisfaction": "text-to-sql-f1-v7",
         "service.accumulated_attendance": "text-to-sql-f1-v5",
+        "energy.gd_units": "text-to-sql-f1-v8",
+        "service.accumulated_satisfaction": "text-to-sql-f1-v9",
         "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
         "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
     }[metric_id]
@@ -138,7 +140,10 @@ async def observe_sql_generation(
     )
     log_sql_context_ready(context, correlation_id)
     question = request.question.casefold()
-    if (context.metric_ids == ("service.accumulated_attendance",)
+    if (context.metric_ids in {
+            ("service.accumulated_attendance",),
+            ("service.accumulated_satisfaction",),
+        }
             and is_periodized_accumulated_attendance_question(request.question)):
         record_sql_stage(
             correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
@@ -155,6 +160,31 @@ async def observe_sql_generation(
                     "message": (
                         "A Gold publica o total acumulado de protocolos sem informar "
                         "o intervalo histórico; não é possível responder por mês ou ano."
+                        if context.metric_ids == ("service.accumulated_attendance",)
+                        else "A Gold publica a média de satisfação do histórico sem "
+                        "informar o intervalo; não é possível responder por mês ou ano."
+                    ),
+                },
+            ),
+            None,
+            model_calls=0,
+        )
+    if is_gd_consumption_drop_question(request.question):
+        record_sql_stage(
+            correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
+            outcome="unsupported", reason="gd_drop_not_in_f1",
+            context_version=context.context_version,
+        )
+        return SqlGenerationObservation(
+            SqlGenerationCandidate(
+                generation_contract_version=_contract_version(context.metric_ids[0]),
+                status="unsupported",
+                context_version=context.context_version,
+                unsupported_reason={
+                    "code": "operation_outside_f1",
+                    "message": (
+                        "A Gold define queda de consumo em janelas fixas e exige cobertura "
+                        "mínima por UC. Essa análise de GD ainda não está habilitada no F1."
                     ),
                 },
             ),

@@ -120,7 +120,7 @@ async def admit_sql_candidate(
     source_capability_id = context_body["source"]["capability_id"]
     if candidate.interpretation.metric_id in {
         "billing.revenue",
-        "energy.consumption", "service.attendance",
+        "energy.consumption", "service.attendance", "service.satisfaction",
         "network.equivalent_interruption_duration",
         "network.equivalent_interruption_frequency",
     }:

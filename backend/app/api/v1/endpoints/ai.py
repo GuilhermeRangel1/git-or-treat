@@ -146,7 +146,10 @@ async def _run_f1_sql_analysis_impl(
         return current.model_copy(update={
             "allowed_metric_ids": current.allowed_metric_ids & {
                 "billing.revenue", "energy.consumption", "service.attendance",
+                "service.satisfaction",
                 "service.accumulated_attendance",
+                "service.accumulated_satisfaction",
+                "energy.gd_units",
                 "network.equivalent_interruption_duration",
                 "network.equivalent_interruption_frequency",
             },
@@ -292,6 +295,10 @@ async def _run_f1_sql_analysis_impl(
             "presentation",
             context_version=(run.evidence.context_version if run.evidence is not None else None),
             contract_version=(
+                "text-to-sql-f1-presentation-v6"
+                if run.evidence is not None
+                and run.evidence.metric_id == "service.satisfaction"
+                else
                 "text-to-sql-f1-presentation-v3"
                 if run.evidence is not None
                 and run.evidence.metric_id == "service.attendance"

@@ -395,6 +395,125 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
     expect(result.visualization).toBeUndefined();
   });
 
+  it("aceita média mensal de satisfação na unidade pontos", () => {
+    const result = decodeSqlAnalysisResponse({
+      ...sqlResponse,
+      evidence: {
+        ...sqlResponse.evidence,
+        evidence_contract_version: "text-to-sql-f1-evidence-v7",
+        source_table: "gold_v2.atendimentos_uc",
+        metric_id: "service.satisfaction",
+        interpretation: {
+          metric_id: "service.satisfaction", operation: "average",
+          aggregation: "average_non_null",
+          periods: [{ start: "2026-06-01", end: "2026-06-30" }],
+          filters: [], group_by: [], ranking_direction: null, ranking_limit: null,
+        },
+        columns: [{ name: "satisfaction", role: "measure", unit: "pontos" }],
+        measure_semantics: { satisfaction: "satisfaction_average" },
+        rows: [["4.25"]],
+      },
+      presentation: {
+        ...sqlResponse.presentation,
+        contract_version: "text-to-sql-f1-presentation-v6",
+        operation: "average",
+        answer: "A nota média de satisfação no período junho de 2026 foi 4,25 pontos.",
+        period: "2026-06", filters: [], universe: [],
+        limitations: [
+          "Média das notas informadas; valores ausentes são excluídos e zero é válido.",
+        ],
+        columns: [{ key: "satisfaction", label: "Nota média de satisfação",
+          role: "measure", semantic_id: "satisfaction_average", unit: "pontos" }],
+        rows: [{ observation_id: "row_1", cells: ["4.25"] }],
+      },
+    });
+    expect(result).toMatchObject({
+      status: "answered",
+      analysis_context: {
+        metric: "service.satisfaction", metric_label: "Nota média de satisfação", unit: "pontos",
+      },
+    });
+  });
+
+  it("aceita retrato do cadastro de UCs com GD no lote publicado", () => {
+    const result = decodeSqlAnalysisResponse({
+      ...sqlResponse,
+      evidence: {
+        ...sqlResponse.evidence,
+        evidence_contract_version: "text-to-sql-f1-evidence-v8",
+        source_table: "gold_v2.variacao_consumo_uc",
+        metric_id: "energy.gd_units",
+        interpretation: {
+          metric_id: "energy.gd_units", operation: "snapshot_total",
+          aggregation: "count_non_null", periods: [],
+          filters: [{ dimension_id: "generation.distributed", operator: "eq", values: ["Sim"] }],
+          group_by: [], ranking_direction: null, ranking_limit: null,
+        },
+        columns: [{ name: "gd_units", role: "measure", value_type: "integer", unit: "UCs" }],
+        measure_semantics: { gd_units: "gd_units_total" },
+        rows: [["42"]],
+      },
+      presentation: {
+        ...sqlResponse.presentation,
+        contract_version: "text-to-sql-f1-presentation-v7",
+        operation: "snapshot_total",
+        answer: "Foram identificadas 42 UCs com GD cadastrada no lote publicado.",
+        period: "Cadastro de GD no lote", filters: [], universe: [],
+        limitations: [
+          "Retrato do cadastro no lote publicado; não informa quando a GD entrou em operação nem confirma geração ou injeção.",
+        ],
+        columns: [{ key: "gd_units", label: "UCs com GD cadastrada",
+          role: "measure", semantic_id: "gd_units_total", unit: "UCs" }],
+        rows: [{ observation_id: "row_1", cells: ["42"] }],
+      },
+    });
+    expect(result).toMatchObject({
+      status: "answered",
+      analysis_context: { metric: "energy.gd_units", metric_label: "UCs com GD cadastrada", unit: "UCs" },
+    });
+  });
+
+  it("aceita satisfação média no histórico sem inventar período", () => {
+    const result = decodeSqlAnalysisResponse({
+      ...sqlResponse,
+      evidence: {
+        ...sqlResponse.evidence,
+        evidence_contract_version: "text-to-sql-f1-evidence-v9",
+        source_table: "gold_v2.atendimentos_uc",
+        metric_id: "service.accumulated_satisfaction",
+        interpretation: {
+          metric_id: "service.accumulated_satisfaction", operation: "accumulated_average",
+          aggregation: "average_non_null", periods: [], filters: [], group_by: [],
+          ranking_direction: null, ranking_limit: null,
+        },
+        columns: [{ name: "satisfaction", role: "measure", value_type: "decimal", unit: "pontos" }],
+        measure_semantics: { satisfaction: "satisfaction_accumulated_average" },
+        rows: [["4.25"]],
+      },
+      presentation: {
+        ...sqlResponse.presentation,
+        contract_version: "text-to-sql-f1-presentation-v8",
+        operation: "accumulated_average",
+        answer: "A média das notas individuais válidas no histórico publicado foi 4,25 pontos. O intervalo e a completude histórica não são conhecidos.",
+        period: "Histórico acumulado", filters: [], universe: [],
+        limitations: [
+          "Média das notas válidas do histórico publicado; o intervalo e a completude histórica não são conhecidos.",
+        ],
+        columns: [{ key: "satisfaction", label: "Nota média de satisfação no histórico",
+          role: "measure", semantic_id: "satisfaction_accumulated_average", unit: "pontos" }],
+        rows: [{ observation_id: "row_1", cells: ["4.25"] }],
+      },
+    });
+    expect(result).toMatchObject({
+      status: "answered",
+      analysis_context: {
+        metric: "service.accumulated_satisfaction",
+        metric_label: "Nota média de satisfação no histórico",
+        unit: "pontos",
+      },
+    });
+  });
+
   it("aceita DEC observacional com o aviso de cobertura não certificada", () => {
     const result = decodeSqlAnalysisResponse({
       ...sqlResponse,

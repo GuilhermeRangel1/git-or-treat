@@ -1,11 +1,13 @@
 import json
 
 import pytest
+
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
     build_sql_generation_context,
     is_explicit_multi_metric_question,
+    is_gd_consumption_drop_question,
     requested_sql_metric_id,
 )
 
@@ -207,6 +209,31 @@ def test_attendance_context_uses_monthly_protocol_source_without_uc_dimension():
     assert set(body["source"]["columns"]) == {"data_abertura", "protocolo"}
 
 
+def test_satisfaction_context_uses_average_of_monthly_non_null_scores():
+    payload = request_payload()
+    payload["question"] = "Qual foi a nota média de satisfação em junho de 2026?"
+    payload["access_scope"]["allowed_metric_ids"] = ["service.satisfaction"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.satisfaction", "kind": "monthly", "competencies": ["2026-06"],
+    }]
+    context = build(payload)
+    body = json.loads(context.contents)
+    assert body["generation_contract_version"] == "text-to-sql-f1-v7"
+    assert body["metric"]["id"] == "service.satisfaction"
+    assert body["metric"]["aggregation"] == "average_non_null"
+    assert body["metric"]["measure_column"] == "nota_satisfacao"
+    assert body["metric"]["measure_type"] == "double"
+    assert body["metric"]["unit"] == "pontos"
+    assert body["source"]["table"] == "atendimentos_uc"
+    assert body["source"]["temporal_column"] == "data_abertura"
+    assert set(body["source"]["columns"]) == {"data_abertura", "nota_satisfacao"}
+    assert body["rules"]["satisfaction_definition"].endswith(
+        "NULL é ignorado, zero é válido"
+    )
+
+
 def test_accumulated_attendance_context_has_no_invented_period_or_uc_filter():
     payload = request_payload()
     payload["question"] = "Quantos chamados no histórico acumulado?"
@@ -224,6 +251,63 @@ def test_accumulated_attendance_context_has_no_invented_period_or_uc_filter():
     assert body["source"]["temporal_column"] is None
     assert body["source"]["columns"] == {"total_chamados_callcenter": "BIGINT"}
     assert body["rules"]["accumulated_period_is_unknown"] is True
+
+
+def test_gd_units_context_is_a_non_temporal_lot_snapshot():
+    payload = request_payload()
+    payload["question"] = "Quantas UCs têm GD?"
+    payload["access_scope"]["allowed_metric_ids"] = ["energy.gd_units"]
+    payload["access_scope"]["allowed_dimension_ids"] = [
+        "geography.municipality", "generation.distributed",
+    ]
+    payload["temporal_coverage"] = [{"metric_id": "energy.gd_units", "kind": "none"}]
+    payload["dimension_value_coverage"] = [
+        {"dimension_id": "generation.distributed", "values": ["Não", "Sim"]},
+    ]
+
+    context = build(payload)
+    body = json.loads(context.contents)
+
+    assert body["generation_contract_version"] == "text-to-sql-f1-v8"
+    assert body["source"]["table"] == "variacao_consumo_uc"
+    assert body["source"]["temporal_column"] is None
+    assert body["metric"]["measure_column"] == "possui_gd"
+    assert body["metric"]["measure_type"] == "integer"
+    assert body["metric"]["unit"] == "UCs"
+    assert body["rules"]["snapshot_period_phrase"] == "cadastro de GD no lote"
+    assert requested_sql_metric_id(payload["question"]) == "energy.gd_units"
+
+
+def test_gd_consumption_drop_is_not_misclassified_as_a_registry_count():
+    question = "Quantas UCs com GD tiveram queda de consumo superior a 30%?"
+    assert is_gd_consumption_drop_question(question)
+    assert requested_sql_metric_id(question) != "energy.gd_units"
+    assert is_gd_consumption_drop_question("Quantas UCs com GD tiveram queda?")
+
+
+def test_accumulated_satisfaction_context_has_no_period_or_personal_dimensions():
+    payload = request_payload()
+    payload["question"] = "Qual foi a nota média de satisfação no histórico acumulado?"
+    payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_satisfaction"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.accumulated_satisfaction", "kind": "none",
+    }]
+
+    context = build(payload)
+    body = json.loads(context.contents)
+
+    assert body["generation_contract_version"] == "text-to-sql-f1-v9"
+    assert body["metric"]["id"] == "service.accumulated_satisfaction"
+    assert body["metric"]["measure_column"] == "nota_satisfacao"
+    assert body["metric"]["measure_type"] == "double"
+    assert body["metric"]["unit"] == "pontos"
+    assert body["source"]["table"] == "atendimentos_uc"
+    assert body["source"]["temporal_column"] is None
+    assert body["source"]["columns"] == {"nota_satisfacao": "FLOAT"}
+    assert body["dimensions"] == {}
+    assert body["rules"]["accumulated_satisfaction_period_is_unknown"] is True
 
 
 @pytest.mark.parametrize(("code", "metric_id", "column", "unit"), [

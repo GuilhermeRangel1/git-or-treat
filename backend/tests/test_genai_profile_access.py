@@ -3,7 +3,11 @@ from unittest.mock import AsyncMock
 
 from sqlalchemy import create_engine
 
-from app.core.genai_gold_access import GOLD_DIMENSIONS, GOLD_METRICS, build_profile_access_scope
+from app.core.genai_gold_access import (
+    GOLD_DIMENSIONS,
+    GOLD_METRICS,
+    build_profile_access_scope,
+)
 from app.core.platform_access import PlatformProfile
 from app.core.platform_identity import PlatformIdentity
 from app.schemas.ai import AIQuestionRequest
@@ -29,12 +33,13 @@ def test_scope_matrix_separates_commercial_and_operations_and_gives_admin_full_s
     assert (admin.profile_id, admin.source_id) == ("v-energy-grid-360-gold", "gold.local")
 
 
-def test_customer_service_has_monthly_attendance_only_and_losses_remain_empty():
+def test_customer_service_has_monthly_attendance_and_satisfaction_only_and_losses_remain_empty():
     customer_service = build_profile_access_scope(identity(PlatformProfile.CUSTOMER_SERVICE))
     losses = build_profile_access_scope(identity(PlatformProfile.LOSSES))
     assert customer_service.allowed_operations == frozenset({"read"})
     assert customer_service.allowed_metric_ids == frozenset({
-        "service.attendance", "service.accumulated_attendance",
+        "service.attendance", "service.accumulated_attendance", "service.satisfaction",
+        "service.accumulated_satisfaction",
     })
     assert customer_service.allowed_dimension_ids == frozenset()
     assert losses.allowed_operations == frozenset({"read"})

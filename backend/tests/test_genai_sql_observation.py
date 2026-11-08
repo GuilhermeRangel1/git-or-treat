@@ -4,6 +4,7 @@ import logging
 
 import httpx
 import pytest
+
 from app.services.genai_client import (
     GenAIQuestionClient,
     GenAIServiceUnavailable,
@@ -13,6 +14,7 @@ from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
     build_sql_generation_context,
+    is_gd_consumption_drop_question,
     is_periodized_accumulated_attendance_question,
 )
 from app.services.genai_sql_observation import (
@@ -21,7 +23,6 @@ from app.services.genai_sql_observation import (
     observe_sql_generation,
 )
 from app.services.genai_sql_structure import SqlStructureRejected
-
 from tests.test_genai_sql_semantics import consumption_request, query
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
@@ -230,5 +231,56 @@ def test_mixed_consumption_and_revenue_is_refused_without_partial_sql(sql_reques
     assert result.review is None
     assert result.candidate.status == "unsupported"
     assert result.candidate.sql is None
+    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
+    assert result.model_calls == 0
+
+
+def test_gd_consumption_drop_is_explicitly_unsupported_before_model_call(sql_request):
+    payload = consumption_request(sql_request).model_dump(mode="json")
+    payload["question"] = "Quantas UCs com GD tiveram queda de consumo superior a 30%?"
+    payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
+    payload["dimension_value_coverage"].append({
+        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
+    })
+    request = type(sql_request).model_validate(payload)
+    assert is_gd_consumption_drop_question(request.question)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Métrica GD sem análise de cobertura não deve chegar ao gerador")
+
+    result = asyncio.run(observe_sql_generation(
+        request, client=UnexpectedGenerator(), deadline=GenAIRequestDeadline.start(60),
+        correlation_id="b" * 32,
+    ))
+
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
+    assert result.model_calls == 0
+
+
+def test_periodized_accumulated_satisfaction_is_refused_before_model_call(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = (
+        "Qual foi a nota média de satisfação no histórico acumulado em 2025?"
+    )
+    payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_satisfaction"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.accumulated_satisfaction", "kind": "none",
+    }]
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Histórico sem janela não deve responder a pedido anual")
+
+    result = asyncio.run(observe_sql_generation(
+        request, client=UnexpectedGenerator(), deadline=GenAIRequestDeadline.start(60),
+        correlation_id="b" * 32,
+    ))
+
+    assert result.candidate.status == "unsupported"
     assert result.candidate.unsupported_reason.code == "operation_outside_f1"
     assert result.model_calls == 0
