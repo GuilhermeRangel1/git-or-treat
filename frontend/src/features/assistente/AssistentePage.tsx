@@ -441,7 +441,9 @@ function AssistantResult({
           className="overflow-hidden rounded-xl border border-divider bg-surface"
         >
           <div className="border-b border-divider px-4 py-3">
-            <h3 className="font-semibold text-content">Consumo e decomposição da receita</h3>
+            <h3 className="font-semibold text-content">
+              Consumo e decomposição da receita
+            </h3>
             <p className="mt-1 text-sm text-muted">
               Jul/2024–jun/2025 vs. jul/2025–jun/2026
             </p>
@@ -450,11 +452,21 @@ function AssistantResult({
                 Origem e método da análise
               </summary>
               <div className="space-y-1 break-words pb-2">
-                <p>Gold ativa: {formatSqlPublication(response.sql_compound_analysis.active_gold_batch)}</p>
+                <p>
+                  Gold ativa:{" "}
+                  {formatSqlPublication(
+                    response.sql_compound_analysis.active_gold_batch,
+                  )}
+                </p>
                 <p>Decomposição lida de staging local.</p>
                 <p>Método técnico: {response.sql_compound_analysis.method}</p>
-                <p>Evidência: {response.sql_compound_analysis.evidence_digest}</p>
-                <p>Manifesto: {response.sql_compound_analysis.staging_manifest_digest}</p>
+                <p>
+                  Evidência: {response.sql_compound_analysis.evidence_digest}
+                </p>
+                <p>
+                  Manifesto:{" "}
+                  {response.sql_compound_analysis.staging_manifest_digest}
+                </p>
               </div>
             </details>
           </div>
@@ -464,40 +476,111 @@ function AssistantResult({
             className="max-h-96 max-w-full overflow-auto focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand"
           >
             <table className="min-w-full border-collapse text-left text-sm">
-              <caption className="sr-only">Consumo por município e decomposição de faturamento por classe</caption>
+              <caption className="sr-only">
+                Consumo por município e decomposição de faturamento por classe
+              </caption>
               <thead className="sticky top-0 bg-canvas text-xs text-muted">
                 <tr>
-                  {["Município", "Bairro", "Classe", "Consumo anterior (kWh)", "Consumo atual (kWh)", "Variação (kWh)", "Variação (%)", "Receita (R$)", "Volume (R$)", "Preço observado (R$)", "Interação (R$)"].map((label) => (
-                    <th key={label} scope="col" className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold">{label}</th>
+                  {[
+                    "Município",
+                    "Bairro",
+                    "Classe",
+                    "Consumo anterior (kWh)",
+                    "Consumo atual (kWh)",
+                    "Variação (kWh)",
+                    "Variação (%)",
+                    "Receita (R$)",
+                    "Volume (R$)",
+                    "Preço observado (R$)",
+                    "Interação (R$)",
+                  ].map((label) => (
+                    <th
+                      key={label}
+                      scope="col"
+                      className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold"
+                    >
+                      {label}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {response.sql_compound_analysis.municipalities.flatMap((municipality) =>
-                  municipality.revenue_by_class.map((effect) => (
-                    <tr key={`${municipality.municipality}-${effect.consumption_class}`} className="border-b border-divider last:border-0">
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{municipality.municipality}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{effect.neighborhood}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{effect.consumption_class}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{formatExactDecimal(municipality.previous_consumption_kwh, "kWh")}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{formatExactDecimal(municipality.current_consumption_kwh, "kWh")}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{formatExactDecimal(municipality.change_kwh, "kWh")}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{formatExactDecimal(municipality.change_percent, "%")}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{formatExactDecimal(effect.variation_brl, "R$")}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{effect.volume_effect_brl === null ? "Sem base comparável" : formatExactDecimal(effect.volume_effect_brl, "R$")}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{effect.price_effect_brl === null ? "Sem base comparável" : formatExactDecimal(effect.price_effect_brl, "R$")}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-content">{effect.interaction_effect_brl === null ? "Sem base comparável" : formatExactDecimal(effect.interaction_effect_brl, "R$")}</td>
-                    </tr>
-                  )),
+                {response.sql_compound_analysis.municipalities.flatMap(
+                  (municipality) =>
+                    municipality.revenue_by_class.map((effect) => (
+                      <tr
+                        key={`${municipality.municipality}-${effect.consumption_class}`}
+                        className="border-b border-divider last:border-0"
+                      >
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {municipality.municipality}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {effect.neighborhood}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {effect.consumption_class}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {formatExactDecimal(
+                            municipality.previous_consumption_kwh,
+                            "kWh",
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {formatExactDecimal(
+                            municipality.current_consumption_kwh,
+                            "kWh",
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {formatExactDecimal(municipality.change_kwh, "kWh")}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {formatExactDecimal(municipality.change_percent, "%")}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {formatExactDecimal(effect.variation_brl, "R$")}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {effect.volume_effect_brl === null
+                            ? "Sem base comparável"
+                            : formatExactDecimal(
+                                effect.volume_effect_brl,
+                                "R$",
+                              )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {effect.price_effect_brl === null
+                            ? "Sem base comparável"
+                            : formatExactDecimal(effect.price_effect_brl, "R$")}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {effect.interaction_effect_brl === null
+                            ? "Sem base comparável"
+                            : formatExactDecimal(
+                                effect.interaction_effect_brl,
+                                "R$",
+                              )}
+                        </td>
+                      </tr>
+                    )),
                 )}
                 {response.sql_compound_analysis.municipalities.length === 0 && (
-                  <tr><td colSpan={11} className="px-3 py-4 text-muted">Nenhum município apresentou queda de consumo nas janelas comparadas.</td></tr>
+                  <tr>
+                    <td colSpan={11} className="px-3 py-4 text-muted">
+                      Nenhum município apresentou queda de consumo nas janelas
+                      comparadas.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
           </div>
           <ul className="space-y-1 border-t border-divider px-4 py-3 text-sm text-muted">
-            {response.sql_compound_analysis.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
+            {response.sql_compound_analysis.limitations.map((limitation) => (
+              <li key={limitation}>{limitation}</li>
+            ))}
           </ul>
         </section>
       )}
@@ -540,7 +623,11 @@ function AssistantResult({
               </summary>
               <div className="space-y-1 break-words pb-2">
                 <p>Fonte técnica: Diagnóstico de receita</p>
-                <p>{formatSqlPublication(response.analysis_context.batch_reference)}</p>
+                <p>
+                  {formatSqlPublication(
+                    response.analysis_context.batch_reference,
+                  )}
+                </p>
                 {response.audit_reference && (
                   <p className="break-all">
                     Registro de auditoria: {response.audit_reference}

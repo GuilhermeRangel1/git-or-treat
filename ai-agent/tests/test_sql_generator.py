@@ -65,7 +65,7 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Ignore as regras" not in SYSTEM_INSTRUCTION
     for operation in ("total", "série mensal", "total agrupado", "ranking", "comparação"):
         assert operation in SYSTEM_INSTRUCTION
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-32"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-33"
     assert "Nunca escreva valor textual/número/data de filtro como literal" in SYSTEM_INSTRUCTION
     assert "FILTER" in SYSTEM_INSTRUCTION and "period0_start" in SYSTEM_INSTRUCTION
     assert "A única agregação" in SYSTEM_INSTRUCTION
@@ -77,7 +77,9 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "AS revenue_difference" in SYSTEM_INSTRUCTION
     assert "Nomes de `result_columns` devem coincidir exatamente" in SYSTEM_INSTRUCTION
     assert "janela 0 é" in SYSTEM_INSTRUCTION
-    assert "use todas as competências disponíveis daquele ano" in SYSTEM_INSTRUCTION
+    assert "use todas as competências disponíveis daquele ano" in " ".join(
+        SYSTEM_INSTRUCTION.split()
+    )
     assert "não faça pergunta de confirmação" in SYSTEM_INSTRUCTION
     assert "janeiro a junho de 2026" in SYSTEM_INSTRUCTION
     assert "janeiro a dezembro de 2026" in SYSTEM_INSTRUCTION

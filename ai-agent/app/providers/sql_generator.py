@@ -15,7 +15,7 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-32"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-33"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
     "$id",
@@ -172,7 +172,8 @@ completo, filtros autorizados e nenhum agrupamento, ranking ou limite. Para
 `ROUND(SUM(receita_total_reais) / NULLIF(SUM(qtd_ucs_distintas_faturadas_no_mes), 0), 2)`
 como `average_ticket`, tipo `decimal` e unidade `R$ por UC faturada no mês`. Para
 `billing.effective_tariff`, calcule exatamente
-`ROUND(SUM(receita_base_comparavel_reais) / NULLIF(SUM(consumo_base_comparavel_kwh)::numeric, 0), 4)`
+`ROUND(SUM(receita_base_comparavel_reais) /`
+`NULLIF(SUM(consumo_base_comparavel_kwh)::numeric, 0), 4)`
 como `effective_tariff`, tipo `decimal` e unidade `R$/kWh`. Use uma única fonte e
 os parâmetros/filtros autorizados do contexto. Não calcule média de razões nem
 misture populações. Preço observado não é tarifa homologada; não responda pedido
@@ -188,7 +189,10 @@ Quando a pergunta pedir "consumo médio por UC", "consumo médio por unidade" ou
 e `interpretation.aggregation="ratio_of_sums"`; nunca classifique como `total`,
 `average` ou `average_non_null`. A palavra "médio" aqui significa a razão das somas
 definida acima, não AVG de consumo nem total de consumo.
-Exemplo obrigatório de SQL e coluna de resultado: `SELECT SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) AS average_consumption_per_uc FROM gold_v2.diagnostico_receita WHERE competencia = :month`; declare `result_columns` com `name="average_consumption_per_uc"`.
+Exemplo obrigatório de SQL e coluna de resultado:
+`SELECT SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) AS average_consumption_per_uc
+FROM gold_v2.diagnostico_receita WHERE competencia = :month`;
+declare `result_columns` com `name="average_consumption_per_uc"`.
 Os dois componentes têm de pertencer à mesma população; não calcule AVG, nem média
 simples de médias ou razões por grupo. Preserve filtros autorizados e os meses
 completos. O Backend valida a expressão e a prontidão dos controles antes de executar.
@@ -266,8 +270,9 @@ literal entre 1 e 100, como LIMIT 5. Nunca use LIMIT :ranking_limit nem declare 
 parâmetro para esse limite. Os parâmetros de filtro F1 continuam todos string;
 ranking_limit na interpretação é inteiro e deve coincidir com o literal SQL.
 Janelas são meses completos. Quando a pergunta mencionar somente um ano-calendário
-(por exemplo, “em 2026”, “no ano de 2026” ou “2026 fechado”), use todas as
-competências disponíveis daquele ano em `temporal_coverage.competencies`. Se elas
+(por exemplo, “em 2026”, “no ano de 2026” ou “2026 fechado”),
+use todas as competências disponíveis daquele ano
+em `temporal_coverage.competencies`. Se elas
 formarem uma sequência contínua, interprete o período da primeira à última
 competência disponível, mesmo que comece depois de janeiro ou termine antes de
 dezembro. Esse recorte parcial é a resposta pedida: não faça pergunta de confirmação

@@ -157,9 +157,7 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
     screen.getByText(/Gold v2, publicação de 06\/11\/2026/),
   ).not.toBeVisible();
   await user.click(screen.getByText("Detalhes da fonte"));
-  expect(
-    screen.getByText(/Gold v2, publicação de 06\/11\/2026/),
-  ).toBeVisible();
+  expect(screen.getByText(/Gold v2, publicação de 06\/11\/2026/)).toBeVisible();
   expect(screen.getByText(/Registro de auditoria:/)).toBeVisible();
   expect(
     screen.getByRole("region", { name: "Faturamento por município" }),
@@ -487,9 +485,7 @@ describe("Assistente Grid 360", () => {
     expect(
       screen.queryByText(`Referência para conferência: ${reference}`),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByText("Fonte: dados internos da Grid 360"),
-    ).toBeVisible();
+    expect(screen.getByText("Fonte: dados internos da Grid 360")).toBeVisible();
     expect(screen.getByText(": Mai/2026")).toBeVisible();
     expect(screen.queryByText(/Referência para conferência/)).toBeNull();
     expect(screen.queryByText(/Lote consultado/)).toBeNull();

@@ -414,8 +414,10 @@ class EvidenceGuard:
                 "protocolos" if checked.metric_id in {
                     "service.attendance", "service.accumulated_attendance",
                 }
-                else "horas por UC" if checked.metric_id == "network.equivalent_interruption_duration"
-                else "interrupções por UC" if checked.metric_id == "network.equivalent_interruption_frequency"
+                else "horas por UC"
+                if checked.metric_id == "network.equivalent_interruption_duration"
+                else "interrupções por UC"
+                if checked.metric_id == "network.equivalent_interruption_frequency"
                 else "kWh" if checked.metric_id == "energy.consumption" else "R$"
             )
             or checked.mapping_version != catalog.mapping_version

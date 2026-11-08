@@ -136,7 +136,8 @@ describe("cliente do chat", () => {
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    await expect(askAIQuestion(
+    await expect(
+      askAIQuestion(
         {
           contract_version: "v1",
           question: "E no ano anterior?",
@@ -147,7 +148,8 @@ describe("cliente do chat", () => {
         undefined,
         undefined,
         "sql_f1",
-      )).rejects.toThrow("Não foi possível apresentar a resposta.");
+      ),
+    ).rejects.toThrow("Não foi possível apresentar a resposta.");
     const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
       "/api/v1/ai/conversations/8abf4322-17ab-4a75-98f1-29481ee9f456/questions",

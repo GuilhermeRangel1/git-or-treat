@@ -618,6 +618,11 @@ class QuestionInterpreter:
             # O nome da dimensão no pedido de contribuição não é um valor de filtro.
             filter_question = self._without_grouping_reference(filter_question, breakdown)
             location_question = filter_question
+            if selected_metric.id == "energy.consumption":
+                # Mantém a métrica ao conferir locais: removê-la junto com os outros
+                # trechos reconhecidos deixa palavras como "medido" após "no" e
+                # faz o validador tratá-las como uma geografia desconhecida.
+                location_question = self._without_grouping_reference(question, breakdown)
         structured = self._profile.structured_dimension_filters
         dimension_filters: dict[str, str | tuple[str, str]] = {}
         if structured:
