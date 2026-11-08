@@ -117,11 +117,9 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
   const user = userEvent.setup();
   renderPage();
 
-  const toggle = screen.getByRole("checkbox", {
-    name: "Testar análise F1",
-  });
-  await user.click(toggle);
-  expect(toggle).toBeChecked();
+  expect(
+    screen.queryByRole("checkbox", { name: "Testar análise F1" }),
+  ).not.toBeInTheDocument();
   await user.type(
     screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
     "Quanto foi o faturamento por município em 2025?",
@@ -156,7 +154,6 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
     question: "Quanto foi o faturamento por município em 2025?",
     conversation_id: expect.any(String),
   });
-  expect(toggle).toBeDisabled();
 });
 
 it.each(["success", "model_failure", "denied"])(

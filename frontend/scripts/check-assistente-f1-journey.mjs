@@ -413,10 +413,11 @@ try {
       }
 
       await page.goto(`${baseUrl}/assistente`, { waitUntil: "networkidle" });
-      const modeToggle = page.getByRole("checkbox", {
-        name: "Testar análise F1",
-      });
-      await modeToggle.check();
+      assert.equal(
+        await page.getByRole("checkbox", { name: "Testar análise F1" }).count(),
+        0,
+        "o seletor experimental F1 não deve aparecer no Assistente",
+      );
       const question = page.getByRole("textbox", {
         name: "Escreva sua pergunta",
       });
@@ -523,7 +524,6 @@ try {
             fullPage: true,
           });
         }
-        assert.equal(await modeToggle.isDisabled(), true);
       }
 
       assert.equal(requests.length, cases.length);
@@ -533,16 +533,18 @@ try {
         cases.map((testCase) => testCase.question),
       );
       assert.ok(
-        requests[1].path === requests[0].path &&
-          requests[1].body.strategy === "sql_f1" &&
-          requests[1].body.request_id !== requests[0].body.request_id,
-        "F1-02 deve continuar a mesma conversa pela rota F1 salva",
+        requests.every((request) => request.path === "/api/v1/ai/sql-analyses"),
+        "todas as mensagens devem usar a rota pública F1",
       );
       assert.ok(
-        requests[2].path === requests[0].path &&
-          requests[2].body.strategy === "sql_f1" &&
-          requests[2].body.request_id !== requests[1].body.request_id,
-        "F1-03 deve continuar a mesma conversa F1 após o esclarecimento",
+        requests[1].body.conversation_id === requests[0].body.conversation_id &&
+          requests[1].body.continuation_token === "continuation-token-0",
+        "F1-02 deve continuar o contexto sem passar pelo endpoint legado",
+      );
+      assert.ok(
+        requests[2].body.conversation_id === requests[1].body.conversation_id &&
+          requests[2].body.continuation_token === "continuation-token-1",
+        "F1-03 deve continuar o contexto depois do esclarecimento pela rota F1",
       );
 
       const viewportWidth = await page.evaluate(() => window.innerWidth);
