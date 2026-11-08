@@ -100,8 +100,7 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "nunca para uma operação F1 suportada" in SYSTEM_INSTRUCTION
     assert "Retorne exatamente um objeto JSON no nível superior" in SYSTEM_INSTRUCTION
     assert (
-        "SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) "
-        "AS average_consumption_per_uc"
+        "SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) AS average_consumption_per_uc"
     ) in SYSTEM_INSTRUCTION
     assert 'declare `result_columns` com `name="average_consumption_per_uc"`' in SYSTEM_INSTRUCTION
     assert 'preencha `interpretation.operation="ratio_of_sums"`' in SYSTEM_INSTRUCTION
@@ -396,3 +395,41 @@ def test_prompt_version_changes_with_the_scope_contract():
     from app.providers.sql_generator import SQL_GENERATION_PROMPT_VERSION
 
     assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-35"
+
+
+def test_v13_schema_requires_ratio_operation_and_aggregation():
+    gen, method = generator(response=SimpleNamespace(text=json.dumps(payload())))
+    contents = json.dumps({"generation_contract_version": "text-to-sql-f1-v13"})
+    asyncio.run(gen.generate(contents, context_version=payload()["context_version"]))
+    fields = method.call_args.kwargs["config"]["response_json_schema"]["$defs"][
+        "SqlInterpretation"
+    ]["properties"]
+    assert fields["operation"]["enum"] == ["ratio_of_sums"]
+    assert fields["aggregation"]["enum"] == ["ratio_of_sums"]
+
+
+def test_v1_schema_keeps_other_supported_operations():
+    gen, method = generator(response=SimpleNamespace(text=json.dumps(payload())))
+    contents = json.dumps({"generation_contract_version": "text-to-sql-f1-v1"})
+    asyncio.run(gen.generate(contents, context_version=payload()["context_version"]))
+    fields = method.call_args.kwargs["config"]["response_json_schema"]["$defs"][
+        "SqlInterpretation"
+    ]["properties"]
+    assert "total" in fields["operation"]["enum"]
+    assert "sum" in fields["aggregation"]["enum"]
+
+
+def test_v13_contract_failure_reports_safe_rule_code(caplog):
+    row = payload()
+    row["generation_contract_version"] = "text-to-sql-f1-v13"
+    row["interpretation"]["metric_id"] = "billing.average_ticket"
+    row["interpretation"]["operation"] = "total"
+    row["interpretation"]["aggregation"] = "ratio_of_sums"
+    gen, _ = generator(response=SimpleNamespace(text=json.dumps(row)))
+    with (
+        caplog.at_level("WARNING", logger="uvicorn.error"),
+        pytest.raises(ModelProviderInvalidResponse),
+    ):
+        asyncio.run(gen.generate("{}", context_version=row["context_version"]))
+    assert '"reason":"v13_interpretation_invalid"' in caplog.text
+    assert "Recife" not in caplog.text

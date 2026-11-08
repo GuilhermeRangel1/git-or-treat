@@ -472,6 +472,13 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 ## 14. Registro de progresso
 
 
+### 2026-11-08 — IA-01 / TSQL-12 — envelope de ticket médio
+
+- O Gemini combinava `operation=total` com `aggregation=ratio_of_sums` em `billing.average_ticket`, contrariando o contrato v13. O schema enviado ao provedor agora restringe ambas as propriedades a `ratio_of_sums` quando a versão solicitada é v13; a validação do candidato e a revisão/autorização no Backend permanecem. A telemetria classifica a regra v13 por código fixo sem registrar valores.
+- Gemini `gemini-3.5-flash-lite`, prompt f1-35 e schema v13 restrito: FB-LEG-05 e três controles (FB-LEG-01/03/09) passaram na revisão do candidato com contexto artificial, uma tentativa por caso; quatro chamadas, 39.860 tokens. [Relatório sanitizado](../ai-agent/reports/genai-ticket-v13-recheck.json). Não houve execução SQL, consulta à Gold ou reconciliação numérica; IA-01 e TSQL-12 permanecem pendentes.
+- Verificações: agente, `python -m pytest -q tests/test_sql_generator.py tests/test_sql_generation_scope_contract.py tests/test_genai_feedback_evaluation.py tests/test_telemetry.py --disable-warnings`: 166 passaram; Backend, `python -m pytest -q tests/test_genai_sql_semantics.py tests/test_genai_sql_structure.py tests/test_genai_sql_public_route.py --disable-warnings`: 153 passaram e 2 ignorados. Ruff direcionado com E501 ignorado (linhas longas preexistentes no prompt) e `git diff --check` passaram.
+
+
 ### 2026-11-08 — IA-01 / TSQL-12 — reavaliação dirigida de recusas
 
 - Os estados dos requisitos permanecem inalterados. As mensagens públicas de dados indisponíveis e mudança de publicação foram simplificadas; a avaliação artificial passou a fornecer valores autorizados de GD e a contar `total_tokens`. A seleção parcial deixa casos não selecionados fora do denominador.

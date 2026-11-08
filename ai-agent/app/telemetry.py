@@ -58,6 +58,7 @@ def record_provider_failure(
                 "reason": reason if reason in {
                     "invalid_json", "contract_validation", "incomplete_generation",
                     "context_version_mismatch", "invalid_response_shape",
+                    "v13_interpretation_invalid",
                 } else None,
                 "validation_fields": sorted(set(validation_fields) & {
                     "envelope", "generation_contract_version", "status", "context_version",

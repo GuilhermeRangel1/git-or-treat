@@ -1,6 +1,7 @@
 """Gemini propõe candidato F1; este adaptador nunca consulta nem autoriza banco."""
 
 import asyncio
+import json
 import re
 from time import perf_counter
 
@@ -489,6 +490,17 @@ class GeminiSqlGenerator:
         try:
             async with asyncio.timeout(timeout_seconds):
                 response_schema = _gemini_json_schema(SqlGenerationCandidate.model_json_schema())
+                try:
+                    context = json.loads(contents)
+                except (ValueError, TypeError):
+                    context = None
+                if (
+                    isinstance(context, dict)
+                    and context.get("generation_contract_version") == "text-to-sql-f1-v13"
+                ):
+                    interpretation = response_schema["$defs"]["SqlInterpretation"]["properties"]
+                    interpretation["operation"]["enum"] = ["ratio_of_sums"]
+                    interpretation["aggregation"]["enum"] = ["ratio_of_sums"]
                 # Keep the additive field optional in the internal contract, while
                 # requiring the provider to make its semantic decision explicit.
                 response_schema["required"] = sorted(
@@ -564,6 +576,12 @@ class GeminiSqlGenerator:
                 failure_reason = (
                     "invalid_json" if "json_invalid" in error_types else "contract_validation"
                 )
+                if any(
+                    str(error.get("ctx", {}).get("error", ""))
+                    == "F1 v13 só admite ticket médio e preço observado"
+                    for error in exc.errors(include_url=False, include_input=False)
+                ):
+                    failure_reason = "v13_interpretation_invalid"
                 allowed_fields = set(SqlGenerationCandidate.model_fields)
                 validation_fields = tuple(
                     sorted(
