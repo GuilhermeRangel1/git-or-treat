@@ -28,6 +28,7 @@ class SqlPresentationColumn(BaseModel):
         "attendance_accumulated_total",
         "satisfaction_accumulated_average",
         "gd_units_total",
+        "gd_consumption_drop_units",
         "satisfaction_average",
         "dec_value",
         "fec_value",
@@ -52,18 +53,28 @@ class SqlAnalysisPresentation(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     contract_version: Literal[
-        "text-to-sql-f1-presentation-v1", "text-to-sql-f1-presentation-v2",
-        "text-to-sql-f1-presentation-v3", "text-to-sql-f1-presentation-v4",
+        "text-to-sql-f1-presentation-v1",
+        "text-to-sql-f1-presentation-v2",
+        "text-to-sql-f1-presentation-v3",
+        "text-to-sql-f1-presentation-v4",
         "text-to-sql-f1-presentation-v5",
         "text-to-sql-f1-presentation-v6",
         "text-to-sql-f1-presentation-v7",
         "text-to-sql-f1-presentation-v8",
+        "text-to-sql-f1-presentation-v9",
     ]
     state: Literal["ready", "empty", "all_measures_null"]
     operation: Literal[
-        "total", "monthly_series", "grouped_total", "ranking", "comparison",
-        "grain_read", "accumulated_total", "average", "snapshot_total",
-        "accumulated_average"
+        "total",
+        "monthly_series",
+        "grouped_total",
+        "ranking",
+        "comparison",
+        "grain_read",
+        "accumulated_total",
+        "average",
+        "snapshot_total",
+        "accumulated_average",
     ]
     answer: PresentationText
     period: str = Field(min_length=1, max_length=100)
@@ -79,13 +90,17 @@ class SqlAnalysisResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     correlation_id: AICorrelationId
-    audit_reference: Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{32}$")]
+    audit_reference: Annotated[
+        str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{32}$")
+    ]
     status: Literal["answered", "needs_clarification", "unsupported"]
     evidence: SqlEvidence | None = None
     presentation: SqlAnalysisPresentation | None = None
     clarification: SqlClarification | None = None
     unsupported_reason: SqlUnsupported | None = None
-    continuation_token: Annotated[str, StringConstraints(min_length=1, max_length=16000)] | None = None
+    continuation_token: (
+        Annotated[str, StringConstraints(min_length=1, max_length=16000)] | None
+    ) = None
 
     @model_validator(mode="after")
     def validate_result_shape(self):
@@ -158,5 +173,9 @@ class SqlAnalysisResponse(BaseModel):
 class SqlAnalysisRequest(AIQuestionRequest):
     """Pergunta F1 autenticada; contexto de follow-up exige token assinado."""
 
-    conversation_id: Annotated[str, StringConstraints(pattern=r"^[a-f0-9-]{36}$")] | None = None
-    continuation_token: Annotated[str, StringConstraints(min_length=1, max_length=16000)] | None = None
+    conversation_id: (
+        Annotated[str, StringConstraints(pattern=r"^[a-f0-9-]{36}$")] | None
+    ) = None
+    continuation_token: (
+        Annotated[str, StringConstraints(min_length=1, max_length=16000)] | None
+    ) = None

@@ -9,7 +9,8 @@ from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
 
 
 def assert_live_f1_catalog(
-    connection: Connection, dimension_ids: frozenset[str],
+    connection: Connection,
+    dimension_ids: frozenset[str],
     metric_ids: frozenset[str] = frozenset({"billing.revenue"}),
     source_capability_ids: dict[str, str] | None = None,
 ) -> None:
@@ -21,11 +22,14 @@ def assert_live_f1_catalog(
     catalog = load_gold_catalog()
     catalog_metrics = {item.metric_id: item for item in catalog.metrics}
     if not metric_ids or not metric_ids <= {
-        "billing.revenue", "energy.consumption", "service.attendance",
+        "billing.revenue",
+        "energy.consumption",
+        "service.attendance",
         "service.satisfaction",
         "service.accumulated_attendance",
         "service.accumulated_satisfaction",
         "energy.gd_units",
+        "energy.gd_consumption_drop",
         "network.equivalent_interruption_duration",
         "network.equivalent_interruption_frequency",
     }:
@@ -36,14 +40,34 @@ def assert_live_f1_catalog(
     for metric_id in sorted(metric_ids):
         metric = catalog_metrics.get(metric_id)
         source_capability_id = (source_capability_ids or {}).get(
-            metric_id, metric.capability_id if metric else None)
-        source = next((item for item in metric.sources
-                       if item.capability_id == source_capability_id), None) if metric else None
+            metric_id, metric.capability_id if metric else None
+        )
+        source = (
+            next(
+                (
+                    item
+                    for item in metric.sources
+                    if item.capability_id == source_capability_id
+                ),
+                None,
+            )
+            if metric
+            else None
+        )
         if metric is None or source is None:
             raise GoldCatalogIncompatible("Fonte F1 ausente do catálogo aprovado.")
         required = {source.temporal_column, source.measure_column}
-        required.update(column for dimension_id, column in source.dimension_columns.items()
-                        if dimension_id in dimension_ids)
+        required.update(
+            column
+            for dimension_id, column in source.dimension_columns.items()
+            if dimension_id in dimension_ids
+        )
+        if metric_id == "energy.gd_consumption_drop":
+            required.update({
+                "queda_consumo_superior_30_pct",
+                "meses_com_leitura_p1",
+                "meses_com_leitura_p2",
+            })
         required_by_table.setdefault(source.table, set()).update(
             column for column in required if column is not None
         )
@@ -52,28 +76,47 @@ def assert_live_f1_catalog(
         checked_tables.add(source.table)
         expected = TABLES[source.table]
         try:
-            columns = inspector.get_columns(source.table, schema=catalog.physical_schema)
-            primary_key = inspector.get_pk_constraint(source.table, schema=catalog.physical_schema)
+            columns = inspector.get_columns(
+                source.table, schema=catalog.physical_schema
+            )
+            primary_key = inspector.get_pk_constraint(
+                source.table, schema=catalog.physical_schema
+            )
         except SQLAlchemyError:
-            raise GoldCatalogIncompatible("Metadados da publicação Gold incompatíveis.") from None
+            raise GoldCatalogIncompatible(
+                "Metadados da publicação Gold incompatíveis."
+            ) from None
         actual_by_name = {column["name"]: column["type"] for column in columns}
         if set(actual_by_name) != set(expected.c.keys()):
-            raise GoldCatalogIncompatible("Schema Gold divergente do catálogo autorizado.")
+            raise GoldCatalogIncompatible(
+                "Schema Gold divergente do catálogo autorizado."
+            )
         for name, expected_column in expected.c.items():
             actual_type = actual_by_name[name]
             expected_type = expected_column.type
             if not isinstance(actual_type, type(expected_type)):
-                raise GoldCatalogIncompatible("Tipo físico Gold divergente do catálogo autorizado.")
-            if isinstance(expected_type, Numeric) and not isinstance(expected_type, Float) and (
-                actual_type.precision, actual_type.scale
-            ) != (expected_type.precision, expected_type.scale):
-                raise GoldCatalogIncompatible("Precisão física Gold divergente do catálogo autorizado.")
+                raise GoldCatalogIncompatible(
+                    "Tipo físico Gold divergente do catálogo autorizado."
+                )
+            if (
+                isinstance(expected_type, Numeric)
+                and not isinstance(expected_type, Float)
+                and (actual_type.precision, actual_type.scale)
+                != (expected_type.precision, expected_type.scale)
+            ):
+                raise GoldCatalogIncompatible(
+                    "Precisão física Gold divergente do catálogo autorizado."
+                )
             if hasattr(expected_type, "timezone") and (
                 getattr(actual_type, "timezone", None) != expected_type.timezone
             ):
-                raise GoldCatalogIncompatible("Fuso físico Gold divergente do catálogo autorizado.")
+                raise GoldCatalogIncompatible(
+                    "Fuso físico Gold divergente do catálogo autorizado."
+                )
         if tuple(primary_key.get("constrained_columns") or ()) != tuple(source.grain):
-            raise GoldCatalogIncompatible("Grão físico Gold divergente do catálogo autorizado.")
+            raise GoldCatalogIncompatible(
+                "Grão físico Gold divergente do catálogo autorizado."
+            )
     if connection.dialect.name != "postgresql":
         return
 

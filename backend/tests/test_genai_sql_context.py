@@ -15,18 +15,27 @@ from app.services.genai_sql_context import (
 def request_payload():
     return {
         "question": "Qual foi o faturamento de Recife em junho de 2026?",
-        "context": [], "remaining_timeout_ms": 30000,
+        "context": [],
+        "remaining_timeout_ms": 30000,
         "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
         "access_scope": {
             "caller_ref": "session:" + "a" * 64,
-            "profile_id": "v-energy-grid-360-gold", "source_id": "gold.local",
+            "profile_id": "v-energy-grid-360-gold",
+            "source_id": "gold.local",
             "allowed_operations": ["read"],
             "allowed_metric_ids": ["billing.revenue", "energy.consumption"],
-            "allowed_dimension_ids": ["geography.municipality", "customer.consumption_class",
-                                      "customer.consumer_unit"],
+            "allowed_dimension_ids": [
+                "geography.municipality",
+                "customer.consumption_class",
+                "customer.consumer_unit",
+            ],
         },
         "temporal_coverage": [
-            {"metric_id": "billing.revenue", "kind": "monthly", "competencies": ["2026-06"]}
+            {
+                "metric_id": "billing.revenue",
+                "kind": "monthly",
+                "competencies": ["2026-06"],
+            }
         ],
         "dimension_value_coverage": [
             {"dimension_id": "geography.municipality", "values": ["Recife"]}
@@ -52,13 +61,17 @@ def test_context_separates_recognition_registry_from_authorized_f1_schema():
     body = json.loads(context.contents)
     assert body["source"]["table"] == "diagnostico_receita"
     assert set(body["source"]["columns"]) == {
-        "competencia", "receita_total_reais", "municipio", "classe_consumo",
+        "competencia",
+        "receita_total_reais",
+        "municipio",
+        "classe_consumo",
     }
     assert "consumer_unit" not in context.contents
     assert "a" * 64 not in context.contents
     assert body["semantic_registry"]["purpose"] == "recognition_only_not_authorization"
     consumption = next(
-        item for item in body["semantic_registry"]["metrics"]
+        item
+        for item in body["semantic_registry"]["metrics"]
         if item["metric_id"] == "energy.consumption"
     )
     assert consumption["label"] == "Consumo medido"
@@ -75,9 +88,13 @@ def test_context_separates_recognition_registry_from_authorized_f1_schema():
 def test_consumption_context_selects_measured_kwh_and_aggregate_source_only():
     payload = request_payload()
     payload["question"] = "Qual foi o consumo de Recife em junho de 2026?"
-    payload["temporal_coverage"] = [{
-        "metric_id": "energy.consumption", "kind": "monthly", "competencies": ["2026-06"],
-    }]
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "energy.consumption",
+            "kind": "monthly",
+            "competencies": ["2026-06"],
+        }
+    ]
     context = build(payload)
     body = json.loads(context.contents)
 
@@ -100,30 +117,42 @@ def test_explicit_gd_consumption_adds_only_the_cadastral_filter_dimension():
         "em junho de 2026?"
     )
     payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
-    payload["temporal_coverage"] = [{
-        "metric_id": "energy.consumption", "kind": "monthly",
-        "competencies": ["2026-06"],
-    }]
-    payload["dimension_value_coverage"].append({
-        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
-    })
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "energy.consumption",
+            "kind": "monthly",
+            "competencies": ["2026-06"],
+        }
+    ]
+    payload["dimension_value_coverage"].append(
+        {
+            "dimension_id": "generation.distributed",
+            "values": ["Não", "Sim"],
+        }
+    )
     context = build(payload)
     body = json.loads(context.contents)
     assert body["dimensions"]["generation.distributed"] == "possui_gd"
     assert body["dimension_values"][-1] == {
-        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
+        "dimension_id": "generation.distributed",
+        "values": ["Não", "Sim"],
     }
     assert "possui_gd" in body["source"]["columns"]
 
 
 def test_gd_consumption_context_fails_closed_without_authorized_vocabulary():
     payload = request_payload()
-    payload["question"] = "Qual foi o consumo das UCs sem GD em Recife em junho de 2026?"
+    payload["question"] = (
+        "Qual foi o consumo das UCs sem GD em Recife em junho de 2026?"
+    )
     payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
-    payload["temporal_coverage"] = [{
-        "metric_id": "energy.consumption", "kind": "monthly",
-        "competencies": ["2026-06"],
-    }]
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "energy.consumption",
+            "kind": "monthly",
+            "competencies": ["2026-06"],
+        }
+    ]
     with pytest.raises(SqlContextUnavailable, match="Vocabulário GD"):
         build(payload)
 
@@ -131,20 +160,31 @@ def test_gd_consumption_context_fails_closed_without_authorized_vocabulary():
 def test_gd_filter_is_inherited_only_by_an_elliptical_followup():
     payload = request_payload()
     payload["question"] = "E em Olinda?"
-    payload["context"] = [{
-        "role": "user",
-        "content": "Qual foi o consumo das UCs com geração distribuída em Recife?",
-    }]
+    payload["context"] = [
+        {
+            "role": "user",
+            "content": "Qual foi o consumo das UCs com geração distribuída em Recife?",
+        }
+    ]
     payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
-    payload["temporal_coverage"] = [{
-        "metric_id": "energy.consumption", "kind": "monthly",
-        "competencies": ["2026-06"],
-    }]
-    payload["dimension_value_coverage"].append({
-        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
-    })
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "energy.consumption",
+            "kind": "monthly",
+            "competencies": ["2026-06"],
+        }
+    ]
+    payload["dimension_value_coverage"].append(
+        {
+            "dimension_id": "generation.distributed",
+            "values": ["Não", "Sim"],
+        }
+    )
     context = build(payload)
-    assert json.loads(context.contents)["dimensions"]["generation.distributed"] == "possui_gd"
+    assert (
+        json.loads(context.contents)["dimensions"]["generation.distributed"]
+        == "possui_gd"
+    )
 
     payload["question"] = "Qual foi o consumo em Olinda em junho de 2026?"
     context = build(payload)
@@ -153,15 +193,23 @@ def test_gd_filter_is_inherited_only_by_an_elliptical_followup():
 
 def test_ambiguous_gd_mention_does_not_authorize_a_filter():
     payload = request_payload()
-    payload["question"] = "Qual foi o consumo associado a GD em Recife em junho de 2026?"
+    payload["question"] = (
+        "Qual foi o consumo associado a GD em Recife em junho de 2026?"
+    )
     payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
-    payload["temporal_coverage"] = [{
-        "metric_id": "energy.consumption", "kind": "monthly",
-        "competencies": ["2026-06"],
-    }]
-    payload["dimension_value_coverage"].append({
-        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
-    })
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "energy.consumption",
+            "kind": "monthly",
+            "competencies": ["2026-06"],
+        }
+    ]
+    payload["dimension_value_coverage"].append(
+        {
+            "dimension_id": "generation.distributed",
+            "values": ["Não", "Sim"],
+        }
+    )
     context = build(payload)
     assert "generation.distributed" not in json.loads(context.contents)["dimensions"]
 
@@ -170,9 +218,12 @@ def test_revenue_neighborhood_request_selects_controlled_source_and_dimension():
     payload = request_payload()
     payload["question"] = "Qual foi a receita por bairro em Recife em junho de 2026?"
     payload["access_scope"]["allowed_dimension_ids"].append("geography.neighborhood")
-    payload["dimension_value_coverage"].append({
-        "dimension_id": "geography.neighborhood", "values": ["Boa Vista"],
-    })
+    payload["dimension_value_coverage"].append(
+        {
+            "dimension_id": "geography.neighborhood",
+            "values": ["Boa Vista"],
+        }
+    )
     context = build(payload)
     body = json.loads(context.contents)
     assert body["source"]["capability_id"] == "faturamento.receita_bairro"
@@ -190,13 +241,19 @@ def test_revenue_neighborhood_source_requires_profile_dimension_permission():
 
 def test_attendance_context_uses_monthly_protocol_source_without_uc_dimension():
     payload = request_payload()
-    payload["question"] = "Quantos protocolos de atendimento foram abertos em junho de 2026?"
+    payload["question"] = (
+        "Quantos protocolos de atendimento foram abertos em junho de 2026?"
+    )
     payload["access_scope"]["allowed_metric_ids"] = ["service.attendance"]
     payload["access_scope"]["allowed_dimension_ids"] = []
     payload["dimension_value_coverage"] = []
-    payload["temporal_coverage"] = [{
-        "metric_id": "service.attendance", "kind": "monthly", "competencies": ["2026-06"],
-    }]
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "service.attendance",
+            "kind": "monthly",
+            "competencies": ["2026-06"],
+        }
+    ]
     context = build(payload)
     body = json.loads(context.contents)
     assert body["generation_contract_version"] == "text-to-sql-f1-v3"
@@ -215,9 +272,13 @@ def test_satisfaction_context_uses_average_of_monthly_non_null_scores():
     payload["access_scope"]["allowed_metric_ids"] = ["service.satisfaction"]
     payload["access_scope"]["allowed_dimension_ids"] = []
     payload["dimension_value_coverage"] = []
-    payload["temporal_coverage"] = [{
-        "metric_id": "service.satisfaction", "kind": "monthly", "competencies": ["2026-06"],
-    }]
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "service.satisfaction",
+            "kind": "monthly",
+            "competencies": ["2026-06"],
+        }
+    ]
     context = build(payload)
     body = json.loads(context.contents)
     assert body["generation_contract_version"] == "text-to-sql-f1-v7"
@@ -240,9 +301,12 @@ def test_accumulated_attendance_context_has_no_invented_period_or_uc_filter():
     payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_attendance"]
     payload["access_scope"]["allowed_dimension_ids"] = []
     payload["dimension_value_coverage"] = []
-    payload["temporal_coverage"] = [{
-        "metric_id": "service.accumulated_attendance", "kind": "none",
-    }]
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "service.accumulated_attendance",
+            "kind": "none",
+        }
+    ]
     context = build(payload)
     body = json.loads(context.contents)
     assert body["generation_contract_version"] == "text-to-sql-f1-v5"
@@ -258,7 +322,8 @@ def test_gd_units_context_is_a_non_temporal_lot_snapshot():
     payload["question"] = "Quantas UCs têm GD?"
     payload["access_scope"]["allowed_metric_ids"] = ["energy.gd_units"]
     payload["access_scope"]["allowed_dimension_ids"] = [
-        "geography.municipality", "generation.distributed",
+        "geography.municipality",
+        "generation.distributed",
     ]
     payload["temporal_coverage"] = [{"metric_id": "energy.gd_units", "kind": "none"}]
     payload["dimension_value_coverage"] = [
@@ -285,15 +350,54 @@ def test_gd_consumption_drop_is_not_misclassified_as_a_registry_count():
     assert is_gd_consumption_drop_question("Quantas UCs com GD tiveram queda?")
 
 
+def test_gd_consumption_drop_context_uses_approved_fixed_window_metric():
+    payload = request_payload()
+    payload["question"] = "Quantas UCs com GD em Olinda tiveram queda acima de 30%?"
+    payload["access_scope"]["allowed_metric_ids"] = ["energy.gd_consumption_drop"]
+    payload["access_scope"]["allowed_dimension_ids"] = [
+        "geography.municipality",
+        "generation.distributed",
+    ]
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "energy.gd_consumption_drop",
+            "kind": "none",
+        }
+    ]
+    payload["dimension_value_coverage"] = [
+        {"dimension_id": "geography.municipality", "values": ["Olinda"]},
+        {"dimension_id": "generation.distributed", "values": ["Sim", "Não"]},
+    ]
+    request = QuestionPlanRequest.model_validate(payload)
+
+    context = build_sql_generation_context(request)
+    body = json.loads(context.contents)
+
+    assert context.metric_ids == ("energy.gd_consumption_drop",)
+    assert body["generation_contract_version"] == "text-to-sql-f1-v10"
+    assert body["source"]["capability_id"] == "consumo.variacao_uc"
+    assert {
+        "meses_com_leitura_p1",
+        "meses_com_leitura_p2",
+    } <= body["source"]["columns"].keys()
+    assert body["rules"]["gd_drop_windows"] == [
+        {"start": "2022-07", "end": "2023-06"},
+        {"start": "2025-07", "end": "2026-06"},
+    ]
+
+
 def test_accumulated_satisfaction_context_has_no_period_or_personal_dimensions():
     payload = request_payload()
     payload["question"] = "Qual foi a nota média de satisfação no histórico acumulado?"
     payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_satisfaction"]
     payload["access_scope"]["allowed_dimension_ids"] = []
     payload["dimension_value_coverage"] = []
-    payload["temporal_coverage"] = [{
-        "metric_id": "service.accumulated_satisfaction", "kind": "none",
-    }]
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "service.accumulated_satisfaction",
+            "kind": "none",
+        }
+    ]
 
     context = build(payload)
     body = json.loads(context.contents)
@@ -310,21 +414,38 @@ def test_accumulated_satisfaction_context_has_no_period_or_personal_dimensions()
     assert body["rules"]["accumulated_satisfaction_period_is_unknown"] is True
 
 
-@pytest.mark.parametrize(("code", "metric_id", "column", "unit"), [
-    ("DEC", "network.equivalent_interruption_duration", "DEC", "horas por UC"),
-    ("FEC", "network.equivalent_interruption_frequency", "FEC", "interrupções por UC"),
-])
-def test_continuity_context_exposes_only_feeder_month_measure(code, metric_id, column, unit):
+@pytest.mark.parametrize(
+    ("code", "metric_id", "column", "unit"),
+    [
+        ("DEC", "network.equivalent_interruption_duration", "DEC", "horas por UC"),
+        (
+            "FEC",
+            "network.equivalent_interruption_frequency",
+            "FEC",
+            "interrupções por UC",
+        ),
+    ],
+)
+def test_continuity_context_exposes_only_feeder_month_measure(
+    code, metric_id, column, unit
+):
     payload = request_payload()
     payload["question"] = f"Qual foi o {code} do alimentador ALIM-01 em junho de 2026?"
     payload["access_scope"]["allowed_metric_ids"] = [metric_id]
     payload["access_scope"]["allowed_dimension_ids"] = ["network.feeder"]
-    payload["temporal_coverage"] = [{
-        "metric_id": metric_id, "kind": "monthly", "competencies": ["2026-06"],
-    }]
-    payload["dimension_value_coverage"] = [{
-        "dimension_id": "network.feeder", "values": ["ALIM-01"],
-    }]
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": metric_id,
+            "kind": "monthly",
+            "competencies": ["2026-06"],
+        }
+    ]
+    payload["dimension_value_coverage"] = [
+        {
+            "dimension_id": "network.feeder",
+            "values": ["ALIM-01"],
+        }
+    ]
     context = build(payload)
     body = json.loads(context.contents)
     assert body["generation_contract_version"] == "text-to-sql-f1-v4"
@@ -383,10 +504,12 @@ def test_context_digest_is_repeatable_for_set_order_and_budget_change():
 
 def test_context_includes_resolved_turns_and_versions_them_into_digest():
     payload = request_payload()
-    payload["context"] = [{
-        "role": "user",
-        "content": "E no mês anterior, mantendo Recife?",
-    }]
+    payload["context"] = [
+        {
+            "role": "user",
+            "content": "E no mês anterior, mantendo Recife?",
+        }
+    ]
     previous = build(payload)
     body = json.loads(previous.contents)
     assert body["context"] == payload["context"]
@@ -408,8 +531,9 @@ def test_context_refuses_absent_metric_and_empty_coverage():
         build(payload)
 
 
-@pytest.mark.parametrize("caller_ref", ["caller", "user:" + "a" * 64,
-                                        "session:" + "z" * 64])
+@pytest.mark.parametrize(
+    "caller_ref", ["caller", "user:" + "a" * 64, "session:" + "z" * 64]
+)
 def test_context_requires_backend_session_pseudonym(caller_ref):
     payload = request_payload()
     payload["access_scope"]["caller_ref"] = caller_ref
@@ -419,9 +543,11 @@ def test_context_requires_backend_session_pseudonym(caller_ref):
 
 def test_context_never_silently_truncates_large_essential_context():
     payload = request_payload()
-    payload["dimension_value_coverage"] = [{
-        "dimension_id": "geography.municipality",
-        "values": [f"Municipio{i:04}" + "x" * 100 for i in range(700)],
-    }]
+    payload["dimension_value_coverage"] = [
+        {
+            "dimension_id": "geography.municipality",
+            "values": [f"Municipio{i:04}" + "x" * 100 for i in range(700)],
+        }
+    ]
     with pytest.raises(SqlContextUnavailable, match="limite"):
         build(payload)

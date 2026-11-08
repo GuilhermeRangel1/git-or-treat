@@ -105,21 +105,28 @@ def require_sql_analysis_enabled() -> None:
 
 
 @router.post(
-    "/sql-analyses", response_model=SqlAnalysisResponse,
+    "/sql-analyses",
+    response_model=SqlAnalysisResponse,
     dependencies=[Depends(require_sql_analysis_enabled)],
 )
 async def run_f1_sql_analysis(
     payload: SqlAnalysisRequest,
     request: Request,
     genai: Annotated[GenAIQuestionClient, Depends(get_sql_genai_question_client)],
-    gold_resources: Annotated[tuple[Engine, Callable[[], AccessScope]] | None,
-                              Depends(get_question_gold_resources)],
+    gold_resources: Annotated[
+        tuple[Engine, Callable[[], AccessScope]] | None,
+        Depends(get_question_gold_resources),
+    ],
     db: Annotated[Session, Depends(get_db)],
 ):
     """Entrada HTTP pública; argumentos internos nunca alteram o body v1."""
     request.state.genai_strategy = "text_to_sql_f1"
     return await _run_f1_sql_analysis_impl(
-        payload, request, genai, gold_resources, db,
+        payload,
+        request,
+        genai,
+        gold_resources,
+        db,
     )
 
 
@@ -127,8 +134,10 @@ async def _run_f1_sql_analysis_impl(
     payload: SqlAnalysisRequest,
     request: Request,
     genai: Annotated[GenAIQuestionClient, Depends(get_sql_genai_question_client)],
-    gold_resources: Annotated[tuple[Engine, Callable[[], AccessScope]] | None,
-                              Depends(get_question_gold_resources)],
+    gold_resources: Annotated[
+        tuple[Engine, Callable[[], AccessScope]] | None,
+        Depends(get_question_gold_resources),
+    ],
     db: Annotated[Session, Depends(get_db)],
     *,
     trusted_context: list[AIConversationTurn] | None = None,
@@ -143,51 +152,87 @@ async def _run_f1_sql_analysis_impl(
 
     def resolve_f1_scope():
         current = resolve_scope()
-        return current.model_copy(update={
-            "allowed_metric_ids": current.allowed_metric_ids & {
-                "billing.revenue", "energy.consumption", "service.attendance",
-                "service.satisfaction",
-                "service.accumulated_attendance",
-                "service.accumulated_satisfaction",
-                "energy.gd_units",
-                "network.equivalent_interruption_duration",
-                "network.equivalent_interruption_frequency",
-            },
-            "allowed_dimension_ids": current.allowed_dimension_ids & {
-                "geography.municipality", "customer.consumption_class",
-                "geography.neighborhood",
-                "network.feeder", "generation.distributed",
-            },
-        })
+        return current.model_copy(
+            update={
+                "allowed_metric_ids": current.allowed_metric_ids
+                & {
+                    "billing.revenue",
+                    "energy.consumption",
+                    "service.attendance",
+                    "service.satisfaction",
+                    "service.accumulated_attendance",
+                    "service.accumulated_satisfaction",
+                    "energy.gd_units",
+                    "energy.gd_consumption_drop",
+                    "network.equivalent_interruption_duration",
+                    "network.equivalent_interruption_frequency",
+                },
+                "allowed_dimension_ids": current.allowed_dimension_ids
+                & {
+                    "geography.municipality",
+                    "customer.consumption_class",
+                    "geography.neighborhood",
+                    "network.feeder",
+                    "generation.distributed",
+                },
+            }
+        )
 
     scope = resolve_f1_scope()
     try:
         with sql_stage(request.state.correlation_id, "publication"):
             publication = GoldPublicationContext.capture(engine)
-            if trusted_batch_ref is not None and publication.batch_ref != trusted_batch_ref:
+            if (
+                trusted_batch_ref is not None
+                and publication.batch_ref != trusted_batch_ref
+            ):
                 return _question_error(
-                    request, status_code=409, code="invalid_context", retryable=False,
+                    request,
+                    status_code=409,
+                    code="invalid_context",
+                    retryable=False,
                     message="Os dados disponíveis mudaram. Atualize os dados Gold antes de perguntar.",
                 )
             fields = publication.planning_fields(engine, scope)
     except GoldPublicationChanged:
-        raise HTTPException(409, "A publicação Gold mudou. Refaça a pergunta.") from None
+        raise HTTPException(
+            409, "A publicação Gold mudou. Refaça a pergunta."
+        ) from None
     except (GoldPublicationUnavailable, GoldCoverageUnavailable, SQLAlchemyError):
-        raise HTTPException(503, "A análise Gold está temporariamente indisponível.") from None
+        raise HTTPException(
+            503, "A análise Gold está temporariamente indisponível."
+        ) from None
     sql_context = list(trusted_context or [])
-    secret = (settings.AI_AGENT_SERVICE_API_TOKEN.get_secret_value()
-              if settings.AI_AGENT_SERVICE_API_TOKEN is not None else None)
+    secret = (
+        settings.AI_AGENT_SERVICE_API_TOKEN.get_secret_value()
+        if settings.AI_AGENT_SERVICE_API_TOKEN is not None
+        else None
+    )
     session = request.cookies.get("grid360_session", "")
-    if trusted_context is not None and (payload.continuation_token is not None or payload.context):
+    if trusted_context is not None and (
+        payload.continuation_token is not None or payload.context
+    ):
         return _question_error(
-            request, status_code=409, code="invalid_continuation", retryable=False,
+            request,
+            status_code=409,
+            code="invalid_continuation",
+            retryable=False,
             message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
         )
-    if trusted_context is None and (payload.continuation_token is not None or payload.context):
-        if (payload.continuation_token is None or payload.conversation_id is None
-                or not secret or not session):
+    if trusted_context is None and (
+        payload.continuation_token is not None or payload.context
+    ):
+        if (
+            payload.continuation_token is None
+            or payload.conversation_id is None
+            or not secret
+            or not session
+        ):
             return _question_error(
-                request, status_code=409, code="invalid_continuation", retryable=False,
+                request,
+                status_code=409,
+                code="invalid_continuation",
+                retryable=False,
                 message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
             )
         try:
@@ -201,26 +246,45 @@ async def _run_f1_sql_analysis_impl(
             )
         except InvalidSqlContinuation:
             return _question_error(
-                request, status_code=409, code="invalid_continuation", retryable=False,
+                request,
+                status_code=409,
+                code="invalid_continuation",
+                retryable=False,
                 message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
             )
     requested_metric_id = requested_sql_metric_id(payload.question, sql_context)
     if requested_metric_id not in scope.allowed_metric_ids:
         raise HTTPException(403, "Métrica fora do acesso atual.")
-    remaining_ms = min(int(GOLD_REQUEST_TIMEOUT_SECONDS * 1000),
-                       int(settings.AI_AGENT_TIMEOUT_SECONDS * 1000))
-    plan_request = QuestionPlanRequest.model_validate({
-        **payload.model_dump(mode="json", exclude={"conversation_id", "continuation_token"}),
-        "context": [turn.model_dump(mode="json") for turn in sql_context],
-        "access_scope": scope.model_dump(mode="json"),
-        "remaining_timeout_ms": remaining_ms, **fields,
-    })
+    remaining_ms = min(
+        int(GOLD_REQUEST_TIMEOUT_SECONDS * 1000),
+        int(settings.AI_AGENT_TIMEOUT_SECONDS * 1000),
+    )
+    plan_request = QuestionPlanRequest.model_validate(
+        {
+            **payload.model_dump(
+                mode="json", exclude={"conversation_id", "continuation_token"}
+            ),
+            "context": [turn.model_dump(mode="json") for turn in sql_context],
+            "access_scope": scope.model_dump(mode="json"),
+            "remaining_timeout_ms": remaining_ms,
+            **fields,
+        }
+    )
     deadline = GenAIRequestDeadline.start(remaining_ms / 1000)
     audit_store = AuditStore(db.get_bind())
     started = monotonic()
 
-    async def record_audit(stage, code, outcome, *, row_count=0, evidence_ref=None,
-                           model_calls=0, source_calls=0, sql_f1_artifact=None):
+    async def record_audit(
+        stage,
+        code,
+        outcome,
+        *,
+        row_count=0,
+        evidence_ref=None,
+        model_calls=0,
+        source_calls=0,
+        sql_f1_artifact=None,
+    ):
         event = BackendAuditEvent(
             correlation_id=request.state.correlation_id,
             stage=stage,
@@ -261,10 +325,15 @@ async def _run_f1_sql_analysis_impl(
 
     try:
         run = await run_sql_question(
-            plan_request, engine=engine, readiness_engine=db.get_bind(),
-            publication=publication, client=genai, resolve_scope=resolve_f1_scope,
+            plan_request,
+            engine=engine,
+            readiness_engine=db.get_bind(),
+            publication=publication,
+            client=genai,
+            resolve_scope=resolve_f1_scope,
             approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
-            deadline=deadline, correlation_id=request.state.correlation_id,
+            deadline=deadline,
+            correlation_id=request.state.correlation_id,
         )
         publication.assert_current(engine)
         current_scope = resolve_f1_scope()
@@ -272,8 +341,12 @@ async def _run_f1_sql_analysis_impl(
             raise GoldExecutionDenied
         if run.evidence is not None:
             await record_audit(
-                "source", "completed", "success", row_count=len(run.evidence.rows),
-                evidence_ref=run.evidence.evidence_digest, source_calls=1,
+                "source",
+                "completed",
+                "success",
+                row_count=len(run.evidence.rows),
+                evidence_ref=run.evidence.evidence_digest,
+                source_calls=1,
             )
             outcome, code = "success", "available"
         elif run.candidate.status == "needs_clarification":
@@ -281,9 +354,13 @@ async def _run_f1_sql_analysis_impl(
         else:
             outcome, code = "refused", "refused"
         audit_reference = await record_audit(
-            "response", code, outcome,
+            "response",
+            code,
+            outcome,
             row_count=len(run.evidence.rows) if run.evidence is not None else 0,
-            evidence_ref=run.evidence.evidence_digest if run.evidence is not None else None,
+            evidence_ref=run.evidence.evidence_digest
+            if run.evidence is not None
+            else None,
             model_calls=run.model_calls,
             sql_f1_artifact=run.audit_artifact,
         )
@@ -293,13 +370,14 @@ async def _run_f1_sql_analysis_impl(
         with sql_stage(
             request.state.correlation_id,
             "presentation",
-            context_version=(run.evidence.context_version if run.evidence is not None else None),
+            context_version=(
+                run.evidence.context_version if run.evidence is not None else None
+            ),
             contract_version=(
                 "text-to-sql-f1-presentation-v6"
                 if run.evidence is not None
                 and run.evidence.metric_id == "service.satisfaction"
-                else
-                "text-to-sql-f1-presentation-v3"
+                else "text-to-sql-f1-presentation-v3"
                 if run.evidence is not None
                 and run.evidence.metric_id == "service.attendance"
                 else "text-to-sql-f1-presentation-v5"
@@ -307,7 +385,8 @@ async def _run_f1_sql_analysis_impl(
                 and run.evidence.metric_id == "service.accumulated_attendance"
                 else "text-to-sql-f1-presentation-v4"
                 if run.evidence is not None
-                and run.evidence.metric_id in {
+                and run.evidence.metric_id
+                in {
                     "network.equivalent_interruption_duration",
                     "network.equivalent_interruption_frequency",
                 }
@@ -315,7 +394,9 @@ async def _run_f1_sql_analysis_impl(
             ),
         ):
             response = SqlAnalysisResponse.from_run(
-                request.state.correlation_id, run, audit_reference=audit_reference,
+                request.state.correlation_id,
+                run,
+                audit_reference=audit_reference,
             )
         if payload.conversation_id is not None and secret and session:
             if response.status == "answered":
@@ -339,28 +420,45 @@ async def _run_f1_sql_analysis_impl(
         return response
     except SqlAdmissionDenied:
         await record_failure("source", "unavailable", "error", model_calls=1)
-        raise HTTPException(503, "A análise Gold está temporariamente indisponível.") from None
+        raise HTTPException(
+            503, "A análise Gold está temporariamente indisponível."
+        ) from None
     except (SqlContextUnavailable, GoldCatalogIncompatible):
         await record_failure("source", "unavailable", "error", model_calls=0)
-        raise HTTPException(503, "A capacidade Gold não está disponível para este recorte.") from None
+        raise HTTPException(
+            503, "A capacidade Gold não está disponível para este recorte."
+        ) from None
     except GoldExecutionDenied:
         await record_failure("policy", "denied", "refused")
-        raise HTTPException(403, "A consulta não está autorizada com o acesso atual.") from None
+        raise HTTPException(
+            403, "A consulta não está autorizada com o acesso atual."
+        ) from None
     except GoldPublicationChanged:
         await record_failure("source", "invalid", "error")
-        raise HTTPException(409, "A publicação Gold mudou. Refaça a pergunta.") from None
+        raise HTTPException(
+            409, "A publicação Gold mudou. Refaça a pergunta."
+        ) from None
     except (GoldPublicationUnavailable, GoldCoverageUnavailable, SQLAlchemyError):
         await record_failure("source", "unavailable", "error")
-        raise HTTPException(503, "A análise Gold está temporariamente indisponível.") from None
+        raise HTTPException(
+            503, "A análise Gold está temporariamente indisponível."
+        ) from None
     except GenAIServiceUnavailable:
         await record_failure("response", "unavailable", "error")
-        raise HTTPException(503, "O serviço de resposta está temporariamente indisponível.") from None
+        raise HTTPException(
+            503, "O serviço de resposta está temporariamente indisponível."
+        ) from None
     except GenAITimeout:
         await record_failure("response", "limit", "error")
-        raise HTTPException(504, "O serviço de resposta excedeu o tempo limite.") from None
+        raise HTTPException(
+            504, "O serviço de resposta excedeu o tempo limite."
+        ) from None
     except GenAIResponseInvalid:
         await record_failure("response", "invalid", "error")
-        raise HTTPException(502, "O serviço de resposta não retornou um resultado válido.") from None
+        raise HTTPException(
+            502, "O serviço de resposta não retornou um resultado válido."
+        ) from None
+
 
 class AIQuestionRoute(APIRoute):
     """Retorna erro de validação estável sem ecoar valores da pergunta."""
@@ -428,20 +526,29 @@ class AIQuestionRoute(APIRoute):
                 )
 
             except SQLAlchemyError:
-                return _question_error(request, status_code=503, code="service_unavailable",
-                    retryable=True, message="O serviço está temporariamente indisponível.")
+                return _question_error(
+                    request,
+                    status_code=503,
+                    code="service_unavailable",
+                    retryable=True,
+                    message="O serviço está temporariamente indisponível.",
+                )
 
             except HTTPException as exc:
                 if exc.status_code in {401, 403}:
                     return _question_error(
-                        request, status_code=exc.status_code,
-                        code="access_denied", retryable=False,
+                        request,
+                        status_code=exc.status_code,
+                        code="access_denied",
+                        retryable=False,
                         message="A consulta não está autorizada com o acesso atual.",
                     )
                 if exc.status_code != 503:
                     raise
                 return _question_error(
-                    request, status_code=503, code="service_unavailable",
+                    request,
+                    status_code=503,
+                    code="service_unavailable",
                     retryable=False,
                     message="O serviço de resposta está temporariamente indisponível.",
                 )
@@ -492,7 +599,9 @@ async def enforce_explicit_question_domain(
     except ValueError:
         return  # Let request validation return the standard 422 envelope.
     question = body.get("question") if isinstance(body, dict) else None
-    if not isinstance(question, str) or not is_explicitly_outside_energy_domain(question):
+    if not isinstance(question, str) or not is_explicitly_outside_energy_domain(
+        question
+    ):
         return
     audit_reference = AuditStore(db.get_bind()).record(
         BackendAuditEvent(
@@ -553,9 +662,12 @@ async def ask_genai_question(
     request: Request,
     genai: Annotated[GenAIQuestionClient, Depends(get_genai_question_client)],
     gold_resources: Annotated[
-        tuple[Engine | None, Callable[[], AccessScope]] | None, Depends(get_question_gold_resources)
+        tuple[Engine | None, Callable[[], AccessScope]] | None,
+        Depends(get_question_gold_resources),
     ],
-    readiness_gate: Annotated[Callable | None, Depends(get_question_gold_readiness_gate)],
+    readiness_gate: Annotated[
+        Callable | None, Depends(get_question_gold_readiness_gate)
+    ],
     db: Annotated[Session, Depends(get_db)],
 ) -> AIQuestionResponse | JSONResponse:
     """Coordena consulta e contexto curto autenticado, sem persistir histórico."""
@@ -586,26 +698,41 @@ async def ask_genai_question(
         if gold_resources is not None:
             engine, resolve_scope = gold_resources
             expected_batch_ref = None
-            secret = (settings.AI_AGENT_SERVICE_API_TOKEN.get_secret_value()
-                      if settings.AI_AGENT_SERVICE_API_TOKEN is not None else None)
+            secret = (
+                settings.AI_AGENT_SERVICE_API_TOKEN.get_secret_value()
+                if settings.AI_AGENT_SERVICE_API_TOKEN is not None
+                else None
+            )
             session = request.cookies.get("grid360_session", "")
             if payload.continuation_token is not None:
                 if not secret or not session or not payload.conversation_id:
                     raise InvalidContinuation
-                scope = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(resolve_scope))
+                scope = await deadline.run(
+                    GOLD_REQUEST_TIMEOUT_SECONDS,
+                    lambda: asyncio.to_thread(resolve_scope),
+                )
                 expected_batch_ref, restored = restore_continuation(
-                    payload.continuation_token, scope, session=session,
-                    conversation=payload.conversation_id, secret=secret,
+                    payload.continuation_token,
+                    scope,
+                    session=session,
+                    conversation=payload.conversation_id,
+                    secret=secret,
                     context=question.context,
                 )
                 question = question.model_copy(update={"context": restored})
             if payload.expected_publication is not None:
                 displayed_batch = await deadline.run(
-                    GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(
-                        resolve_expected_batch_ref, db.get_bind(), payload.expected_publication,
+                    GOLD_REQUEST_TIMEOUT_SECONDS,
+                    lambda: asyncio.to_thread(
+                        resolve_expected_batch_ref,
+                        db.get_bind(),
+                        payload.expected_publication,
                     ),
                 )
-                if expected_batch_ref is not None and expected_batch_ref != displayed_batch:
+                if (
+                    expected_batch_ref is not None
+                    and expected_batch_ref != displayed_batch
+                ):
                     raise InvalidContinuation
                 expected_batch_ref = displayed_batch
 
@@ -614,19 +741,30 @@ async def ask_genai_question(
                     return None
                 if planned.response.pending_question is not None:
                     return issue_context_continuation(
-                        planned.response.pending_question, planned.access_scope,
-                        planned.publication.batch_ref, session=session,
-                        conversation=payload.conversation_id, secret=secret, kind="pending",
+                        planned.response.pending_question,
+                        planned.access_scope,
+                        planned.publication.batch_ref,
+                        session=session,
+                        conversation=payload.conversation_id,
+                        secret=secret,
+                        kind="pending",
                         response_text=response.message or "",
                     )
                 return issue_continuation(
-                    planned.response.plan, planned.access_scope, planned.publication.batch_ref,
-                    session=session, conversation=payload.conversation_id, secret=secret,
+                    planned.response.plan,
+                    planned.access_scope,
+                    planned.publication.batch_ref,
+                    session=session,
+                    conversation=payload.conversation_id,
+                    secret=secret,
                     response_text=response.answer or response.message or "",
                 )
 
             result = await answer_gold_question(
-                engine, genai, question, resolve_scope=resolve_scope,
+                engine,
+                genai,
+                question,
+                resolve_scope=resolve_scope,
                 correlation_id=request.state.correlation_id,
                 readiness_gate=readiness_gate,
                 audit_store=AuditStore(db.get_bind()),
@@ -640,52 +778,80 @@ async def ask_genai_question(
                 raise InvalidContinuation
             if payload.expected_publication is not None:
                 return _question_error(
-                    request, status_code=422, code="invalid_request", retryable=False,
+                    request,
+                    status_code=422,
+                    code="invalid_request",
+                    retryable=False,
                     message="A publicação esperada só se aplica à fonte Gold.",
                 )
             result = await genai.ask(
-                question, correlation_id=request.state.correlation_id,
+                question,
+                correlation_id=request.state.correlation_id,
             )
     except InvalidContinuation:
         return _question_error(
-            request, status_code=409, code="invalid_continuation", retryable=False,
+            request,
+            status_code=409,
+            code="invalid_continuation",
+            retryable=False,
             message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
         )
     except ExpectedPublicationMismatch:
         return _question_error(
-            request, status_code=409, code="invalid_context", retryable=False,
+            request,
+            status_code=409,
+            code="invalid_context",
+            retryable=False,
             message="Os dados da tela foram atualizados. Recarregue a tela antes de perguntar.",
         )
     except GoldCatalogIncompatible:
         return _question_error(
-            request, status_code=503, code="service_unavailable", retryable=False,
+            request,
+            status_code=503,
+            code="service_unavailable",
+            retryable=False,
             message="O catálogo Gold dos serviços não é compatível; a consulta não foi executada.",
         )
     except GoldExecutionDenied:
         return _question_error(
-            request, status_code=403, code="access_denied", retryable=False,
+            request,
+            status_code=403,
+            code="access_denied",
+            retryable=False,
             message="A consulta não está autorizada com o acesso atual.",
         )
     except GoldPublicationChanged:
         return _question_error(
-            request, status_code=409, code="invalid_context", retryable=True,
+            request,
+            status_code=409,
+            code="invalid_context",
+            retryable=True,
             message="A publicação Gold mudou. Refaça a pergunta.",
         )
     except GoldPublicationUnavailable:
         return _question_error(
-            request, status_code=503, code="service_unavailable", retryable=False,
+            request,
+            status_code=503,
+            code="service_unavailable",
+            retryable=False,
             message="A publicação Gold não está disponível para esta consulta.",
         )
     except SQLAlchemyError:
         return _question_error(
-            request, status_code=503, code="service_unavailable", retryable=True,
+            request,
+            status_code=503,
+            code="service_unavailable",
+            retryable=True,
             message="A consulta Gold está temporariamente indisponível.",
         )
     except GoldCoverageUnavailable:
         return _question_error(
-            request, status_code=503, code="service_unavailable", retryable=False,
+            request,
+            status_code=503,
+            code="service_unavailable",
+            retryable=False,
             message="Os dados disponíveis não têm cobertura suficiente para responder "
-                    "a esse indicador no recorte solicitado. Tente outro período ou indicador.",
+            "a esse indicador no recorte solicitado. Tente outro período ou indicador.",
         )
     except GenAIServiceUnavailable as exc:
         return _question_error(
@@ -729,12 +895,17 @@ def get_panorama_insight_repository() -> PanoramaRepository | None:
 async def generate_panorama_insight(
     payload: PanoramaInsightRequest,
     request: Request,
-    repository: Annotated[PanoramaRepository | None, Depends(get_panorama_insight_repository)],
+    repository: Annotated[
+        PanoramaRepository | None, Depends(get_panorama_insight_repository)
+    ],
     genai: Annotated[GenAIInsightClient, Depends(get_genai_insight_client)],
     gold_resources: Annotated[
-        tuple[Engine, Callable[[], AccessScope]] | None, Depends(get_question_gold_resources)
+        tuple[Engine, Callable[[], AccessScope]] | None,
+        Depends(get_question_gold_resources),
     ],
-    readiness_client: Annotated[GenAIQuestionClient, Depends(get_genai_question_client)],
+    readiness_client: Annotated[
+        GenAIQuestionClient, Depends(get_genai_question_client)
+    ],
     db: Annotated[Session, Depends(get_db)],
 ) -> PanoramaInsightEnvelope | JSONResponse:
     """Monta os números no servidor e os envia pelo contrato de insight v1."""
@@ -743,8 +914,13 @@ async def generate_panorama_insight(
         if gold_resources is not None:
             engine, resolve_scope = gold_resources
             return await generate_gold_panorama_insight(
-                engine, db.get_bind(), genai, readiness_client, payload,
-                resolve_scope=resolve_scope, correlation_id=request.state.correlation_id,
+                engine,
+                db.get_bind(),
+                genai,
+                readiness_client,
+                payload,
+                resolve_scope=resolve_scope,
+                correlation_id=request.state.correlation_id,
                 audit_store=AuditStore(db.get_bind()),
                 approved_controls=settings.GENAI_GOLD_APPROVED_CONTROLS,
             )
@@ -752,20 +928,45 @@ async def generate_panorama_insight(
             repository, payload
         )
     except GoldExecutionDenied:
-        return _question_error(request, status_code=403, code="access_denied", retryable=False,
-            message="A interpretação não está autorizada com o acesso atual.")
+        return _question_error(
+            request,
+            status_code=403,
+            code="access_denied",
+            retryable=False,
+            message="A interpretação não está autorizada com o acesso atual.",
+        )
     except GoldPublicationChanged:
-        return _question_error(request, status_code=409, code="invalid_context", retryable=False,
-            message="O lote mudou. Atualize o Panorama antes de gerar o insight.")
+        return _question_error(
+            request,
+            status_code=409,
+            code="invalid_context",
+            retryable=False,
+            message="O lote mudou. Atualize o Panorama antes de gerar o insight.",
+        )
     except (GoldPublicationUnavailable, SQLAlchemyError, GenAIServiceUnavailable):
-        return _question_error(request, status_code=503, code="service_unavailable", retryable=False,
-            message="A interpretação Gold está temporariamente indisponível.")
+        return _question_error(
+            request,
+            status_code=503,
+            code="service_unavailable",
+            retryable=False,
+            message="A interpretação Gold está temporariamente indisponível.",
+        )
     except GenAITimeout:
-        return _question_error(request, status_code=504, code="service_unavailable", retryable=True,
-            message="A interpretação excedeu o tempo limite.")
+        return _question_error(
+            request,
+            status_code=504,
+            code="service_unavailable",
+            retryable=True,
+            message="A interpretação excedeu o tempo limite.",
+        )
     except GenAIResponseInvalid:
-        return _question_error(request, status_code=502, code="invalid_upstream_response", retryable=False,
-            message="A interpretação não corresponde ao recorte solicitado.")
+        return _question_error(
+            request,
+            status_code=502,
+            code="invalid_upstream_response",
+            retryable=False,
+            message="A interpretação não corresponde ao recorte solicitado.",
+        )
     except StalePanoramaInsight:
         return _question_error(
             request,
@@ -796,7 +997,9 @@ async def generate_panorama_insight(
             insight=insight_request.model_copy(
                 update={"correlation_id": request.state.correlation_id}
             ),
-            metric=metric, source=source, analysis=analysis,
+            metric=metric,
+            source=source,
+            analysis=analysis,
         )
 
     try:

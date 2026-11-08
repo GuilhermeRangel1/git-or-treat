@@ -1051,8 +1051,8 @@ export default function AssistentePage() {
                 onChange={(event) => setSqlF1Mode(event.currentTarget.checked)}
                 className="size-4 accent-[var(--brand)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               />
-              <span title="A F1 cobre somente análises de faturamento Gold v2.">
-                Testar faturamento F1
+              <span title="A F1 cobre as análises Gold v2 disponíveis para o acesso atual.">
+                Testar análise F1
               </span>
             </label>
           )}

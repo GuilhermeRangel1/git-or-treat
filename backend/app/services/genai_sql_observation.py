@@ -27,7 +27,6 @@ from app.services.genai_sql_context import (
     SqlContextUnavailable,
     build_sql_generation_context,
     is_explicit_multi_metric_question,
-    is_gd_consumption_drop_question,
     is_periodized_accumulated_attendance_question,
 )
 from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_semantics
@@ -44,10 +43,12 @@ def _contract_version(metric_id: str) -> str:
         "service.satisfaction": "text-to-sql-f1-v7",
         "service.accumulated_attendance": "text-to-sql-f1-v5",
         "energy.gd_units": "text-to-sql-f1-v8",
+        "energy.gd_consumption_drop": "text-to-sql-f1-v10",
         "service.accumulated_satisfaction": "text-to-sql-f1-v9",
         "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
         "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
     }[metric_id]
+
 
 def log_sql_context_ready(context, correlation_id: str) -> None:
     """Registra composição e versões do contexto, nunca conteúdo ou valores."""
@@ -69,7 +70,9 @@ def log_sql_context_ready(context, correlation_id: str) -> None:
     )
 
 
-def log_sql_context_unavailable(error: SqlContextUnavailable, correlation_id: str) -> None:
+def log_sql_context_unavailable(
+    error: SqlContextUnavailable, correlation_id: str
+) -> None:
     """Registra apenas motivo tipado e tamanho, sem serializar a entrada."""
     logger.warning(
         "genai_sql_context outcome=unavailable correlation_id=%s reason=%s context_bytes=%s",
@@ -100,13 +103,19 @@ def assert_current_sql_request_context(
     publication: GoldPublicationContext,
 ) -> None:
     """Binds generation to a freshly resolved session scope and publication."""
-    if resolve_scope() != request.access_scope or publication.batch_ref != request.batch_ref:
+    if (
+        resolve_scope() != request.access_scope
+        or publication.batch_ref != request.batch_ref
+    ):
         raise SqlAdmissionDenied("Contexto SQL indisponível antes da geração.")
 
 
 async def observe_sql_generation(
-    request: QuestionPlanRequest, *, client: GenAIQuestionClient,
-    deadline: GenAIRequestDeadline, correlation_id: str,
+    request: QuestionPlanRequest,
+    *,
+    client: GenAIQuestionClient,
+    deadline: GenAIRequestDeadline,
+    correlation_id: str,
 ) -> SqlGenerationObservation:
     """Recebe contexto resolvido e o prazo já iniciado pelo coordenador Backend.
 
@@ -125,29 +134,35 @@ async def observe_sql_generation(
         context = build_sql_generation_context(request)
     except SqlContextUnavailable as exc:
         record_sql_stage(
-            correlation_id=correlation_id, stage="context",
+            correlation_id=correlation_id,
+            stage="context",
             elapsed_ms=int((perf_counter() - context_started) * 1000),
-            outcome="error", reason="context_unavailable",
+            outcome="error",
+            reason="context_unavailable",
         )
         log_sql_context_unavailable(exc, correlation_id)
         raise
     record_sql_stage(
-        correlation_id=correlation_id, stage="context",
+        correlation_id=correlation_id,
+        stage="context",
         elapsed_ms=int((perf_counter() - context_started) * 1000),
-        outcome="success", context_version=context.context_version,
+        outcome="success",
+        context_version=context.context_version,
         mapping_version=context.mapping_version,
         dictionary_version=context.dictionary_version,
     )
     log_sql_context_ready(context, correlation_id)
     question = request.question.casefold()
-    if (context.metric_ids in {
-            ("service.accumulated_attendance",),
-            ("service.accumulated_satisfaction",),
-        }
-            and is_periodized_accumulated_attendance_question(request.question)):
+    if context.metric_ids in {
+        ("service.accumulated_attendance",),
+        ("service.accumulated_satisfaction",),
+    } and is_periodized_accumulated_attendance_question(request.question):
         record_sql_stage(
-            correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
-            outcome="unsupported", reason="accumulated_period_unavailable",
+            correlation_id=correlation_id,
+            stage="semantic_review",
+            elapsed_ms=0,
+            outcome="unsupported",
+            reason="accumulated_period_unavailable",
             context_version=context.context_version,
         )
         return SqlGenerationObservation(
@@ -169,32 +184,14 @@ async def observe_sql_generation(
             None,
             model_calls=0,
         )
-    if is_gd_consumption_drop_question(request.question):
-        record_sql_stage(
-            correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
-            outcome="unsupported", reason="gd_drop_not_in_f1",
-            context_version=context.context_version,
-        )
-        return SqlGenerationObservation(
-            SqlGenerationCandidate(
-                generation_contract_version=_contract_version(context.metric_ids[0]),
-                status="unsupported",
-                context_version=context.context_version,
-                unsupported_reason={
-                    "code": "operation_outside_f1",
-                    "message": (
-                        "A Gold define queda de consumo em janelas fixas e exige cobertura "
-                        "mínima por UC. Essa análise de GD ainda não está habilitada no F1."
-                    ),
-                },
-            ),
-            None,
-            model_calls=0,
-        )
     if is_explicitly_outside_energy_domain(request.question):
         record_sql_stage(
-            correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
-            outcome="unsupported", reason="outside_domain", context_version=context.context_version,
+            correlation_id=correlation_id,
+            stage="semantic_review",
+            elapsed_ms=0,
+            outcome="unsupported",
+            reason="outside_domain",
+            context_version=context.context_version,
         )
         return SqlGenerationObservation(
             SqlGenerationCandidate(
@@ -211,8 +208,11 @@ async def observe_sql_generation(
         )
     if is_explicit_multi_metric_question(request.question):
         record_sql_stage(
-            correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
-            outcome="unsupported", reason="multiple_metrics_outside_f1",
+            correlation_id=correlation_id,
+            stage="semantic_review",
+            elapsed_ms=0,
+            outcome="unsupported",
+            reason="multiple_metrics_outside_f1",
             context_version=context.context_version,
         )
         return SqlGenerationObservation(
@@ -232,11 +232,15 @@ async def observe_sql_generation(
             model_calls=0,
         )
     if not request.context and re.fullmatch(
-        r"(?:qual\s+(?:foi\s+)?a\s+)?receita\s*[?!\.]*", question.strip(),
+        r"(?:qual\s+(?:foi\s+)?a\s+)?receita\s*[?!\.]*",
+        question.strip(),
     ):
         record_sql_stage(
-            correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
-            outcome="clarification", reason="ambiguous_subject",
+            correlation_id=correlation_id,
+            stage="semantic_review",
+            elapsed_ms=0,
+            outcome="clarification",
+            reason="ambiguous_subject",
             context_version=context.context_version,
         )
         return SqlGenerationObservation(
@@ -254,12 +258,19 @@ async def observe_sql_generation(
         )
     payload = SqlGenerationRequest(
         generation_contract_version=_contract_version(context.metric_ids[0]),
-        context_version=context.context_version, contents=context.contents,
+        context_version=context.context_version,
+        contents=context.contents,
         remaining_timeout_ms=deadline.remaining_timeout_ms(stage_seconds),
     )
-    with sql_stage(correlation_id, "generation", context_version=context.context_version):
-        response = await deadline.run(stage_seconds, lambda: client.generate_sql_candidate(
-            payload, correlation_id=correlation_id))
+    with sql_stage(
+        correlation_id, "generation", context_version=context.context_version
+    ):
+        response = await deadline.run(
+            stage_seconds,
+            lambda: client.generate_sql_candidate(
+                payload, correlation_id=correlation_id
+            ),
+        )
     candidate = response.candidate
     if candidate.status != "sql_candidate":
         deadline.remaining_seconds(stage_seconds)
@@ -267,38 +278,64 @@ async def observe_sql_generation(
             correlation_id=correlation_id,
             stage="semantic_review",
             elapsed_ms=0,
-            outcome="clarification" if candidate.status == "needs_clarification" else "unsupported",
+            outcome="clarification"
+            if candidate.status == "needs_clarification"
+            else "unsupported",
             context_version=context.context_version,
         )
         return SqlGenerationObservation(candidate, None)
-    with sql_stage(correlation_id, "semantic_review", context_version=context.context_version):
+    with sql_stage(
+        correlation_id, "semantic_review", context_version=context.context_version
+    ):
         reviewed = review_sql_semantics(candidate, request)
     deadline.remaining_seconds(stage_seconds)
     return SqlGenerationObservation(candidate, reviewed)
 
 
 async def prepare_sql_candidate(
-    request: QuestionPlanRequest, *, engine: Engine, readiness_engine: Engine, publication: GoldPublicationContext,
-    client: GenAIQuestionClient, resolve_scope: Callable[[], AccessScope],
-    approved_controls: frozenset[str], deadline: GenAIRequestDeadline, correlation_id: str,
+    request: QuestionPlanRequest,
+    *,
+    engine: Engine,
+    readiness_engine: Engine,
+    publication: GoldPublicationContext,
+    client: GenAIQuestionClient,
+    resolve_scope: Callable[[], AccessScope],
+    approved_controls: frozenset[str],
+    deadline: GenAIRequestDeadline,
+    correlation_id: str,
 ) -> SqlPreparation:
     """Compõe geração e admissão com uma única validade; sem execução ou rota pública."""
     deadline = GenAIRequestDeadline(
-        min(deadline.expires_at, deadline.clock() + request.remaining_timeout_ms / 1000),
+        min(
+            deadline.expires_at, deadline.clock() + request.remaining_timeout_ms / 1000
+        ),
         deadline.clock,
     )
     deadline.remaining_seconds(60)
     assert_current_sql_request_context(
-        request, resolve_scope=resolve_scope, publication=publication,
+        request,
+        resolve_scope=resolve_scope,
+        publication=publication,
     )
     await deadline.run(5, lambda: asyncio.to_thread(publication.assert_current, engine))
     observed = await observe_sql_generation(
-        request, client=client, deadline=deadline, correlation_id=correlation_id)
+        request, client=client, deadline=deadline, correlation_id=correlation_id
+    )
     if observed.review is None:
-        return SqlPreparation(observed.candidate, None, model_calls=observed.model_calls)
+        return SqlPreparation(
+            observed.candidate, None, model_calls=observed.model_calls
+        )
     with sql_stage(correlation_id, "readiness_admission"):
         admitted = await admit_sql_candidate(
-            observed.candidate, request, engine=engine, readiness_engine=readiness_engine, publication=publication, client=client,
-            resolve_scope=resolve_scope, approved_controls=approved_controls,
-            deadline=deadline, correlation_id=correlation_id)
+            observed.candidate,
+            request,
+            engine=engine,
+            readiness_engine=readiness_engine,
+            publication=publication,
+            client=client,
+            resolve_scope=resolve_scope,
+            approved_controls=approved_controls,
+            deadline=deadline,
+            correlation_id=correlation_id,
+        )
     return SqlPreparation(observed.candidate, admitted)

@@ -15,13 +15,28 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-28"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-29"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
-    "$id", "$defs", "$ref", "$anchor", "type", "format", "title",
-    "description", "enum", "items", "prefixItems",
-    "minimum", "maximum", "anyOf", "oneOf", "properties",
-    "additionalProperties", "required", "propertyOrdering",
+    "$id",
+    "$defs",
+    "$ref",
+    "$anchor",
+    "type",
+    "format",
+    "title",
+    "description",
+    "enum",
+    "items",
+    "prefixItems",
+    "minimum",
+    "maximum",
+    "anyOf",
+    "oneOf",
+    "properties",
+    "additionalProperties",
+    "required",
+    "propertyOrdering",
 }
 
 
@@ -41,9 +56,7 @@ def _gemini_json_schema(schema):
                 raise ValueError("schema do provedor tem mapa dinâmico incompatível")
             normalized["additionalProperties"] = _gemini_json_schema(next(iter(value.values())))
         elif key in {"properties", "$defs"}:
-            normalized[key] = {
-                name: _gemini_json_schema(child) for name, child in value.items()
-            }
+            normalized[key] = {name: _gemini_json_schema(child) for name, child in value.items()}
         elif key in _GEMINI_JSON_SCHEMA_KEYS:
             normalized[key] = _gemini_json_schema(value)
     return normalized
@@ -136,6 +149,20 @@ métrica. Não use datas, consumo, queda percentual, vigência ou inferência de
 geração/injeção. A resposta é um retrato do cadastro no lote publicado. Não use
 COUNT(DISTINCT id_uc): o grão aprovado já é uma linha por UC e a chave física é
 revalidada pelo Backend.
+
+Exceção estrita para queda de consumo de UCs com GD no contrato v10: aceite somente
+`snapshot_total`, `aggregation="count_gd_drop"`, períodos vazios e filtro fixo
+`generation.distributed eq ["Sim"]`; admita município como filtro e/ou agrupamento
+somente quando solicitado e autorizado. Conte `COUNT(queda_consumo_superior_30_pct)`
+com predicado parametrizado `queda_consumo_superior_30_pct = :eligible` (booleano
+`true`), `possui_gd = :gd` (texto `Sim`) e os dois limites
+`meses_com_leitura_p1 >= :minimum_months` e
+`meses_com_leitura_p2 >= :minimum_months`, com `minimum_months` inteiro igual a 6.
+As janelas fixas são jul/2022–jun/2023 e jul/2025–jun/2026. O Backend só admite
+essa SQL quando C08/C09 e cobertura da capacidade estiverem aprovados, e valida
+fonte, filtros, grão, colunas, mínimo de leituras e agregação.
+Não calcule percentuais na SQL, não aceite período escolhido pelo usuário, não conte
+cadastros sem a flag, e não afirme causalidade nem origem solar.
 F1 admite total, série mensal, total agrupado, ranking e comparação de duas janelas.
 Use estas formas, trocando filtros e parâmetros conforme a intenção:
 Total:
@@ -308,12 +335,20 @@ Retorne apenas o contrato JSON.
 
 class GeminiSqlGenerator:
     def __init__(
-        self, *, client, model_name: str, max_output_tokens: int = 4096,
+        self,
+        *,
+        client,
+        model_name: str,
+        max_output_tokens: int = 4096,
         temperature: float = 0.0,
     ):
-        if (type(max_output_tokens) is not int or not 1 <= max_output_tokens <= 4096
-                or type(temperature) not in (int, float) or not 0 <= temperature <= 1
-                or not model_name.strip()):
+        if (
+            type(max_output_tokens) is not int
+            or not 1 <= max_output_tokens <= 4096
+            or type(temperature) not in (int, float)
+            or not 0 <= temperature <= 1
+            or not model_name.strip()
+        ):
             raise ValueError("configuração de geração inválida")
         self.client = client
         self.model_name = model_name
@@ -338,14 +373,12 @@ class GeminiSqlGenerator:
         context_bytes = len(contents.encode("utf-8"))
         try:
             async with asyncio.timeout(timeout_seconds):
-                response_schema = _gemini_json_schema(
-                    SqlGenerationCandidate.model_json_schema()
-                )
+                response_schema = _gemini_json_schema(SqlGenerationCandidate.model_json_schema())
                 # Keep the additive field optional in the internal contract, while
                 # requiring the provider to make its semantic decision explicit.
-                response_schema["required"] = sorted(set(
-                    response_schema.get("required", []) + ["semantic_intent"]
-                ))
+                response_schema["required"] = sorted(
+                    set(response_schema.get("required", []) + ["semantic_intent"])
+                )
                 response = await self.client.aio.models.generate_content(
                     model=self.model_name,
                     contents=contents,
@@ -366,7 +399,10 @@ class GeminiSqlGenerator:
                 or (status is not None and status >= 500)
             )
             record_provider_failure(
-                "gemini", self.model_name, "unavailable" if unavailable else "rejected", status,
+                "gemini",
+                self.model_name,
+                "unavailable" if unavailable else "rejected",
+                status,
                 prompt_version=SQL_GENERATION_PROMPT_VERSION,
                 elapsed_ms=(perf_counter() - started) * 1000,
                 context_bytes=context_bytes,
@@ -406,26 +442,30 @@ class GeminiSqlGenerator:
             try:
                 result = SqlGenerationCandidate.model_validate_json(response.text)
             except ValidationError as exc:
-                error_types = {
-                    error.get("type") for error in exc.errors(include_url=False)
-                }
+                error_types = {error.get("type") for error in exc.errors(include_url=False)}
                 failure_reason = (
-                    "invalid_json" if "json_invalid" in error_types
-                    else "contract_validation"
+                    "invalid_json" if "json_invalid" in error_types else "contract_validation"
                 )
                 allowed_fields = set(SqlGenerationCandidate.model_fields)
-                validation_fields = tuple(sorted({
-                    (error["loc"][0] if error["loc"][0] in allowed_fields else "other")
-                    if error.get("loc") else "envelope"
-                    for error in exc.errors(include_url=False, include_input=False)
-                }))
+                validation_fields = tuple(
+                    sorted(
+                        {
+                            (error["loc"][0] if error["loc"][0] in allowed_fields else "other")
+                            if error.get("loc")
+                            else "envelope"
+                            for error in exc.errors(include_url=False, include_input=False)
+                        }
+                    )
+                )
                 raise
             if result.context_version != context_version:
                 failure_reason = "context_version_mismatch"
                 raise ValueError("versão de contexto divergente")
         except (ValidationError, ValueError, TypeError, AttributeError):
             record_provider_failure(
-                "gemini", self.model_name, "invalid_response",
+                "gemini",
+                self.model_name,
+                "invalid_response",
                 prompt_version=SQL_GENERATION_PROMPT_VERSION,
                 elapsed_ms=(perf_counter() - started) * 1000,
                 context_bytes=context_bytes,

@@ -29,8 +29,15 @@ from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 sql_request = fixture_sql_request
 
 
-def run(request, *, status="sql_candidate", mutation=None, http_status=200, expired=False,
-        stage_expired=False):
+def run(
+    request,
+    *,
+    status="sql_candidate",
+    mutation=None,
+    http_status=200,
+    expired=False,
+    stage_expired=False,
+):
     captured = []
     clock = [0.0]
 
@@ -44,21 +51,35 @@ def run(request, *, status="sql_candidate", mutation=None, http_status=200, expi
         if stage_expired:
             clock[0] = 33
         if status == "needs_clarification":
-            candidate = {"status": status, "generation_contract_version": "text-to-sql-f1-v1",
-                         "context_version": body["context_version"],
-                         "clarification": {"question": "Qual período?", "missing_fields": ["period"]}}
-        return httpx.Response(http_status, json={"correlation_id": "b" * 32,
-            "candidate": candidate}, headers={"x-correlation-id": "b" * 32})
+            candidate = {
+                "status": status,
+                "generation_contract_version": "text-to-sql-f1-v1",
+                "context_version": body["context_version"],
+                "clarification": {
+                    "question": "Qual período?",
+                    "missing_fields": ["period"],
+                },
+            }
+        return httpx.Response(
+            http_status,
+            json={"correlation_id": "b" * 32, "candidate": candidate},
+            headers={"x-correlation-id": "b" * 32},
+        )
 
     async def action():
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
-            client = GenAIQuestionClient(http_client=http, base_url="http://genai",
-                                        service_token="synthetic-service-token-0000000000")
-            deadline = GenAIRequestDeadline.start(60 if stage_expired else 10,
-                                                   clock=lambda: clock[0])
+            client = GenAIQuestionClient(
+                http_client=http,
+                base_url="http://genai",
+                service_token="synthetic-service-token-0000000000",
+            )
+            deadline = GenAIRequestDeadline.start(
+                60 if stage_expired else 10, clock=lambda: clock[0]
+            )
             clock[0] = 11 if expired else 2
-            result = await observe_sql_generation(request, client=client, deadline=deadline,
-                                                   correlation_id="b" * 32)
+            result = await observe_sql_generation(
+                request, client=client, deadline=deadline, correlation_id="b" * 32
+            )
             assert captured[0]["remaining_timeout_ms"] == 8000
             return result
 
@@ -71,13 +92,16 @@ def test_generation_and_semantic_review_share_backend_context_and_budget(sql_req
 
 
 def test_context_telemetry_contains_versions_and_shape_but_not_prompt_or_values(
-    sql_request, caplog,
+    sql_request,
+    caplog,
 ):
     payload = sql_request.model_dump(mode="json")
-    payload["dimension_value_coverage"] = [{
-        "dimension_id": "geography.municipality",
-        "values": ["Recife"],
-    }]
+    payload["dimension_value_coverage"] = [
+        {
+            "dimension_id": "geography.municipality",
+            "values": ["Recife"],
+        }
+    ]
     request = type(sql_request).model_validate(payload)
     with caplog.at_level(logging.INFO, logger="app.services.genai_sql_observation"):
         log_sql_context_ready(build_sql_generation_context(request), "b" * 32)
@@ -96,12 +120,16 @@ def test_context_telemetry_contains_versions_and_shape_but_not_prompt_or_values(
     assert request.access_scope.caller_ref not in message
 
 
-def test_context_rejection_logs_only_reason_and_size_not_context_values(sql_request, caplog):
+def test_context_rejection_logs_only_reason_and_size_not_context_values(
+    sql_request, caplog
+):
     payload = sql_request.model_dump(mode="json")
-    payload["dimension_value_coverage"] = [{
-        "dimension_id": "geography.municipality",
-        "values": [f"Municipio{i:04}" + "x" * 100 for i in range(700)],
-    }]
+    payload["dimension_value_coverage"] = [
+        {
+            "dimension_id": "geography.municipality",
+            "values": [f"Municipio{i:04}" + "x" * 100 for i in range(700)],
+        }
+    ]
     oversized = type(sql_request).model_validate(payload)
     with caplog.at_level(logging.WARNING, logger="app.services.genai_sql_observation"):
         with pytest.raises(SqlContextUnavailable) as error:
@@ -124,6 +152,7 @@ def test_wrong_recuts_are_not_promoted_to_review(sql_request):
     def mutate(candidate):
         candidate["parameters"]["city"]["value"] = "Olinda"
         return candidate
+
     with pytest.raises(SqlStructureRejected):
         run(sql_request, mutation=mutate)
 
@@ -133,37 +162,50 @@ def test_provider_failure_is_not_a_clarification(sql_request):
         run(sql_request, http_status=503)
 
 
-@pytest.mark.parametrize("question", [
-    "Quantos chamados acumulados em janeiro de 2026?",
-    "Qual o histórico acumulado de atendimento em 2026?",
-    "Quantos protocolos acumulados nos últimos 12 meses?",
-    "Qual o total acumulado desde janeiro?",
-])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Quantos chamados acumulados em janeiro de 2026?",
+        "Qual o histórico acumulado de atendimento em 2026?",
+        "Quantos protocolos acumulados nos últimos 12 meses?",
+        "Qual o total acumulado desde janeiro?",
+    ],
+)
 def test_accumulated_attendance_question_detects_explicit_time_window(question):
     assert is_periodized_accumulated_attendance_question(question)
 
 
-def test_accumulated_attendance_with_period_is_refused_without_calling_agent(sql_request):
+def test_accumulated_attendance_with_period_is_refused_without_calling_agent(
+    sql_request,
+):
     payload = sql_request.model_dump(mode="json")
     payload["question"] = "Quantos chamados no histórico acumulado em janeiro de 2026?"
     payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_attendance"]
     payload["access_scope"]["allowed_dimension_ids"] = []
     payload["dimension_value_coverage"] = []
-    payload["temporal_coverage"] = [{
-        "metric_id": "service.accumulated_attendance", "kind": "none",
-    }]
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "service.accumulated_attendance",
+            "kind": "none",
+        }
+    ]
     request = type(sql_request).model_validate(payload)
 
     async def action():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(
-            lambda _: pytest.fail("pergunta periodizada não deve chamar o agente")
-        )) as http:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: pytest.fail("pergunta periodizada não deve chamar o agente")
+            )
+        ) as http:
             client = GenAIQuestionClient(
-                http_client=http, base_url="http://genai",
+                http_client=http,
+                base_url="http://genai",
                 service_token="synthetic-service-token-0000000000",
             )
             return await observe_sql_generation(
-                request, client=client, deadline=GenAIRequestDeadline.start(10),
+                request,
+                client=client,
+                deadline=GenAIRequestDeadline.start(10),
                 correlation_id="b" * 32,
             )
 
@@ -184,11 +226,14 @@ def test_envelope_budget_caps_wider_global_deadline(sql_request):
         run(sql_request, stage_expired=True)
 
 
-@pytest.mark.parametrize("question", [
-    "Qual a receita de miojo em janeiro de 2026?",
-    "Qual foi o FATURAMENTO DE HAMBÚRGUER em janeiro de 2026?",
-    "Qual a previsão do tempo em janeiro de 2026?",
-])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual a receita de miojo em janeiro de 2026?",
+        "Qual foi o FATURAMENTO DE HAMBÚRGUER em janeiro de 2026?",
+        "Qual a previsão do tempo em janeiro de 2026?",
+    ],
+)
 def test_explicit_external_subject_stops_before_the_generator(sql_request, question):
     request = sql_request.model_copy(update={"question": question})
 
@@ -196,38 +241,51 @@ def test_explicit_external_subject_stops_before_the_generator(sql_request, quest
         async def generate_sql_candidate(self, *args, **kwargs):
             pytest.fail("Pedido externo chegou ao gerador")
 
-    result = asyncio.run(observe_sql_generation(
-        request, client=UnexpectedGenerator(), deadline=GenAIRequestDeadline.start(60),
-        correlation_id="b" * 32,
-    ))
+    result = asyncio.run(
+        observe_sql_generation(
+            request,
+            client=UnexpectedGenerator(),
+            deadline=GenAIRequestDeadline.start(60),
+            correlation_id="b" * 32,
+        )
+    )
     assert result.review is None
     assert result.candidate.status == "unsupported"
     assert result.candidate.sql is None
 
 
-@pytest.mark.parametrize("question", [
-    "Qual foi a receita em janeiro de 2026?",
-    "Qual foi a receita de Recife em 2026?",
-    "Qual foi a receita residencial?",
-])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual foi a receita em janeiro de 2026?",
+        "Qual foi a receita de Recife em 2026?",
+        "Qual foi a receita residencial?",
+    ],
+)
 def test_energy_revenue_still_reaches_the_generator(sql_request, question):
     request = sql_request.model_copy(update={"question": question})
     assert run(request).review is not None
 
 
 def test_mixed_consumption_and_revenue_is_refused_without_partial_sql(sql_request):
-    request = consumption_request(sql_request).model_copy(update={
-        "question": "Compare o consumo medido e o faturamento em junho de 2026.",
-    })
+    request = consumption_request(sql_request).model_copy(
+        update={
+            "question": "Compare o consumo medido e o faturamento em junho de 2026.",
+        }
+    )
 
     class UnexpectedGenerator:
         async def generate_sql_candidate(self, *args, **kwargs):
             pytest.fail("Pergunta multi-métrica não pode chamar o gerador F1")
 
-    result = asyncio.run(observe_sql_generation(
-        request, client=UnexpectedGenerator(), deadline=GenAIRequestDeadline.start(60),
-        correlation_id="b" * 32,
-    ))
+    result = asyncio.run(
+        observe_sql_generation(
+            request,
+            client=UnexpectedGenerator(),
+            deadline=GenAIRequestDeadline.start(60),
+            correlation_id="b" * 32,
+        )
+    )
     assert result.review is None
     assert result.candidate.status == "unsupported"
     assert result.candidate.sql is None
@@ -235,28 +293,47 @@ def test_mixed_consumption_and_revenue_is_refused_without_partial_sql(sql_reques
     assert result.model_calls == 0
 
 
-def test_gd_consumption_drop_is_explicitly_unsupported_before_model_call(sql_request):
+def test_gd_consumption_drop_reaches_generator_only_with_approved_metric_scope(
+    sql_request,
+):
     payload = consumption_request(sql_request).model_dump(mode="json")
     payload["question"] = "Quantas UCs com GD tiveram queda de consumo superior a 30%?"
     payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
-    payload["dimension_value_coverage"].append({
-        "dimension_id": "generation.distributed", "values": ["Não", "Sim"],
-    })
+    payload["access_scope"]["allowed_metric_ids"].append("energy.gd_consumption_drop")
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "energy.gd_consumption_drop",
+            "kind": "none",
+        }
+    ]
+    payload["dimension_value_coverage"].append(
+        {
+            "dimension_id": "generation.distributed",
+            "values": ["Não", "Sim"],
+        }
+    )
     request = type(sql_request).model_validate(payload)
     assert is_gd_consumption_drop_question(request.question)
 
-    class UnexpectedGenerator:
+    class CalledGenerator:
+        called = False
+
         async def generate_sql_candidate(self, *args, **kwargs):
-            pytest.fail("Métrica GD sem análise de cobertura não deve chegar ao gerador")
+            self.called = True
+            raise RuntimeError("fim do teste após confirmar admissão ao gerador")
 
-    result = asyncio.run(observe_sql_generation(
-        request, client=UnexpectedGenerator(), deadline=GenAIRequestDeadline.start(60),
-        correlation_id="b" * 32,
-    ))
+    client = CalledGenerator()
+    with pytest.raises(RuntimeError, match="fim do teste"):
+        asyncio.run(
+            observe_sql_generation(
+                request,
+                client=client,
+                deadline=GenAIRequestDeadline.start(60),
+                correlation_id="b" * 32,
+            )
+        )
 
-    assert result.candidate.status == "unsupported"
-    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
-    assert result.model_calls == 0
+    assert client.called
 
 
 def test_periodized_accumulated_satisfaction_is_refused_before_model_call(sql_request):
@@ -267,19 +344,26 @@ def test_periodized_accumulated_satisfaction_is_refused_before_model_call(sql_re
     payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_satisfaction"]
     payload["access_scope"]["allowed_dimension_ids"] = []
     payload["dimension_value_coverage"] = []
-    payload["temporal_coverage"] = [{
-        "metric_id": "service.accumulated_satisfaction", "kind": "none",
-    }]
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "service.accumulated_satisfaction",
+            "kind": "none",
+        }
+    ]
     request = type(sql_request).model_validate(payload)
 
     class UnexpectedGenerator:
         async def generate_sql_candidate(self, *args, **kwargs):
             pytest.fail("Histórico sem janela não deve responder a pedido anual")
 
-    result = asyncio.run(observe_sql_generation(
-        request, client=UnexpectedGenerator(), deadline=GenAIRequestDeadline.start(60),
-        correlation_id="b" * 32,
-    ))
+    result = asyncio.run(
+        observe_sql_generation(
+            request,
+            client=UnexpectedGenerator(),
+            deadline=GenAIRequestDeadline.start(60),
+            correlation_id="b" * 32,
+        )
+    )
 
     assert result.candidate.status == "unsupported"
     assert result.candidate.unsupported_reason.code == "operation_outside_f1"

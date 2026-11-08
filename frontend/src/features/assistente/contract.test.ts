@@ -697,4 +697,46 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
       }),
     ).toThrow("Resposta Text-to-SQL inválida.");
   });
+
+  it("aceita contagem de queda de consumo com GD nas janelas aprovadas", () => {
+    const result = decodeSqlAnalysisResponse({
+      ...sqlResponse,
+      evidence: {
+        ...sqlResponse.evidence,
+        evidence_contract_version: "text-to-sql-f1-evidence-v10",
+        source_table: "gold_v2.variacao_consumo_uc",
+        metric_id: "energy.gd_consumption_drop",
+        interpretation: {
+          metric_id: "energy.gd_consumption_drop", operation: "snapshot_total",
+          aggregation: "count_gd_drop", periods: [],
+          filters: [{ dimension_id: "generation.distributed", operator: "eq", values: ["Sim"] }],
+          group_by: [], ranking_direction: null, ranking_limit: null,
+        },
+        columns: [{ name: "gd_drop_units", role: "measure", value_type: "integer", unit: "UCs" }],
+        measure_semantics: { gd_drop_units: "gd_consumption_drop_units" },
+        rows: [["5"]],
+      },
+      presentation: {
+        ...sqlResponse.presentation,
+        contract_version: "text-to-sql-f1-presentation-v9",
+        operation: "snapshot_total",
+        answer: "Foram identificadas 5 UCs nas janelas fixas jul/2022–jun/2023 vs. jul/2025–jun/2026 (Geração distribuída (cadastro): Sim).",
+        period: "jul/2022–jun/2023 vs. jul/2025–jun/2026", filters: [], universe: [],
+        limitations: [
+          "Queda bruta nas janelas fixas; exige ao menos seis meses com leitura em cada janela e não demonstra causa nem origem solar.",
+        ],
+        columns: [{ key: "gd_drop_units", label: "UCs com GD e queda de consumo >30%",
+          role: "measure", semantic_id: "gd_consumption_drop_units", unit: "UCs" }],
+        rows: [{ observation_id: "row_1", cells: ["5"] }],
+      },
+    });
+    expect(result).toMatchObject({
+      status: "answered",
+      analysis_context: {
+        metric: "energy.gd_consumption_drop",
+        metric_label: "UCs com GD e queda de consumo superior a 30%",
+        unit: "UCs",
+      },
+    });
+  });
 });

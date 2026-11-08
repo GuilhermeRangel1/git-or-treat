@@ -25,6 +25,7 @@ from tests.test_genai_sql_admission import Environment
 from tests.test_genai_sql_comparison import comparison
 from tests.test_genai_sql_semantics import (
     accumulated_satisfaction_candidate,
+    gd_consumption_drop_candidate,
     gd_consumption_query,
     gd_units_candidate,
     query,
@@ -81,13 +82,19 @@ def engines():
                 {"protocol": "SYN-4", "opened": "2026-07-01T00:00:00+00:00", "score": 1.0},
             ])
             connection.execute(text(
-                "INSERT INTO gold_v2.variacao_consumo_uc (id_uc, municipio, possui_gd) "
-                "VALUES (:unit, :city, :gd)"
+                "INSERT INTO gold_v2.variacao_consumo_uc "
+                "(id_uc, municipio, possui_gd, meses_com_leitura_p1, "
+                "meses_com_leitura_p2, queda_consumo_superior_30_pct) "
+                "VALUES (:unit, :city, :gd, :months1, :months2, :drop)"
             ), [
-                {"unit": "SYN-GD-1", "city": "Recife", "gd": "Sim"},
-                {"unit": "SYN-GD-2", "city": "Recife", "gd": "Sim"},
-                {"unit": "SYN-GD-3", "city": "Olinda", "gd": "Sim"},
-                {"unit": "SYN-GD-4", "city": "Recife", "gd": "Não"},
+                {"unit": "SYN-GD-1", "city": "Recife", "gd": "Sim",
+                 "months1": 6, "months2": 6, "drop": True},
+                {"unit": "SYN-GD-2", "city": "Recife", "gd": "Sim",
+                 "months1": 5, "months2": 12, "drop": True},
+                {"unit": "SYN-GD-3", "city": "Olinda", "gd": "Sim",
+                 "months1": 6, "months2": 6, "drop": True},
+                {"unit": "SYN-GD-4", "city": "Recife", "gd": "Não",
+                 "months1": 12, "months2": 12, "drop": False},
             ])
             connection.exec_driver_sql("CREATE ROLE venergy_genai_reader LOGIN "
                 "NOSUPERUSER NOBYPASSRLS PASSWORD 'synthetic-test-only'")
@@ -261,6 +268,45 @@ def test_real_restricted_snapshot_counts_gd_registry_units_once(sql_request, eng
     assert run.evidence.evidence_contract_version == "text-to-sql-f1-evidence-v8"
     assert run.evidence.rows == ((str(expected),),) == (("3",),)
     assert run.evidence.source_table == "gold_v2.variacao_consumo_uc"
+    assert reader.pool.checkedout() == 0
+
+
+def test_real_restricted_snapshot_requires_six_reads_in_each_gd_window(sql_request, engines):
+    owner, reader = engines
+    candidate, request = gd_consumption_drop_candidate(
+        sql_request, municipality="Recife"
+    )
+    env = Environment(request)
+    env.analytic_engine, env.readiness_engine = reader, owner
+    publication = GoldPublicationContext.capture(reader)
+    env.execution_snapshot = publication.execution_snapshot
+    env.assert_current = publication.assert_current
+    env.generated_candidate = candidate
+
+    async def generate_sql_candidate(payload, *, correlation_id):
+        from app.schemas.sql_generation import SqlGenerationResponse
+
+        assert "meses_com_leitura_p1" in payload.contents
+        assert "meses_com_leitura_p2" in payload.contents
+        return SqlGenerationResponse(
+            correlation_id=correlation_id,
+            generation_contract_version=env.generated_candidate.generation_contract_version,
+            candidate=env.generated_candidate,
+        )
+
+    env.generate_sql_candidate = generate_sql_candidate
+    run = asyncio.run(run_sql_question(request, **env.kwargs()))
+    assert run.evidence is not None
+    with owner.connect() as control:
+        expected = control.execute(text(
+            "SELECT COUNT(queda_consumo_superior_30_pct) "
+            "FROM gold_v2.variacao_consumo_uc WHERE municipio='Recife' "
+            "AND possui_gd='Sim' AND queda_consumo_superior_30_pct IS TRUE "
+            "AND meses_com_leitura_p1>=6 AND meses_com_leitura_p2>=6"
+        )).scalar_one()
+    assert run.evidence.metric_id == "energy.gd_consumption_drop"
+    assert run.evidence.rows == ((str(expected),),) == (("1",),)
+    assert run.evidence.evidence_contract_version == "text-to-sql-f1-evidence-v10"
     assert reader.pool.checkedout() == 0
 
 
