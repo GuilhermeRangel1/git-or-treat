@@ -838,6 +838,23 @@ def test_session_selects_reader_and_database_denies_prohibited_access(batch, mon
                     )
                     assert "Quadra A" in ranking["answer"] and "Quadra B" not in ranking["answer"]
                     assert "-50 kWh" in ranking["answer"]
+
+                    # “Volume residencial” não especifica uma métrica publicada pela Gold.
+                    GENAI_TRANSPORT_EVENTS.clear()
+                    reader_sql.clear()
+                    volume = public_client.post("/api/v1/ai/questions", headers=origin, json={
+                        "question": "Qual bairro de Lumenia mais perdeu volume residencial entre janeiro de 2001 e abril de 2001?",
+                    })
+                    assert volume.status_code == 200, volume.text
+                    volume_body = volume.json()
+                    assert volume_body["status"] == "needs_clarification", volume_body
+                    assert "energia faturada" in volume_body["message"]
+                    assert "consumo medido" in volume_body["message"]
+                    assert not volume_body["answer"]
+                    assert not volume_body["evidence"]
+                    assert [item["path"] for item in GENAI_TRANSPORT_EVENTS] == [
+                        "/api/v1/internal/question-plans",
+                    ]
                 finally:
                     with owner.begin() as comparison_write:
                         comparison_write.execute(TABLES["consumo_receita_bairro"].delete().where(
