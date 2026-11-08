@@ -15,7 +15,7 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-25"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-28"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
     "$id", "$defs", "$ref", "$anchor", "type", "format", "title",
@@ -91,6 +91,16 @@ os parâmetros são `{ "type": "timestamp", "value": "...Z" }` no começo UTC do
 mês pedido e no começo UTC do mês seguinte. Não use `SUM` para protocolos, não
 conte tratativas, não use limites inclusivos de fim de mês e não ofereça nota de
 satisfação nessa versão.
+Exceção estrita para `service.satisfaction` no contrato v7: aceite somente
+`average`, `aggregation="average_non_null"`, uma competência mensal e nenhuma
+dimensão, filtro, agrupamento, ordenação ou limite. Calcule exatamente
+`AVG(nota_satisfacao) AS satisfaction` em `gold_v2.atendimentos_uc`, com unidade
+`pontos` e tipo `decimal`. Use `data_abertura >= :period_start AND
+data_abertura < :period_end`; ambos os parâmetros são timestamps UTC canônicos
+no início do mês pedido e do mês seguinte. AVG ignora notas NULL; nota zero é um valor válido
+e deve permanecer na média. Não substitua a média por COUNT,
+não filtre valores zero ou NULL no WHERE e não infira satisfação de protocolos
+sem nota.
 Exceção estrita para DEC/FEC no contrato v4: aceite somente `grain_read`,
 `aggregation="key_grain_read"`, uma competência mensal e um único filtro
 `network.feeder` com operador `eq`. Projete somente a coluna física declarada em
@@ -108,6 +118,24 @@ ordenação ou limite. Some `metric.measure_column` diretamente em
 `protocolos`. Não invente competência, datas, intervalo, filtro por UC ou
 completude histórica. Informe que a resposta usa o histórico publicado e que seu
 intervalo e completude não são conhecidos.
+Exceção estrita para satisfação acumulada no contrato v9: aceite somente
+`accumulated_average`, `aggregation="average_non_null"`, períodos vazios, sem
+filtros, dimensões, agrupamento, ordenação ou limite. Calcule exatamente
+`AVG(nota_satisfacao) AS satisfaction` em `gold_v2.atendimentos_uc`, com unidade
+`pontos` e tipo `decimal`. AVG ignora NULL e mantém nota zero como valor válido.
+Não filtre notas nem misture competências; o intervalo e a completude do histórico
+publicado são desconhecidos. Se pedirem mês, ano ou outra janela, retorne
+unsupported sem SQL.
+Exceção estrita para retrato de UCs com GD no contrato v8: aceite somente
+`snapshot_total`, `aggregation="count_non_null"`, períodos vazios, filtro fixo
+`generation.distributed eq ["Sim"]` e, opcionalmente, município como filtro ou
+agrupamento. Consulte somente `gold_v2.variacao_consumo_uc`, cuja chave é `id_uc`,
+e conte `COUNT(possui_gd)` como `gd_units`, tipo `integer`, unidade `UCs`. Aplique
+o filtro fixo via parâmetro `:gd` com valor `Sim`; jamais retorne UCs sem GD nessa
+métrica. Não use datas, consumo, queda percentual, vigência ou inferência de
+geração/injeção. A resposta é um retrato do cadastro no lote publicado. Não use
+COUNT(DISTINCT id_uc): o grão aprovado já é uma linha por UC e a chave física é
+revalidada pelo Backend.
 F1 admite total, série mensal, total agrupado, ranking e comparação de duas janelas.
 Use estas formas, trocando filtros e parâmetros conforme a intenção:
 Total:
@@ -156,7 +184,8 @@ Mapeamento: use `metric.id` e `metric.measure_column` do contexto; `competency` 
 `competencia`, `municipality` usa `municipio`, `neighborhood` usa `bairro` e
 `consumption_class` usa `classe_consumo`. Quando o contexto selecionar
 `faturamento.receita_bairro`, consulte exclusivamente `gold_v2.consumo_receita_bairro`
-e preserve seu grão competência, município, bairro e classe. Nomes de `result_columns` devem coincidir exatamente com os aliases após AS. Todas as
+e preserve seu grão competência, município, bairro e classe.
+Nomes de `result_columns` devem coincidir exatamente com os aliases após AS. Todas as
 expressões projetadas precisam de alias explícito.
 Nunca use como alias o nome de outra coluna física.
 Total não tem agrupamento nem ORDER BY. Série mensal agrupa por competência e

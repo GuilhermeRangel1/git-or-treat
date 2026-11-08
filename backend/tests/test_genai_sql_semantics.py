@@ -1,9 +1,9 @@
 import pytest
+
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.services.genai_sql_context import build_sql_generation_context
 from app.services.genai_sql_semantics import review_sql_semantics
 from app.services.genai_sql_structure import SqlStructureRejected
-
 from tests.test_genai_sql_structure import TOTAL, candidate
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
@@ -153,6 +153,73 @@ def accumulated_attendance_query(sql_request, *, sql=None):
     return type(value).model_validate(body), request
 
 
+def gd_units_candidate(sql_request, *, filter_value="Sim", group_by_municipality=False):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = "Quantas UCs têm GD?"
+    payload["access_scope"]["allowed_metric_ids"] = ["energy.gd_units"]
+    payload["access_scope"]["allowed_dimension_ids"] = [
+        "geography.municipality", "generation.distributed",
+    ]
+    payload["temporal_coverage"] = [{"metric_id": "energy.gd_units", "kind": "none"}]
+    payload["dimension_value_coverage"] = [
+        {"dimension_id": "generation.distributed", "values": ["Não", "Sim"]},
+        {"dimension_id": "geography.municipality", "values": ["Recife"]},
+    ]
+    request = type(sql_request).model_validate(payload)
+    selected = "municipio AS municipality, " if group_by_municipality else ""
+    group = " GROUP BY municipio" if group_by_municipality else ""
+    where = "possui_gd = :gd"
+    parameters = {"gd": {"type": "string", "value": filter_value}}
+    value = candidate(
+        request,
+        f"SELECT {selected}COUNT(possui_gd) AS gd_units "
+        f"FROM gold_v2.variacao_consumo_uc WHERE {where}{group}",
+        parameters=parameters,
+        dimensions=("municipality",) if group_by_municipality else (),
+    )
+    body = value.model_dump(mode="json")
+    body["generation_contract_version"] = "text-to-sql-f1-v8"
+    body["interpretation"].update(
+        metric_id="energy.gd_units", operation="snapshot_total",
+        aggregation="count_non_null", periods=[],
+        filters=[{"dimension_id": "generation.distributed", "operator": "eq",
+                  "values": [filter_value]}],
+        group_by=["municipality"] if group_by_municipality else [],
+    )
+    body["result_columns"] = ([{
+        "name": "municipality", "role": "dimension", "value_type": "string",
+    }] if group_by_municipality else []) + [{
+        "name": "gd_units", "role": "measure", "value_type": "integer", "unit": "UCs",
+    }]
+    return type(value).model_validate(body), request
+
+
+def accumulated_satisfaction_candidate(sql_request, *, sql=None, parameters=None):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = "Qual foi a nota média de satisfação no histórico acumulado?"
+    payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_satisfaction"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.accumulated_satisfaction", "kind": "none",
+    }]
+    request = type(sql_request).model_validate(payload)
+    value = candidate(request, sql or
+        "SELECT AVG(nota_satisfacao) AS satisfaction FROM gold_v2.atendimentos_uc",
+        parameters=parameters)
+    body = value.model_dump(mode="json")
+    body["generation_contract_version"] = "text-to-sql-f1-v9"
+    body["interpretation"].update(
+        metric_id="service.accumulated_satisfaction", operation="accumulated_average",
+        aggregation="average_non_null", periods=[], filters=[], group_by=[],
+        ranking_direction=None, ranking_limit=None,
+    )
+    body["result_columns"] = [{
+        "name": "satisfaction", "role": "measure", "value_type": "decimal", "unit": "pontos",
+    }]
+    return type(value).model_validate(body), request
+
+
 def attendance_candidate(sql_request, *, periods=None, aggregation="count_non_null",
                          sql=None, values=None, unit="protocolos", metric_id="service.attendance"):
     payload = sql_request.model_dump(mode="json")
@@ -179,6 +246,37 @@ def attendance_candidate(sql_request, *, periods=None, aggregation="count_non_nu
     )
     body["result_columns"] = [{
         "name": "attendance", "role": "measure", "value_type": "integer", "unit": unit,
+    }]
+    return type(value).model_validate(body), request
+
+
+def satisfaction_candidate(sql_request, *, sql=None):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = "Qual foi a nota média de satisfação em junho de 2026?"
+    payload["access_scope"]["allowed_metric_ids"] = ["service.satisfaction"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.satisfaction", "kind": "monthly", "competencies": ["2026-06"],
+    }]
+    payload["dimension_value_coverage"] = []
+    request = type(sql_request).model_validate(payload)
+    value = candidate(request, sql or
+        "SELECT AVG(nota_satisfacao) AS satisfaction "
+        "FROM gold_v2.atendimentos_uc "
+        "WHERE data_abertura >= :period_start AND data_abertura < :period_end",
+        parameters={
+            "period_start": {"type": "timestamp", "value": "2026-06-01T00:00:00Z"},
+            "period_end": {"type": "timestamp", "value": "2026-07-01T00:00:00Z"},
+        })
+    body = value.model_dump(mode="json")
+    body["generation_contract_version"] = "text-to-sql-f1-v7"
+    body["interpretation"].update(
+        metric_id="service.satisfaction", aggregation="average_non_null", operation="average",
+        periods=[{"start": "2026-06-01", "end": "2026-06-30"}],
+        filters=[], group_by=[], ranking_direction=None, ranking_limit=None,
+    )
+    body["result_columns"] = [{
+        "name": "satisfaction", "role": "measure", "value_type": "decimal", "unit": "pontos",
     }]
     return type(value).model_validate(body), request
 
@@ -231,6 +329,31 @@ def test_attendance_counts_protocols_for_one_closed_utc_month(sql_request):
     assert review.measure_value_type == "integer"
 
 
+def test_satisfaction_averages_non_null_monthly_scores_and_accepts_zero(sql_request):
+    value, request = satisfaction_candidate(sql_request)
+    review = review_sql_semantics(value, request)
+    assert review.source_columns == frozenset({"data_abertura", "nota_satisfacao"})
+    assert review.measure_semantics == (("satisfaction", "satisfaction_average"),)
+    assert review.measure_value_type == "double"
+
+
+@pytest.mark.parametrize("sql", [
+    ("SELECT COUNT(nota_satisfacao) AS satisfaction FROM gold_v2.atendimentos_uc "
+     "WHERE data_abertura >= :period_start AND data_abertura < :period_end"),
+    ("SELECT AVG(nota_satisfacao) AS satisfaction FROM gold_v2.atendimentos_uc "
+     "WHERE data_abertura >= :period_start AND data_abertura < :period_end "
+     "AND nota_satisfacao > :positive"),
+])
+def test_satisfaction_rejects_count_and_score_filters(sql_request, sql):
+    value, request = satisfaction_candidate(sql_request, sql=sql)
+    if "positive" in sql:
+        body = value.model_dump(mode="json")
+        body["parameters"]["positive"] = {"type": "integer", "value": 0}
+        value = type(value).model_validate(body)
+    with pytest.raises(SqlStructureRejected):
+        review_sql_semantics(value, request)
+
+
 @pytest.mark.parametrize("group", [False, True])
 def test_revenue_neighborhood_uses_approved_bairro_source_and_grain(sql_request, group):
     value, request = neighborhood_revenue_query(sql_request, group=group)
@@ -249,11 +372,54 @@ def test_accumulated_attendance_sums_only_the_unperiodized_published_history(sql
     assert review.measure_value_type == "integer_sum"
 
 
+@pytest.mark.parametrize("group_by_municipality", [False, True])
+def test_gd_units_counts_registry_rows_once_and_can_group_by_municipality(
+    sql_request, group_by_municipality,
+):
+    value, request = gd_units_candidate(
+        sql_request, group_by_municipality=group_by_municipality,
+    )
+    review = review_sql_semantics(value, request)
+    assert "possui_gd" in review.source_columns
+    assert review.measure_semantics == (("gd_units", "gd_units_total"),)
+    assert review.measure_value_type == "integer"
+
+
+def test_gd_units_rejects_opposite_registry_filter(sql_request):
+    with pytest.raises((SqlStructureRejected, ValueError)):
+        value, request = gd_units_candidate(sql_request, filter_value="Não")
+        review_sql_semantics(value, request)
+
+
+def test_accumulated_satisfaction_averages_individual_notes_without_time_claims(sql_request):
+    value, request = accumulated_satisfaction_candidate(sql_request)
+    review = review_sql_semantics(value, request)
+    assert review.source_columns == frozenset({"nota_satisfacao"})
+    assert review.measure_semantics == (("satisfaction", "satisfaction_accumulated_average"),)
+    assert review.measure_value_type == "double"
+
+
 @pytest.mark.parametrize("sql", [
-    "SELECT SUM(total_chamados_callcenter) AS attendance FROM gold_v2.visao_360_uc "
-    "WHERE id_uc = :uc",
-    "SELECT SUM(total_chamados_callcenter) AS attendance FROM gold_v2.visao_360_uc "
-    "GROUP BY id_uc",
+    "SELECT COUNT(nota_satisfacao) AS satisfaction FROM gold_v2.atendimentos_uc",
+    ("SELECT AVG(nota_satisfacao) AS satisfaction FROM gold_v2.atendimentos_uc "
+     "WHERE nota_satisfacao > :minimum"),
+])
+def test_accumulated_satisfaction_rejects_count_and_note_filter(sql_request, sql):
+    value, request = accumulated_satisfaction_candidate(sql_request, sql=sql)
+    if ":minimum" in sql:
+        value, request = accumulated_satisfaction_candidate(
+            sql_request, sql=sql,
+            parameters={"minimum": {"type": "number", "value": 0}},
+        )
+    with pytest.raises(SqlStructureRejected):
+        review_sql_semantics(value, request)
+
+
+@pytest.mark.parametrize("sql", [
+    ("SELECT SUM(total_chamados_callcenter) AS attendance FROM gold_v2.visao_360_uc "
+     "WHERE id_uc = :uc"),
+    ("SELECT SUM(total_chamados_callcenter) AS attendance FROM gold_v2.visao_360_uc "
+     "GROUP BY id_uc"),
     "SELECT COUNT(total_chamados_callcenter) AS attendance FROM gold_v2.visao_360_uc",
 ])
 def test_accumulated_attendance_rejects_periods_dimensions_and_alternate_formulas(

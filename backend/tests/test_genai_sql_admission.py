@@ -3,6 +3,7 @@ import copy
 from dataclasses import replace
 
 import pytest
+
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.schemas.gold_readiness import GoldReadinessReport
 from app.schemas.sql_generation import SqlGenerationResponse
@@ -20,11 +21,14 @@ from app.services.genai_sql_observation import (
 )
 from app.services.genai_sql_structure import SqlStructureRejected
 from app.services.gold_catalog import GoldCatalogIncompatible
-
 from tests.test_genai_sql_comparison import comparison
 from tests.test_genai_sql_semantics import (
-    accumulated_attendance_query, continuity_candidate, consumption_query,
-    neighborhood_revenue_query, query,
+    accumulated_attendance_query,
+    consumption_query,
+    continuity_candidate,
+    neighborhood_revenue_query,
+    query,
+    satisfaction_candidate,
 )
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
@@ -50,6 +54,8 @@ class Environment:
                            "faturamento.receita": {"status": "available"},
                            "faturamento.receita_bairro": {"status": "available"},
                            "atendimento.uc_acumulado": {"status": "available"},
+                           "atendimento.mensal": {"status": "available"},
+                           "consumo.variacao_uc": {"status": "available"},
                            "consumo.mensal_uc": {"status": "available"}}}
         self.events = []
         self.source_coverage_failure = False
@@ -103,6 +109,20 @@ def test_admission_binds_context_canonical_query_and_readiness(sql_request):
     env.now[0] = 2
     assert env.revalidate(admitted, candidate) == admitted
     assert len([item for item in env.events if item == "metadata"]) == 2
+
+
+def test_satisfaction_admission_requires_monthly_customer_service_readiness(sql_request):
+    candidate, request = satisfaction_candidate(sql_request)
+    env = Environment(request)
+    admitted = env.admit(candidate)
+    assert admitted.requested_periods == ("2026-06",)
+    assert candidate.interpretation.metric_id == "service.satisfaction"
+    assert "atendimento.mensal" in env.report["capabilities"]
+    env.report["capabilities"]["atendimento.mensal"] = {
+        "status": "unavailable", "reasons": ["control_pending"],
+    }
+    with pytest.raises(SqlAdmissionDenied):
+        env.admit(candidate)
 
 
 def test_comparison_checks_readiness_for_both_windows(sql_request):

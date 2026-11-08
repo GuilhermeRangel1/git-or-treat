@@ -4,7 +4,7 @@ import json
 import re
 import unicodedata
 from dataclasses import dataclass, replace
-from datetime import datetime, time, timedelta, timezone
+from datetime import UTC, datetime, time, timedelta
 
 from sqlglot import exp, parse_one
 
@@ -216,7 +216,13 @@ def review_sql_semantics(
     gd_filters = [item for item in intent.filters
                   if item.dimension_id == "generation.distributed"]
     expected_gd = requested_gd_filter_value(request.question, request.context)
-    if expected_gd is None:
+    if intent.metric_id == "energy.gd_units":
+        gd_values = next((item["values"] for item in context["dimension_values"]
+                          if item["dimension_id"] == "generation.distributed"), [])
+        _require(len(gd_filters) == 1 and gd_filters[0].operator == "eq"
+                 and gd_filters[0].values == ("Sim",) and "Sim" in gd_values,
+                 "Contagem de UCs com GD exige o filtro cadastral aprovado.")
+    elif expected_gd is None:
         _require(not mentions_gd(request.question, request.context),
                  "Pedido de GD ambíguo exige esclarecimento.")
         _require(not gd_filters, "Filtro GD não foi solicitado explicitamente.")
@@ -266,6 +272,68 @@ def review_sql_semantics(
         return replace(
             _semantic_review(reviewed, [(output.alias, "attendance_accumulated_total")]),
             measure_value_type="integer_sum",
+        )
+    if intent.metric_id == "service.accumulated_satisfaction":
+        _require(intent.operation == "accumulated_average" and not intent.periods
+                 and intent.aggregation == "average_non_null"
+                 and not intent.filters and not intent.group_by
+                 and intent.ranking_direction is None and intent.ranking_limit is None,
+                 "Satisfação acumulada aceita somente média sem período ou recortes.")
+        _require(len(candidate.result_columns) == 1
+                 and candidate.result_columns[0].role == "measure"
+                 and candidate.result_columns[0].value_type == "decimal"
+                 and candidate.result_columns[0].unit == "pontos",
+                 "Satisfação acumulada exige média decimal em pontos.")
+        _require(len(tree.expressions) == 1
+                 and type(tree.expressions[0].this) is exp.Avg
+                 and type(tree.expressions[0].this.this) is exp.Column
+                 and tree.expressions[0].this.this.name == metric["measure_column"]
+                 and tree.args.get("where") is None
+                 and tree.args.get("group") is None
+                 and tree.args.get("order") is None
+                 and tree.args.get("limit") is None,
+                 "Satisfação acumulada deve ser a média das notas individuais publicadas.")
+        return replace(
+            _semantic_review(reviewed, [
+                (tree.expressions[0].alias, "satisfaction_accumulated_average"),
+            ]),
+            measure_value_type="double",
+        )
+    if intent.metric_id == "energy.gd_units":
+        _require(intent.operation == "snapshot_total" and not intent.periods
+                 and intent.aggregation == "count_non_null"
+                 and intent.ranking_direction is None and intent.ranking_limit is None,
+                 "Contagem de GD aceita somente o retrato cadastral do lote.")
+        _require(len(candidate.result_columns) in (1, 2)
+                 and all(item.value_type == "integer" and item.unit == "UCs"
+                         for item in candidate.result_columns if item.role == "measure"),
+                 "Contagem de GD exige medida inteira em UCs.")
+        expected = {"possui_gd": frozenset({"Sim"})}
+        for item in intent.filters:
+            if item.dimension_id != "generation.distributed":
+                expected[F1_DIMENSIONS[item.dimension_id]] = frozenset(item.values)
+        where = tree.args.get("where")
+        _require(where is not None
+                 and _selection(where.this, dict(reviewed.parameter_items)) == expected,
+                 "Recorte SQL deve preservar GD cadastrada e filtros geográficos pedidos.")
+        _require(not any(item.dimension_id not in {
+                    "generation.distributed", "geography.municipality"
+                } for item in intent.filters)
+                 and intent.group_by in ((), ("municipality",)),
+                 "Contagem de GD só admite o agrupamento legado por município.")
+        _require(all(type(output.this) is exp.Count
+                     and type(output.this.this) is exp.Column
+                     and output.this.this.name == "possui_gd"
+                     for output in tree.expressions if output.alias in {
+                         item.name for item in candidate.result_columns if item.role == "measure"
+                     }),
+                 "Contagem de GD deve contar os registros cadastrais da fonte aprovada.")
+        return replace(
+            _semantic_review(reviewed, [
+                (item.name, "gd_units_total")
+                for item in candidate.result_columns if item.role == "measure"
+            ]),
+            measure_value_type="integer",
         )
     coverage = next(item for item in request.temporal_coverage
                     if item.metric_id == intent.metric_id)
@@ -321,9 +389,9 @@ def review_sql_semantics(
                  "Atendimento exige medida inteira em protocolos.")
         months = _period_months(intent.periods[0])
         _require(months <= available, "Período sem cobertura mensal completa.")
-        expected_start = datetime.combine(intent.periods[0].start, time.min, tzinfo=timezone.utc)
+        expected_start = datetime.combine(intent.periods[0].start, time.min, tzinfo=UTC)
         expected_end = datetime.combine(intent.periods[0].end + timedelta(days=1), time.min,
-                                        tzinfo=timezone.utc)
+                                        tzinfo=UTC)
         parameters = dict(reviewed.parameter_items)
         where = tree.args.get("where")
         _require(where is not None and type(where.this) is exp.And,
@@ -350,6 +418,47 @@ def review_sql_semantics(
         semantics = [(item.name, "attendance_total") for item in candidate.result_columns
                      if item.role == "measure"]
         return replace(_semantic_review(reviewed, semantics), measure_value_type="integer")
+    if intent.metric_id == "service.satisfaction":
+        _require(intent.aggregation == "average_non_null" and intent.operation == "average"
+                 and not intent.group_by and not intent.filters and len(intent.periods) == 1,
+                 "Satisfação F1 libera somente a média mensal sem recortes.")
+        _require(len(candidate.result_columns) == 1
+                 and candidate.result_columns[0].role == "measure"
+                 and candidate.result_columns[0].value_type == "decimal"
+                 and candidate.result_columns[0].unit == "pontos",
+                 "Satisfação exige uma média decimal em pontos.")
+        months = _period_months(intent.periods[0])
+        _require(months <= available, "Período sem cobertura mensal completa.")
+        expected_start = datetime.combine(intent.periods[0].start, time.min, tzinfo=UTC)
+        expected_end = datetime.combine(intent.periods[0].end + timedelta(days=1), time.min,
+                                        tzinfo=UTC)
+        parameters = dict(reviewed.parameter_items)
+        where = tree.args.get("where")
+        _require(where is not None and type(where.this) is exp.And,
+                 "Média de satisfação exige limites mensais UTC explícitos.")
+        predicates = (where.this.this, where.this.expression)
+        actual = {}
+        for predicate in predicates:
+            _require(type(predicate) in (exp.GTE, exp.LT)
+                     and type(predicate.this) is exp.Column
+                     and predicate.this.name == "data_abertura"
+                     and type(predicate.expression) is exp.Placeholder,
+                     "Recorte de satisfação deve limitar data_abertura em UTC.")
+            actual[type(predicate)] = parameters[predicate.expression.name]
+        _require(actual == {exp.GTE: expected_start, exp.LT: expected_end},
+                 "Limites SQL divergem do mês solicitado em UTC.")
+        _require(not tree.args.get("group") and not tree.args.get("order")
+                 and not tree.args.get("limit"),
+                 "Média mensal de satisfação não admite agrupamento ou limite.")
+        output = tree.expressions[0]
+        _require(type(output.this) is exp.Avg
+                 and type(output.this.this) is exp.Column
+                 and output.this.this.name == "nota_satisfacao",
+                 "Satisfação deve calcular AVG(nota_satisfacao); zero é valor válido.")
+        return replace(
+            _semantic_review(reviewed, [(output.alias, "satisfaction_average")]),
+            measure_value_type="double",
+        )
     if intent.operation == "comparison":
         result = _review_comparison(tree, candidate, reviewed, available)
         return replace(result, measure_value_type=metric["measure_type"])

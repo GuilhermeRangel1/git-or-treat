@@ -225,13 +225,154 @@ def test_attendance_evidence_presents_monthly_protocol_count():
     assert presentation.limitations == ()
 
 
+def test_satisfaction_evidence_presents_monthly_average_and_null_rule():
+    interpretation = SqlInterpretation.model_validate({
+        "metric_id": "service.satisfaction", "operation": "average",
+        "aggregation": "average_non_null",
+        "periods": [{"start": "2026-06-01", "end": "2026-06-30"}],
+        "filters": [], "group_by": [], "ranking_direction": None,
+        "ranking_limit": None,
+    })
+    columns = (SqlResultColumn(
+        name="satisfaction", role="measure", value_type="decimal", unit="pontos",
+    ),)
+    payload = {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v7",
+        "source_id": "gold.local", "source_table": "gold_v2.atendimentos_uc",
+        "metric_id": "service.satisfaction", "coverage_quality": "certified",
+        "batch_ref": "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "a" * 64, "admission_digest": "b" * 64,
+        "execution_digest": "c" * 64, "result_digest": "0" * 64,
+        "mapping_version": "gold-catalog-v2", "dictionary_version": "gold-dictionary-v2",
+        "interpretation": interpretation, "columns": columns,
+        "measure_semantics": {"satisfaction": "satisfaction_average"},
+        "dimension_semantics": {}, "rows": (("4.25",),), "status": "available",
+    }
+    result_payload = {
+        "columns": ["satisfaction"],
+        "measure_semantics": [["satisfaction", "satisfaction_average"]],
+        "rows": (("4.25",),), "status": "available",
+    }
+    payload["result_digest"] = hashlib.sha256(json.dumps(
+        result_payload, ensure_ascii=False, separators=(",", ":"),
+    ).encode()).hexdigest()
+    provisional = SqlEvidence.model_construct(**payload, evidence_digest="0" * 64)
+    digest_payload = provisional.model_dump(mode="json", exclude={"evidence_digest"})
+    payload["evidence_digest"] = sql_evidence_digest(digest_payload)
+    presentation = present_sql_evidence(SqlEvidence.model_validate(payload))
+    assert presentation.contract_version == "text-to-sql-f1-presentation-v6"
+    assert presentation.operation == "average"
+    assert presentation.answer == (
+        "A nota média de satisfação no período junho de 2026 foi 4,25 pontos."
+    )
+    assert presentation.columns[0].semantic_id == "satisfaction_average"
+    assert presentation.limitations == (
+        "Média das notas informadas; valores ausentes são excluídos e zero é válido.",
+    )
+
+
+def test_gd_units_evidence_is_presented_as_a_snapshot_of_the_published_lot():
+    interpretation = SqlInterpretation.model_validate({
+        "metric_id": "energy.gd_units", "operation": "snapshot_total",
+        "aggregation": "count_non_null", "periods": [],
+        "filters": [{"dimension_id": "generation.distributed", "operator": "eq",
+                     "values": ["Sim"]}],
+        "group_by": [], "ranking_direction": None, "ranking_limit": None,
+    })
+    columns = (SqlResultColumn(
+        name="gd_units", role="measure", value_type="integer", unit="UCs",
+    ),)
+    payload = {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v8",
+        "source_id": "gold.local", "source_table": "gold_v2.variacao_consumo_uc",
+        "metric_id": "energy.gd_units", "coverage_quality": "certified",
+        "batch_ref": "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "a" * 64, "admission_digest": "b" * 64,
+        "execution_digest": "c" * 64, "result_digest": "0" * 64,
+        "mapping_version": "gold-catalog-v2", "dictionary_version": "gold-dictionary-v2",
+        "interpretation": interpretation, "columns": columns,
+        "measure_semantics": {"gd_units": "gd_units_total"},
+        "dimension_semantics": {}, "rows": (("42",),), "status": "available",
+    }
+    result_payload = {
+        "columns": ["gd_units"], "measure_semantics": [["gd_units", "gd_units_total"]],
+        "rows": (("42",),), "status": "available",
+    }
+    payload["result_digest"] = hashlib.sha256(json.dumps(
+        result_payload, ensure_ascii=False, separators=(",", ":"),
+    ).encode()).hexdigest()
+    provisional = SqlEvidence.model_construct(**payload, evidence_digest="0" * 64)
+    payload["evidence_digest"] = sql_evidence_digest(
+        provisional.model_dump(mode="json", exclude={"evidence_digest"})
+    )
+
+    presentation = present_sql_evidence(SqlEvidence.model_validate(payload))
+
+    assert presentation.contract_version == "text-to-sql-f1-presentation-v7"
+    assert presentation.period == "Cadastro de GD no lote"
+    assert presentation.answer == (
+        "Foram identificadas 42 UCs com GD cadastrada no lote publicado."
+    )
+    assert presentation.limitations == (
+        "Retrato do cadastro no lote publicado; não informa quando a GD entrou em operação nem confirma geração ou injeção.",
+    )
+
+
+def test_accumulated_satisfaction_presents_historical_average_without_a_date_range():
+    interpretation = SqlInterpretation.model_validate({
+        "metric_id": "service.accumulated_satisfaction", "operation": "accumulated_average",
+        "aggregation": "average_non_null", "periods": [], "filters": [],
+        "group_by": [], "ranking_direction": None, "ranking_limit": None,
+    })
+    columns = (SqlResultColumn(
+        name="satisfaction", role="measure", value_type="decimal", unit="pontos",
+    ),)
+    payload = {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v9",
+        "source_id": "gold.local", "source_table": "gold_v2.atendimentos_uc",
+        "metric_id": "service.accumulated_satisfaction", "coverage_quality": "certified",
+        "batch_ref": "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "a" * 64, "admission_digest": "b" * 64,
+        "execution_digest": "c" * 64, "result_digest": "0" * 64,
+        "mapping_version": "gold-catalog-v2", "dictionary_version": "gold-dictionary-v2",
+        "interpretation": interpretation, "columns": columns,
+        "measure_semantics": {"satisfaction": "satisfaction_accumulated_average"},
+        "dimension_semantics": {}, "rows": (("4.25",),), "status": "available",
+    }
+    result_payload = {
+        "columns": ["satisfaction"],
+        "measure_semantics": [["satisfaction", "satisfaction_accumulated_average"]],
+        "rows": (("4.25",),), "status": "available",
+    }
+    payload["result_digest"] = hashlib.sha256(json.dumps(
+        result_payload, ensure_ascii=False, separators=(",", ":"),
+    ).encode()).hexdigest()
+    provisional = SqlEvidence.model_construct(**payload, evidence_digest="0" * 64)
+    payload["evidence_digest"] = sql_evidence_digest(
+        provisional.model_dump(mode="json", exclude={"evidence_digest"})
+    )
+
+    presentation = present_sql_evidence(SqlEvidence.model_validate(payload))
+
+    assert presentation.contract_version == "text-to-sql-f1-presentation-v8"
+    assert presentation.operation == "accumulated_average"
+    assert presentation.period == "Histórico acumulado"
+    assert presentation.answer == (
+        "A média das notas individuais válidas no histórico publicado foi 4,25 pontos. "
+        "O intervalo e a completude histórica não são conhecidos."
+    )
+    assert presentation.limitations == (
+        "Média das notas válidas do histórico publicado; o intervalo e a completude histórica não são conhecidos.",
+    )
+
+
 @pytest.mark.parametrize(("metric_id", "meaning", "unit", "expected"), [
     ("network.equivalent_interruption_duration", "dec_value", "horas por UC",
-     "DEC no período junho de 2026 (Alimentador: ALIM-01): 1,25 horas por UC. "
-     "Valores observados; cobertura do alimentador não certificada."),
+     ("DEC no período junho de 2026 (Alimentador: ALIM-01): 1,25 horas por UC. "
+      "Valores observados; cobertura do alimentador não certificada.")),
     ("network.equivalent_interruption_frequency", "fec_value", "interrupções por UC",
-     "FEC no período junho de 2026 (Alimentador: ALIM-01): 0,75 interrupções por UC. "
-     "Valores observados; cobertura do alimentador não certificada."),
+     ("FEC no período junho de 2026 (Alimentador: ALIM-01): 0,75 interrupções por UC. "
+      "Valores observados; cobertura do alimentador não certificada.")),
 ])
 def test_continuity_presents_one_grain_value_and_uncertified_coverage_warning(
     metric_id, meaning, unit, expected,

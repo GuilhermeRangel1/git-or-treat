@@ -26,7 +26,10 @@ F1_METRIC_SOURCE_CAPABILITY = {
     # O fluxo legado validava a medida kWh junto da receita em diagnostico_receita.
     "energy.consumption": "faturamento.receita",
     "service.attendance": "atendimento.mensal",
+    "service.satisfaction": "atendimento.mensal",
     "service.accumulated_attendance": "atendimento.uc_acumulado",
+    "service.accumulated_satisfaction": "atendimento.uc_acumulado",
+    "energy.gd_units": "consumo.variacao_uc",
     "network.equivalent_interruption_duration": "interrupcoes.dec_fec",
     "network.equivalent_interruption_frequency": "interrupcoes.dec_fec",
 }
@@ -61,6 +64,12 @@ def _canonical(value) -> str:
 
 def requested_sql_metric_id(question: str, context=()) -> str:
     normalized = question.casefold()
+    if _is_gd_units_question(question):
+        return "energy.gd_units"
+    if _is_accumulated_satisfaction_question(question):
+        return "service.accumulated_satisfaction"
+    if any(token in normalized for token in ("satisf", "nota média", "nota media")):
+        return "service.satisfaction"
     if "histórico acumulado" in normalized and any(
         token in normalized for token in ("atendiment", "protocol", "chamad", "call center")
     ):
@@ -88,6 +97,10 @@ def requested_sql_metric_id(question: str, context=()) -> str:
         if turn.role != "user":
             continue
         previous = turn.content.casefold()
+        if _is_gd_units_question(turn.content):
+            return "energy.gd_units"
+        if _is_accumulated_satisfaction_question(turn.content):
+            return "service.accumulated_satisfaction"
         continuity = continuity_metric(previous)
         if continuity:
             return continuity
@@ -97,6 +110,8 @@ def requested_sql_metric_id(question: str, context=()) -> str:
             return "service.accumulated_attendance"
         if any(token in previous for token in ("atendiment", "protocolo", "chamado", "reclamação")):
             return "service.attendance"
+        if any(token in previous for token in ("satisf", "nota média", "nota media")):
+            return "service.satisfaction"
         if any(token in previous for token in ("kwh", "quilowatt")):
             return "energy.consumption"
         if any(token in previous for token in ("receit", "fatur", "r$", "reais")):
@@ -104,6 +119,34 @@ def requested_sql_metric_id(question: str, context=()) -> str:
         if "consum" in previous:
             return "energy.consumption"
     return "billing.revenue"
+
+
+def _is_gd_units_question(question: str) -> bool:
+    normalized = _normalize_question(question)
+    if re.search(r"\b(?:queda|reducao|reduziram|diminuiram|cairam)\b|\b30\s*%", normalized):
+        return False
+    asks_count = re.search(
+        r"\b(?:quantas?|contagem|quantidade de|numero de|total de)\b", normalized,
+    )
+    names_uc = re.search(r"\b(?:uc|ucs|unidade|unidades)\b", normalized)
+    mentions_gd = re.search(r"\b(?:gd|geracao distribuida)\b", normalized)
+    return bool(asks_count and names_uc and mentions_gd)
+
+
+def _is_accumulated_satisfaction_question(question: str) -> bool:
+    normalized = _normalize_question(question)
+    asks_satisfaction = re.search(r"\b(?:satisfacao|nota media|nota de satisfacao)\b", normalized)
+    names_history = re.search(r"\b(?:historico|acumulad[oa]s?)\b", normalized)
+    return bool(asks_satisfaction and names_history)
+
+
+def is_gd_consumption_drop_question(question: str) -> bool:
+    """Detecta a métrica legada de queda GD, ainda fora da SQL F1 executável."""
+    normalized = _normalize_question(question)
+    return bool(
+        re.search(r"\b(?:gd|geracao distribuida)\b", normalized)
+        and re.search(r"\b(?:queda|reducao|reduziram|diminuiram|cairam)\b", normalized)
+    )
 
 
 def is_explicit_multi_metric_question(question: str) -> bool:
@@ -217,6 +260,9 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
     metric_id = requested_sql_metric_id(request.question, request.context)
     generation_version = (
         "text-to-sql-f1-v4" if metric_id.startswith("network.equivalent_interruption_")
+        else "text-to-sql-f1-v7" if metric_id == "service.satisfaction"
+        else "text-to-sql-f1-v8" if metric_id == "energy.gd_units"
+        else "text-to-sql-f1-v9" if metric_id == "service.accumulated_satisfaction"
         else "text-to-sql-f1-v5" if metric_id == "service.accumulated_attendance"
         else "text-to-sql-f1-v3" if metric_id == "service.attendance"
         else "text-to-sql-f1-v2" if metric_id == "energy.consumption"
@@ -227,11 +273,13 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
             or re.fullmatch(r"session:[a-f0-9]{64}", scope.caller_ref) is None
             or metric_id not in scope.allowed_metric_ids or request.batch_ref is None):
         raise SqlContextUnavailable("Escopo F1 indisponível.", reason="scope_unavailable")
-    if metric_id == "service.accumulated_attendance":
+    if metric_id in {
+        "service.accumulated_attendance", "service.accumulated_satisfaction", "energy.gd_units",
+    }:
         coverage = next((item for item in request.temporal_coverage
                          if item.metric_id == metric_id), None)
         if coverage is None or coverage.kind != "none" or coverage.competencies:
-            raise SqlContextUnavailable("Cobertura de histórico acumulado indisponível.",
+            raise SqlContextUnavailable("Cobertura da fonte de retrato indisponível.",
                                         reason="coverage_unavailable")
     else:
         coverage = next((item for item in request.temporal_coverage
@@ -266,7 +314,8 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
     dimensions = {key: value for key, value in source.dimension_columns.items()
                   if key in scope.allowed_dimension_ids
                   and (key != "generation.distributed"
-                       or gd_filter_value is not None and metric_id == "energy.consumption")}
+                       or gd_filter_value is not None and metric_id == "energy.consumption"
+                       or metric_id == "energy.gd_units")}
     columns = [column for column in
                (source.temporal_column, source.measure_column, *dimensions.values())
                if column is not None]
@@ -296,6 +345,7 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
                    "unit": metric.unit, "measure_column": source.measure_column,
                    "measure_type": "integer" if metric_id in {
                        "service.attendance", "service.accumulated_attendance",
+                       "energy.gd_units",
                    }
                    else metric.measure_type,
                    "aggregation": metric.aggregation, "null_rule": metric.null_rule,
@@ -317,11 +367,31 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
             "gd_filter_requires_explicit_question": metric_id == "energy.consumption",
             "aggregate_all_published_rows_before_ranking": True,
             "scope_is_not_authorized_by_model": True,
-            "attendance_uses_utc_month_boundaries": metric_id == "service.attendance",
+            "attendance_uses_utc_month_boundaries": metric_id in {
+                "service.attendance", "service.satisfaction",
+            },
             "attendance_operations": ["total"] if metric_id == "service.attendance" else [],
+            "satisfaction_operations": ["average"]
+            if metric_id == "service.satisfaction" else [],
+            "satisfaction_definition": (
+                "AVG(nota_satisfacao) por data_abertura no mês UTC; NULL é ignorado, zero é válido"
+                if metric_id == "service.satisfaction" else None
+            ),
             "accumulated_attendance_operations": ["accumulated_total"]
             if metric_id == "service.accumulated_attendance" else [],
             "accumulated_period_is_unknown": metric_id == "service.accumulated_attendance",
+            "accumulated_satisfaction_operations": ["accumulated_average"]
+            if metric_id == "service.accumulated_satisfaction" else [],
+            "accumulated_satisfaction_period_is_unknown": metric_id == "service.accumulated_satisfaction",
+            "accumulated_satisfaction_definition": (
+                "AVG das notas individuais não nulas; zero é válido; sem período histórico conhecido"
+                if metric_id == "service.accumulated_satisfaction" else None
+            ),
+            "snapshot_operations": ["snapshot_total"] if metric_id == "energy.gd_units" else [],
+            "snapshot_period_phrase": "cadastro de GD no lote"
+            if metric_id == "energy.gd_units" else None,
+            "fixed_filter_values": metric.fixed_filter_values,
+            "snapshot_definition": metric.definition if metric_id == "energy.gd_units" else None,
             "continuity_operations": ["grain_read"]
             if metric_id.startswith("network.equivalent_interruption_") else [],
             "continuity_no_aggregation": metric_id.startswith("network.equivalent_interruption_"),

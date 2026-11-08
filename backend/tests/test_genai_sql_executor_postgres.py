@@ -23,8 +23,13 @@ from app.services.genai_sql_structure import SqlStructureRejected
 from app.services.gold_catalog import GoldCatalogIncompatible
 from tests.test_genai_sql_admission import Environment
 from tests.test_genai_sql_comparison import comparison
-from tests.test_genai_sql_semantics import gd_consumption_query
-from tests.test_genai_sql_semantics import query
+from tests.test_genai_sql_semantics import (
+    accumulated_satisfaction_candidate,
+    gd_consumption_query,
+    gd_units_candidate,
+    query,
+    satisfaction_candidate,
+)
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
 sql_request = fixture_sql_request
@@ -52,6 +57,8 @@ def engines():
                 "('gold-csv-v2', 'GOLD_20000101T000000Z_aaaaaaaa', "
                 "'12345678-1234-4123-8123-123456789abc')")
             TABLES["diagnostico_receita"].create(connection)
+            TABLES["atendimentos_uc"].create(connection)
+            TABLES["variacao_consumo_uc"].create(connection)
             connection.execute(text("INSERT INTO gold_v2.diagnostico_receita "
                 "(competencia, municipio, classe_consumo, subgrupo_tarifario, bandeira_tarifaria, possui_gd, receita_total_reais, consumo_total_kwh) VALUES "
                 "(:month, :city, :class, 'SINTETICO', 'SINTETICA', :gd, :value, :kwh)"), [
@@ -64,11 +71,32 @@ def engines():
                 {"month": "2026-06", "city": "Olinda", "class": "RESIDENCIAL",
                  "gd": "Sim", "value": "900.00", "kwh": 999.0},
             ])
+            connection.execute(text(
+                "INSERT INTO gold_v2.atendimentos_uc (protocolo, data_abertura, nota_satisfacao) "
+                "VALUES (:protocol, :opened, :score)"
+            ), [
+                {"protocol": "SYN-1", "opened": "2026-06-01T00:00:00+00:00", "score": 4.5},
+                {"protocol": "SYN-2", "opened": "2026-06-15T12:00:00+00:00", "score": 0.0},
+                {"protocol": "SYN-3", "opened": "2026-06-30T23:59:59+00:00", "score": None},
+                {"protocol": "SYN-4", "opened": "2026-07-01T00:00:00+00:00", "score": 1.0},
+            ])
+            connection.execute(text(
+                "INSERT INTO gold_v2.variacao_consumo_uc (id_uc, municipio, possui_gd) "
+                "VALUES (:unit, :city, :gd)"
+            ), [
+                {"unit": "SYN-GD-1", "city": "Recife", "gd": "Sim"},
+                {"unit": "SYN-GD-2", "city": "Recife", "gd": "Sim"},
+                {"unit": "SYN-GD-3", "city": "Olinda", "gd": "Sim"},
+                {"unit": "SYN-GD-4", "city": "Recife", "gd": "Não"},
+            ])
             connection.exec_driver_sql("CREATE ROLE venergy_genai_reader LOGIN "
                 "NOSUPERUSER NOBYPASSRLS PASSWORD 'synthetic-test-only'")
             connection.exec_driver_sql("GRANT USAGE ON SCHEMA gold, gold_v2 TO venergy_genai_reader")
             connection.exec_driver_sql("GRANT SELECT ON gold.publicacao_atual, "
-                "gold_v2.diagnostico_receita TO venergy_genai_reader")
+                "gold_v2.diagnostico_receita, gold_v2.atendimentos_uc TO venergy_genai_reader")
+            connection.exec_driver_sql(
+                "GRANT SELECT ON gold_v2.variacao_consumo_uc TO venergy_genai_reader"
+            )
         reader = create_engine(url.set(username="venergy_genai_reader", password="synthetic-test-only"),
                                hide_parameters=True, echo=False, pool_size=1, max_overflow=0)
         yield owner, reader
@@ -162,6 +190,112 @@ def test_real_restricted_snapshot_preserves_explicit_gd_consumption_filter(sql_r
         )).scalar_one()
     assert run.evidence.rows == ((format(expected, ".2f"),),)
     assert run.evidence.rows == (("12.50",),)
+    assert reader.pool.checkedout() == 0
+
+
+def test_real_restricted_snapshot_averages_satisfaction_including_zero_and_ignoring_null(
+    sql_request, engines,
+):
+    owner, reader = engines
+    candidate, request = satisfaction_candidate(sql_request)
+    env = Environment(request)
+    env.analytic_engine, env.readiness_engine = reader, owner
+    publication = GoldPublicationContext.capture(reader)
+    env.execution_snapshot = publication.execution_snapshot
+    env.assert_current = publication.assert_current
+    env.generated_candidate = candidate
+
+    async def generate_sql_candidate(payload, *, correlation_id):
+        from app.schemas.sql_generation import SqlGenerationResponse
+
+        return SqlGenerationResponse(
+            correlation_id=correlation_id,
+            generation_contract_version=env.generated_candidate.generation_contract_version,
+            candidate=env.generated_candidate,
+        )
+
+    env.generate_sql_candidate = generate_sql_candidate
+    run = asyncio.run(run_sql_question(request, **env.kwargs()))
+    assert run.evidence is not None
+    with owner.connect() as control:
+        expected = control.execute(text(
+            "SELECT AVG(nota_satisfacao) FROM gold_v2.atendimentos_uc "
+            "WHERE data_abertura >= '2026-06-01T00:00:00Z' "
+            "AND data_abertura < '2026-07-01T00:00:00Z'"
+        )).scalar_one()
+    assert run.evidence.metric_id == "service.satisfaction"
+    assert run.evidence.evidence_contract_version == "text-to-sql-f1-evidence-v7"
+    assert run.evidence.rows == ((format(expected, ".2f"),),) == (("2.25",),)
+    assert run.evidence.coverage_quality == "certified"
+    assert reader.pool.checkedout() == 0
+
+
+def test_real_restricted_snapshot_counts_gd_registry_units_once(sql_request, engines):
+    owner, reader = engines
+    candidate, request = gd_units_candidate(sql_request)
+    env = Environment(request)
+    env.analytic_engine, env.readiness_engine = reader, owner
+    publication = GoldPublicationContext.capture(reader)
+    env.execution_snapshot = publication.execution_snapshot
+    env.assert_current = publication.assert_current
+    env.generated_candidate = candidate
+
+    async def generate_sql_candidate(payload, *, correlation_id):
+        from app.schemas.sql_generation import SqlGenerationResponse
+
+        return SqlGenerationResponse(
+            correlation_id=correlation_id,
+            generation_contract_version=env.generated_candidate.generation_contract_version,
+            candidate=env.generated_candidate,
+        )
+
+    env.generate_sql_candidate = generate_sql_candidate
+    run = asyncio.run(run_sql_question(request, **env.kwargs()))
+    assert run.evidence is not None
+    with owner.connect() as control:
+        expected = control.execute(text(
+            "SELECT COUNT(possui_gd) FROM gold_v2.variacao_consumo_uc "
+            "WHERE possui_gd = 'Sim'"
+        )).scalar_one()
+    assert run.evidence.metric_id == "energy.gd_units"
+    assert run.evidence.evidence_contract_version == "text-to-sql-f1-evidence-v8"
+    assert run.evidence.rows == ((str(expected),),) == (("3",),)
+    assert run.evidence.source_table == "gold_v2.variacao_consumo_uc"
+    assert reader.pool.checkedout() == 0
+
+
+def test_real_restricted_snapshot_averages_all_published_satisfaction_notes(
+    sql_request, engines,
+):
+    owner, reader = engines
+    candidate, request = accumulated_satisfaction_candidate(sql_request)
+    env = Environment(request)
+    env.analytic_engine, env.readiness_engine = reader, owner
+    publication = GoldPublicationContext.capture(reader)
+    env.execution_snapshot = publication.execution_snapshot
+    env.assert_current = publication.assert_current
+    env.generated_candidate = candidate
+
+    async def generate_sql_candidate(payload, *, correlation_id):
+        from app.schemas.sql_generation import SqlGenerationResponse
+
+        return SqlGenerationResponse(
+            correlation_id=correlation_id,
+            generation_contract_version=env.generated_candidate.generation_contract_version,
+            candidate=env.generated_candidate,
+        )
+
+    env.generate_sql_candidate = generate_sql_candidate
+    run = asyncio.run(run_sql_question(request, **env.kwargs()))
+    assert run.evidence is not None
+    with owner.connect() as control:
+        expected = control.execute(text(
+            "SELECT AVG(nota_satisfacao) FROM gold_v2.atendimentos_uc"
+        )).scalar_one()
+    assert run.evidence.metric_id == "service.accumulated_satisfaction"
+    assert run.evidence.evidence_contract_version == "text-to-sql-f1-evidence-v9"
+    assert run.evidence.rows == ((format(expected, ".2f"),),)
+    assert run.evidence.interpretation.periods == ()
     assert reader.pool.checkedout() == 0
 
 

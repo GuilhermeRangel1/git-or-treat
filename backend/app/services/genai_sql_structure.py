@@ -22,7 +22,8 @@ _ARGS = {
     exp.From: {"this"}, exp.Table: {"this", "db", "catalog", "alias"},
     exp.TableAlias: {"this", "columns"}, exp.Identifier: {"this", "quoted"},
     exp.Alias: {"this", "alias"}, exp.Column: {"this", "table", "db", "catalog"},
-    exp.Sum: {"this"}, exp.Count: {"this", "expressions", "big_int"}, exp.Filter: {"this", "expression"},
+    exp.Sum: {"this"}, exp.Count: {"this", "expressions", "big_int"},
+    exp.Avg: {"this"}, exp.Filter: {"this", "expression"},
     exp.Sub: {"this", "expression"}, exp.Where: {"this"},
     exp.Group: {"expressions"}, exp.Order: {"expressions"},
     exp.Ordered: {"this", "desc", "nulls_first"}, exp.Limit: {"expression"},
@@ -56,40 +57,50 @@ def _require(condition: bool, message: str) -> None:
         raise SqlStructureRejected(message)
 
 
-def _predicate(node: exp.Expression, measure_column: str) -> bool:
+def _predicate(
+    node: exp.Expression, measure_column: str, *, allow_measure_filter: bool = False,
+) -> bool:
     if type(node) is exp.Paren:
-        return _predicate(node.this, measure_column)
+        return _predicate(node.this, measure_column, allow_measure_filter=allow_measure_filter)
     if type(node) in (exp.And, exp.Or):
-        return (_predicate(node.this, measure_column)
-                and _predicate(node.expression, measure_column))
+        return (_predicate(node.this, measure_column, allow_measure_filter=allow_measure_filter)
+                and _predicate(node.expression, measure_column, allow_measure_filter=allow_measure_filter))
     if type(node) in _COMPARISONS:
-        return (type(node.this) is exp.Column and node.this.name != measure_column
+        return (type(node.this) is exp.Column
+                and (allow_measure_filter or node.this.name != measure_column)
                 and type(node.expression) is exp.Placeholder)
     if type(node) is exp.In:
-        return (type(node.this) is exp.Column and node.this.name != measure_column
+        return (type(node.this) is exp.Column
+                and (allow_measure_filter or node.this.name != measure_column)
                 and bool(node.expressions)
                 and all(type(item) is exp.Placeholder for item in node.expressions))
     if type(node) is exp.Between:
-        return (type(node.this) is exp.Column and node.this.name != measure_column
+        return (type(node.this) is exp.Column
+                and (allow_measure_filter or node.this.name != measure_column)
                 and type(node.args.get("low")) is exp.Placeholder
                 and type(node.args.get("high")) is exp.Placeholder)
     return False
 
 
-def _measure(node: exp.Expression, measure_column: str) -> bool:
+def _measure(node: exp.Expression, measure_column: str, metric_id: str) -> bool:
     if type(node) is exp.Paren:
-        return _measure(node.this, measure_column)
+        return _measure(node.this, measure_column, metric_id)
     if type(node) is exp.Sum:
         return type(node.this) is exp.Column and node.this.name == measure_column
     if type(node) is exp.Count:
         return type(node.this) is exp.Column and node.this.name == measure_column
+    if type(node) is exp.Avg:
+        return (metric_id in {
+                    "service.satisfaction", "service.accumulated_satisfaction",
+                }
+                and type(node.this) is exp.Column and node.this.name == measure_column)
     if type(node) is exp.Filter:
-        return (type(node.this) is exp.Sum and _measure(node.this, measure_column)
+        return (type(node.this) is exp.Sum and _measure(node.this, measure_column, metric_id)
                 and type(node.expression) is exp.Where
                 and _predicate(node.expression.this, measure_column))
     if type(node) is exp.Sub:
-        return (_measure(node.this, measure_column)
-                and _measure(node.expression, measure_column))
+        return (_measure(node.this, measure_column, metric_id)
+                and _measure(node.expression, measure_column, metric_id))
     return False
 
 
@@ -171,14 +182,16 @@ def review_sql_structure(
                          "Dimensão exige agrupamento e papel compatíveis.")
                 projected_dimensions.add(item.this.name)
         else:
-            _require(_measure(item.this, measure_column) and declared.role == "measure",
+            _require(_measure(item.this, measure_column, metric_id) and declared.role == "measure",
                      "Medida fora da agregação F1.")
         _require(item.alias not in allowed_columns
                  or type(item.this) is exp.Column and item.alias == item.this.name,
                  "Alias ambíguo com coluna física.")
     _require(group_names == projected_dimensions, "Agrupamento difere das dimensões exibidas.")
     where = tree.args.get("where")
-    _require(where is None or _predicate(where.this, measure_column), "Predicado fora da F1.")
+    _require(where is None or _predicate(
+        where.this, measure_column, allow_measure_filter=metric_id == "energy.gd_units",
+    ), "Predicado fora da F1.")
     order = tree.args.get("order")
     order_alias_nodes = set()
     if order is not None:
@@ -210,7 +223,7 @@ def review_sql_structure(
     references = frozenset(node.name for node in placeholders)
     parameters = prepare_sql_parameters(candidate.parameters, referenced_names=references)
     metric_id = json.loads(context.contents)["metric"]["id"]
-    if metric_id == "service.attendance":
+    if metric_id in {"service.attendance", "service.satisfaction"}:
         _require(all(type(value) is datetime for value in parameters.values()),
                  "Limites de atendimento exigem parâmetros UTC tipados.")
         _require(all(value.utcoffset().total_seconds() == 0 for value in parameters.values()),
