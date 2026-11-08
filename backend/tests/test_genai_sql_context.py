@@ -1,11 +1,12 @@
 import json
 
 import pytest
-
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
     build_sql_generation_context,
+    is_explicit_multi_metric_question,
+    requested_sql_metric_id,
 )
 
 
@@ -29,6 +30,15 @@ def request_payload():
             {"dimension_id": "geography.municipality", "values": ["Recife"]}
         ],
     }
+
+
+def test_billing_consumption_class_is_not_misread_as_two_metrics():
+    question = "Qual foi o faturamento da classe de consumo residencial?"
+    assert requested_sql_metric_id(question) == "billing.revenue"
+    assert not is_explicit_multi_metric_question(question)
+    assert is_explicit_multi_metric_question(
+        "Compare o consumo medido e o faturamento em junho de 2026."
+    )
 
 
 def build(payload):
@@ -58,6 +68,123 @@ def test_context_separates_recognition_registry_from_authorized_f1_schema():
     assert body["rules"]["annual_requires_all_months"] is True
     assert body["schema_basis"].endswith("not_live_database")
     assert body["context_version"] == context.context_version
+
+
+def test_consumption_context_selects_measured_kwh_and_aggregate_source_only():
+    payload = request_payload()
+    payload["question"] = "Qual foi o consumo de Recife em junho de 2026?"
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.consumption", "kind": "monthly", "competencies": ["2026-06"],
+    }]
+    context = build(payload)
+    body = json.loads(context.contents)
+
+    assert body["generation_contract_version"] == "text-to-sql-f1-v2"
+    assert body["metric"]["id"] == "energy.consumption"
+    assert body["metric"]["measure_column"] == "consumo_total_kwh"
+    assert body["metric"]["unit"] == "kWh"
+    assert body["metric"]["measure_type"] == "double"
+    assert body["source"]["table"] == "diagnostico_receita"
+    assert "consumo_total_kwh" in body["source"]["columns"]
+    assert "receita_total_reais" not in body["source"]["columns"]
+    assert "consumer_unit" not in context.contents
+    assert context.metric_ids == ("energy.consumption",)
+
+
+def test_revenue_neighborhood_request_selects_controlled_source_and_dimension():
+    payload = request_payload()
+    payload["question"] = "Qual foi a receita por bairro em Recife em junho de 2026?"
+    payload["access_scope"]["allowed_dimension_ids"].append("geography.neighborhood")
+    payload["dimension_value_coverage"].append({
+        "dimension_id": "geography.neighborhood", "values": ["Boa Vista"],
+    })
+    context = build(payload)
+    body = json.loads(context.contents)
+    assert body["source"]["capability_id"] == "faturamento.receita_bairro"
+    assert body["source"]["table"] == "consumo_receita_bairro"
+    assert body["dimensions"]["geography.neighborhood"] == "bairro"
+    assert "bairro" in body["source"]["columns"]
+
+
+def test_revenue_neighborhood_source_requires_profile_dimension_permission():
+    payload = request_payload()
+    payload["question"] = "Qual foi a receita do bairro Boa Vista em junho de 2026?"
+    with pytest.raises(SqlContextUnavailable, match="bairro"):
+        build(payload)
+
+
+def test_attendance_context_uses_monthly_protocol_source_without_uc_dimension():
+    payload = request_payload()
+    payload["question"] = "Quantos protocolos de atendimento foram abertos em junho de 2026?"
+    payload["access_scope"]["allowed_metric_ids"] = ["service.attendance"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.attendance", "kind": "monthly", "competencies": ["2026-06"],
+    }]
+    context = build(payload)
+    body = json.loads(context.contents)
+    assert body["generation_contract_version"] == "text-to-sql-f1-v3"
+    assert body["metric"]["id"] == "service.attendance"
+    assert body["metric"]["aggregation"] == "count_non_null"
+    assert body["metric"]["measure_column"] == "protocolo"
+    assert body["metric"]["measure_type"] == "integer"
+    assert body["metric"]["unit"] == "protocolos"
+    assert body["source"]["table"] == "atendimentos_uc"
+    assert set(body["source"]["columns"]) == {"data_abertura", "protocolo"}
+
+
+def test_accumulated_attendance_context_has_no_invented_period_or_uc_filter():
+    payload = request_payload()
+    payload["question"] = "Quantos chamados no histórico acumulado?"
+    payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_attendance"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.accumulated_attendance", "kind": "none",
+    }]
+    context = build(payload)
+    body = json.loads(context.contents)
+    assert body["generation_contract_version"] == "text-to-sql-f1-v5"
+    assert body["metric"]["id"] == "service.accumulated_attendance"
+    assert body["source"]["table"] == "visao_360_uc"
+    assert body["source"]["temporal_column"] is None
+    assert body["source"]["columns"] == {"total_chamados_callcenter": "BIGINT"}
+    assert body["rules"]["accumulated_period_is_unknown"] is True
+
+
+@pytest.mark.parametrize(("code", "metric_id", "column", "unit"), [
+    ("DEC", "network.equivalent_interruption_duration", "DEC", "horas por UC"),
+    ("FEC", "network.equivalent_interruption_frequency", "FEC", "interrupções por UC"),
+])
+def test_continuity_context_exposes_only_feeder_month_measure(code, metric_id, column, unit):
+    payload = request_payload()
+    payload["question"] = f"Qual foi o {code} do alimentador ALIM-01 em junho de 2026?"
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = ["network.feeder"]
+    payload["temporal_coverage"] = [{
+        "metric_id": metric_id, "kind": "monthly", "competencies": ["2026-06"],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "network.feeder", "values": ["ALIM-01"],
+    }]
+    context = build(payload)
+    body = json.loads(context.contents)
+    assert body["generation_contract_version"] == "text-to-sql-f1-v4"
+    assert body["metric"]["id"] == metric_id
+    assert body["metric"]["aggregation"] == "key_grain_read"
+    assert body["metric"]["measure_column"] == column
+    assert body["metric"]["unit"] == unit
+    assert body["source"]["table"] == "indicadores_dec_fec"
+    assert set(body["source"]["columns"]) == {"competencia", column, "id_alimentador"}
+
+
+def test_explicit_metric_overrides_followup_metric():
+    payload = request_payload()
+    payload["question"] = "E qual foi a receita?"
+    payload["context"] = [{"role": "user", "content": "E o consumo em kWh?"}]
+    context = build(payload)
+    assert json.loads(context.contents)["metric"]["id"] == "billing.revenue"
 
 
 def test_dimension_revocation_removes_column_and_values_and_changes_version():

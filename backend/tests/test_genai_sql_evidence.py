@@ -9,18 +9,22 @@ from app.schemas.sql_evidence import SqlEvidence, sql_evidence_digest
 from app.services.genai_client import GenAITimeout
 from app.services.genai_sql_admission import SqlAdmissionDenied
 from app.services.genai_sql_evidence import build_sql_evidence
+from app.services.genai_sql_presentation import present_sql_evidence
 from app.services.genai_sql_executor import execute_sql_admission
 from tests.test_genai_sql_comparison import comparison, grouped_comparison
 from tests.test_genai_sql_executor import environment
 from tests.test_genai_sql_result import Cursor
-from tests.test_genai_sql_semantics import query, ranking
+from tests.test_genai_sql_semantics import accumulated_attendance_query, query, ranking
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
 sql_request = fixture_sql_request
 
 
 def evidence_case(request, mode="total", rows=None):
-    if mode in {"comparison", "grouped_comparison"}:
+    if mode == "accumulated":
+        candidate, request = accumulated_attendance_query(request)
+        default, columns = [(Decimal("42"),)], ("attendance",)
+    elif mode in {"comparison", "grouped_comparison"}:
         request, candidate = (
             grouped_comparison(request) if mode == "grouped_comparison"
             else comparison(request)
@@ -65,6 +69,19 @@ def test_execution_becomes_exact_evidence_without_legacy_plan(sql_request, mode)
         assert evidence.evidence_contract_version == "text-to-sql-f1-evidence-v2"
         assert evidence.columns[-1].unit == "%"
         assert evidence.rows[0][-1] == "87.54"
+
+
+def test_accumulated_attendance_evidence_preserves_unknown_history_window(sql_request):
+    evidence = build(evidence_case(sql_request, mode="accumulated"))
+    presentation = present_sql_evidence(evidence)
+    assert evidence.source_table == "gold_v2.visao_360_uc"
+    assert evidence.metric_id == "service.accumulated_attendance"
+    assert evidence.evidence_contract_version == "text-to-sql-f1-evidence-v6"
+    assert evidence.interpretation.periods == ()
+    assert evidence.rows == (("42",),)
+    assert presentation.period == "Histórico acumulado"
+    assert "intervalo nem certifica a completude histórica" in presentation.answer
+    assert "sem intervalo conhecido" in presentation.limitations[0]
 
 
 def test_grouped_comparison_derives_percentage_for_each_gold_group(sql_request):

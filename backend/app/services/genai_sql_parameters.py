@@ -1,6 +1,6 @@
 """Preparação de parâmetros F1; não aprova SQL nem autoriza execução."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from app.schemas.sql_generation import SqlParameter
@@ -24,6 +24,8 @@ def prepare_sql_parameters(
     for name, parameter in parameters.items():
         if parameter.type == "date":
             result[name] = date.fromisoformat(parameter.value)
+        elif parameter.type == "timestamp":
+            result[name] = datetime.fromisoformat(parameter.value.replace("Z", "+00:00"))
         elif parameter.type == "decimal":
             result[name] = Decimal(parameter.value)
         else:

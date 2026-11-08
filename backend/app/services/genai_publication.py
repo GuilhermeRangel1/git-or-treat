@@ -18,7 +18,7 @@ from app.schemas.genai_internal import (
 from app.schemas.gold_publication import PublicationReference
 from app.services.genai_client import GenAITimeout
 from app.services.genai_sql_live_catalog import assert_live_f1_catalog
-from app.services.gold_catalog import load_gold_catalog
+from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,42 @@ class GoldPublicationContext:
         """Abre leitura nova para não esconder troca atrás de um snapshot antigo."""
         with engine.connect() as connection:
             current_publication(connection, self.batch_ref)
+
+    def assert_sql_source_coverage(
+        self, engine: Engine, *, table_name: str, periods: tuple[str, ...],
+        dimension_ids: frozenset[str], metric_ids: frozenset[str],
+        source_capability_id: str | None = None,
+    ) -> None:
+        """Confere os meses na fonte exata escolhida, sem emprestar cobertura de outra tabela."""
+        catalog = load_gold_catalog()
+        sources = [
+            source
+            for metric in catalog.metrics if metric.metric_id in metric_ids
+            for source in metric.sources
+            if source.capability_id == (source_capability_id or metric.capability_id)
+        ]
+        source = next((item for item in sources if item.table == table_name), None)
+        if source is None or source.temporal_column is None:
+            raise GoldCatalogIncompatible("Fonte temporal fora do catálogo SQL autorizado.")
+        table = GOLD_V2_TABLES[table_name]
+        if source.temporal_transform == "utc_month":
+            period = func.to_char(func.timezone("UTC", table.c[source.temporal_column]), "YYYY-MM")
+        else:
+            period = table.c[source.temporal_column]
+        with self.execution_snapshot(
+            engine, validate_f1_catalog=True, dimension_ids=dimension_ids,
+            metric_ids=metric_ids,
+            source_capability_ids={metric_id: source_capability_id
+                                   for metric_id in metric_ids}
+            if source_capability_id else None,
+        ) as connection:
+            if connection.dialect.name == "postgresql":
+                connection.execute(text("SELECT set_config('statement_timeout', '4000ms', true)")).close()
+            observed = set(connection.execute(
+                select(period).where(table.c[source.temporal_column].is_not(None)).distinct()
+            ).scalars())
+        if not set(periods) <= observed:
+            raise GoldCatalogIncompatible("Cobertura incompleta na fonte SQL escolhida.")
 
     def planning_fields(
         self, engine: Engine, access_scope: AccessScope | None = None
@@ -65,8 +101,19 @@ class GoldPublicationContext:
         if engine.dialect.name == "postgresql":
             with self.execution_snapshot(
                 engine,
-                validate_f1_catalog="billing.revenue" in access_scope.allowed_metric_ids,
+                validate_f1_catalog=bool(access_scope.allowed_metric_ids & {
+                    "billing.revenue", "energy.consumption", "service.attendance",
+                    "service.accumulated_attendance",
+                    "network.equivalent_interruption_duration",
+                    "network.equivalent_interruption_frequency",
+                }),
                 dimension_ids=access_scope.allowed_dimension_ids,
+                metric_ids=access_scope.allowed_metric_ids & {
+                    "billing.revenue", "energy.consumption", "service.attendance",
+                    "service.accumulated_attendance",
+                    "network.equivalent_interruption_duration",
+                    "network.equivalent_interruption_frequency",
+                },
             ) as connection:
                 fields = _planning_metadata(connection, access_scope, catalog)
         else:
@@ -80,6 +127,8 @@ class GoldPublicationContext:
     def execution_snapshot(
         self, engine: Engine, *, validate_f1_catalog: bool = False,
         dimension_ids: frozenset[str] = frozenset(),
+        metric_ids: frozenset[str] = frozenset({"billing.revenue"}),
+        source_capability_ids: dict[str, str] | None = None,
     ) -> Iterator[Connection]:
         """Leitura PostgreSQL consistente; descarta o resultado se a publicação mudou.
 
@@ -98,7 +147,8 @@ class GoldPublicationContext:
             connection.exec_driver_sql("SET TRANSACTION READ ONLY")
             current_publication(connection, self.batch_ref)
             if validate_f1_catalog:
-                assert_live_f1_catalog(connection, dimension_ids)
+                assert_live_f1_catalog(connection, dimension_ids, metric_ids,
+                                       source_capability_ids)
             yield connection
         self.assert_current(engine)
 

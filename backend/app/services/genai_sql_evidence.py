@@ -4,7 +4,7 @@ import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import replace
-from decimal import Decimal, InvalidOperation, ROUND_HALF_EVEN, localcontext
+from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation, localcontext
 
 from sqlglot import parse_one
 
@@ -24,6 +24,7 @@ from app.services.genai_sql_result import (
 from app.services.genai_sql_semantics import GROWTH_PERCENT_COLUMN, review_sql_semantics
 
 _DIMENSIONS = {"competencia": "competency", "municipio": "municipality",
+               "bairro": "neighborhood",
                "classe_consumo": "consumption_class"}
 def _with_growth_percentage(result: SqlMaterializedResult) -> SqlMaterializedResult:
     """Derive percent change against a positive previous-period baseline.
@@ -45,7 +46,7 @@ def _with_growth_percentage(result: SqlMaterializedResult) -> SqlMaterializedRes
             try:
                 with localcontext() as context:
                     context.prec = 256
-                    growth = ((current - baseline) / baseline * Decimal("100")).quantize(
+                    growth = ((current - baseline) / baseline * Decimal(100)).quantize(
                         Decimal("0.01"), rounding=ROUND_HALF_EVEN,
                     )
             except InvalidOperation:
@@ -119,11 +120,24 @@ def build_sql_evidence(
 
     payload = {
         "evidence_contract_version": (
-            "text-to-sql-f1-evidence-v2"
+            "text-to-sql-f1-evidence-v6"
+            if candidate.interpretation.metric_id == "service.accumulated_attendance"
+            else "text-to-sql-f1-evidence-v5"
+            if candidate.interpretation.metric_id in {
+                "network.equivalent_interruption_duration",
+                "network.equivalent_interruption_frequency",
+            }
+            else "text-to-sql-f1-evidence-v4"
+            if candidate.interpretation.metric_id == "service.attendance"
+            else "text-to-sql-f1-evidence-v3"
+            if candidate.interpretation.metric_id == "energy.consumption"
+            else "text-to-sql-f1-evidence-v2"
             if candidate.interpretation.operation == "comparison"
             else "text-to-sql-f1-evidence-v1"
         ), "source_id": "gold.local",
-        "source_table": "gold_v2.diagnostico_receita", "metric_id": "billing.revenue",
+        "source_table": f"{body['source']['schema']}.{body['source']['table']}",
+        "metric_id": candidate.interpretation.metric_id,
+        "coverage_quality": admitted.quality_mode,
         "batch_ref": executed.batch_ref, "context_version": context.context_version,
         "admission_digest": admitted.digest, "execution_digest": executed.execution_digest,
         "result_digest": result_digest,
@@ -136,6 +150,13 @@ def build_sql_evidence(
         "rows": [[cell(value) for value in row] for row in result.rows],
         "status": result.status,
     }
-    evidence = SqlEvidence.model_validate({**payload, "evidence_digest": sql_evidence_digest(payload)})
+    digest_payload = dict(payload)
+    if payload["evidence_contract_version"] not in {
+        "text-to-sql-f1-evidence-v5", "text-to-sql-f1-evidence-v6",
+    }:
+        digest_payload.pop("coverage_quality", None)
+    evidence = SqlEvidence.model_validate({
+        **payload, "evidence_digest": sql_evidence_digest(digest_payload),
+    })
     active()
     return evidence

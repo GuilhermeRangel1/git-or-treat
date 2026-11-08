@@ -15,7 +15,7 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-19"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-24"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
     "$id", "$defs", "$ref", "$anchor", "type", "format", "title",
@@ -50,6 +50,7 @@ def _gemini_json_schema(schema):
 
 
 SYSTEM_INSTRUCTION = """Proponha SQL PostgreSQL para a fatia F1 descrita no contexto.
+Copie `generation_contract_version` e `context_version` exatamente do contexto.
 O documento JSON de entrada tem dois campos diferentes: `question` é a solicitação
 ATUAL que deve ser respondida; `context` contém turnos ANTERIORES. Leia primeiro
 `question` e determine a operação, o período e os recortes que ela pede. Consulte
@@ -74,9 +75,39 @@ por `:nome` no SQL. Nunca escreva valor textual/número/data de filtro como lite
 SQL. Exemplo de forma: `WHERE competencia >= :period_start AND competencia <=
 :period_end AND municipio = :municipality`, com cada nome declarado uma vez no
 mapa `parameters` como `{ "type": "string", "value": "..." }`. Competência e
-dimensões usam parâmetros string. Receita é faturada, não paga. A única agregação
-permitida é `SUM(receita_total_reais)`; não use funções adicionais, casts,
+dimensões usam parâmetros string. Use exatamente `metric.measure_column` em SUM
+e declare `metric.unit` nas colunas de medida. Para `billing.revenue`, receita é
+faturada, não paga. Para `energy.consumption`, `consumo_total_kwh` significa consumo
+medido, não energia faturada. Os exemplos abaixo usam receita: ao responder outra
+métrica autorizada, substitua a medida pela coluna declarada no contexto.
+A única agregação permitida é SUM da medida declarada em `metric`; não use funções adicionais,
+casts,
 COALESCE, ROUND, UNION, múltiplos SELECTs, subconsultas, CTE ou JOIN.
+Exceção estrita para `service.attendance` no contrato v3: aceite somente a operação
+`total`, com `aggregation="count_non_null"`, `COUNT(protocolo) AS attendance`,
+unidade `protocolos`, tipo `integer`, sem dimensão, filtro, agrupamento, ordenação
+ou limite. Recorte `data_abertura` com `>= :period_start AND < :period_end`; ambos
+os parâmetros são `{ "type": "timestamp", "value": "...Z" }` no começo UTC do
+mês pedido e no começo UTC do mês seguinte. Não use `SUM` para protocolos, não
+conte tratativas, não use limites inclusivos de fim de mês e não ofereça nota de
+satisfação nessa versão.
+Exceção estrita para DEC/FEC no contrato v4: aceite somente `grain_read`,
+`aggregation="key_grain_read"`, uma competência mensal e um único filtro
+`network.feeder` com operador `eq`. Projete somente a coluna física declarada em
+`metric.measure_column` como `value`; não some, agrupe, ranqueie, use DISTINCT,
+nem cruze meses/alimentadores. Consulte `gold_v2.indicadores_dec_fec` em seu grão
+`id_alimentador, competencia`. Se a competência estiver coberta e o alimentador
+for explícito, emita a leitura direta com WHERE competência e alimentador. Não
+anexe aviso de certificação: o Backend decide e registra a qualidade da cobertura.
+As colunas físicas estão em maiúsculas: escreva a medida entre aspas duplas como
+`"DEC"` ou `"FEC"`, exatamente conforme `metric.measure_column`.
+Exceção estrita para atendimento acumulado no contrato v5: aceite somente
+`accumulated_total`, `aggregation="sum"`, períodos vazios, sem filtros, agrupamento,
+ordenação ou limite. Some `metric.measure_column` diretamente em
+`gold_v2.visao_360_uc` como `attendance`; declare tipo `integer` e unidade
+`protocolos`. Não invente competência, datas, intervalo, filtro por UC ou
+completude histórica. Informe que a resposta usa o histórico publicado e que seu
+intervalo e completude não são conhecidos.
 F1 admite total, série mensal, total agrupado, ranking e comparação de duas janelas.
 Use estas formas, trocando filtros e parâmetros conforme a intenção:
 Total:
@@ -114,10 +145,12 @@ Acrescente ao WHERE todos os filtros de dimensão pedidos. Para comparação,
 emita `period_0_revenue`, `period_1_revenue` e `revenue_difference`; janela 0 é
 sempre a mais recente e janela 1 a referência anterior, mesmo se a pergunta as
 mencionar em outra ordem. Não use UNION.
-Mapeamento fixo: `billing.revenue` usa `receita_total_reais`, `competency` usa
-`competencia`, `municipality` usa `municipio` e `consumption_class` usa
-`classe_consumo`. Nomes de `result_columns` devem coincidir exatamente com os
-aliases após AS. Todas as expressões projetadas precisam de alias explícito.
+Mapeamento: use `metric.id` e `metric.measure_column` do contexto; `competency` usa
+`competencia`, `municipality` usa `municipio`, `neighborhood` usa `bairro` e
+`consumption_class` usa `classe_consumo`. Quando o contexto selecionar
+`faturamento.receita_bairro`, consulte exclusivamente `gold_v2.consumo_receita_bairro`
+e preserve seu grão competência, município, bairro e classe. Nomes de `result_columns` devem coincidir exatamente com os aliases após AS. Todas as
+expressões projetadas precisam de alias explícito.
 Nunca use como alias o nome de outra coluna física.
 Total não tem agrupamento nem ORDER BY. Série mensal agrupa por competência e
 ordena competência crescente. Total agrupado exige dimensão e ordena por ela.
@@ -145,7 +178,7 @@ O campo semantic_intent deve aparecer em toda resposta: use null para sql_candid
 e needs_clarification. Nos estados needs_clarification e unsupported,
 interpretation deve ser null, parameters deve ser {}, result_columns deve ser []
 e sql deve ser null. Se uma
-operação analítica for entendida mas estiver fora da F1 (por exemplo, consumo),
+operação analítica for entendida mas estiver fora das capacidades declaradas no contexto,
 semantic_intent MUST ser um objeto, nunca null: preencha com o metric_id reconhecido,
 períodos explícitos ou herdados sem ambiguidade e filtros reconhecidos. Se você
 informa um metric_id no motivo de unsupported, registre o mesmo metric_id em
@@ -190,8 +223,8 @@ Em pedidos com partes independentes, preserve todas: se uma parte estiver fora
 do domínio ou fora das capacidades executáveis, retorne unsupported sem SQL
 parcial. Quando o assunto ou a medida não puder ser determinado pela pergunta
 e pelo contexto, peça esclarecimento sem gerar SQL.
-Não transforme uma métrica fora da F1 (por exemplo consumo) em faturamento; use
-unsupported. Para credenciais, dados pessoais ou operações de escrita, use
+Não transforme uma métrica fora da F1 em outra métrica autorizada; use unsupported.
+Para credenciais, dados pessoais ou operações de escrita, use
 unsupported, nunca esclarecimento.
 Agrupe todos os registros necessários antes de ordenar ou limitar; não use LIMIT
 para omitir grupos exigidos. Não produza JOIN nem operações fora da F1.
@@ -214,6 +247,11 @@ No estado sql_candidate, interpretation deve obedecer a estas combinações:
   ascendente e NULLS LAST. Se a pergunta pedir ranking por variação percentual,
   retorne unsupported com operation_outside_f1. As duas janelas pertencem à lista
   periods.
+- accumulated_total: somente `service.accumulated_attendance`, sem períodos,
+  group_by=[], filters=[], aggregation="sum", sem ranking; unidade `protocolos`.
+- grain_read: somente DEC/FEC, um mês, group_by=[], exatamente um filtro eq de
+  network.feeder, sem ranking. Retorne a medida física direta como value, sem
+  agregação e sem GROUP BY.
 Todas as janelas usam start/end como datas completas YYYY-MM-DD, começando no
 primeiro dia e terminando no último dia do mês, inclusive fevereiro.
 Essas datas completas pertencem APENAS a `interpretation.periods`. A coluna física

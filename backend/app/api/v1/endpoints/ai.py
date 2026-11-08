@@ -72,6 +72,10 @@ from app.services.genai_expected_publication import (
 )
 from app.services.genai_publication import GoldPublicationContext
 from app.services.genai_sql_admission import SqlAdmissionDenied
+from app.services.genai_sql_context import (
+    SqlContextUnavailable,
+    requested_sql_metric_id,
+)
 from app.services.genai_sql_continuation import (
     InvalidSqlContinuation,
     issue_sql_continuation,
@@ -94,7 +98,16 @@ def get_sql_genai_question_client(request: Request) -> GenAIQuestionClient:
     return request.app.state.genai_question_client
 
 
-@router.post("/sql-analyses", response_model=SqlAnalysisResponse)
+def require_sql_analysis_enabled() -> None:
+    """Fail before resolving Gold resources when the opt-in route is disabled."""
+    if not settings.GENAI_SQL_EXECUTION_ENABLED or settings.ANALYTICS_SOURCE != "gold":
+        raise HTTPException(503, "Análise SQL indisponível.")
+
+
+@router.post(
+    "/sql-analyses", response_model=SqlAnalysisResponse,
+    dependencies=[Depends(require_sql_analysis_enabled)],
+)
 async def run_f1_sql_analysis(
     payload: SqlAnalysisRequest,
     request: Request,
@@ -131,15 +144,20 @@ async def _run_f1_sql_analysis_impl(
     def resolve_f1_scope():
         current = resolve_scope()
         return current.model_copy(update={
-            "allowed_metric_ids": frozenset({"billing.revenue"}),
+            "allowed_metric_ids": current.allowed_metric_ids & {
+                "billing.revenue", "energy.consumption", "service.attendance",
+                "service.accumulated_attendance",
+                "network.equivalent_interruption_duration",
+                "network.equivalent_interruption_frequency",
+            },
             "allowed_dimension_ids": current.allowed_dimension_ids & {
                 "geography.municipality", "customer.consumption_class",
+                "geography.neighborhood",
+                "network.feeder",
             },
         })
 
     scope = resolve_f1_scope()
-    if "billing.revenue" not in scope.allowed_metric_ids:
-        raise HTTPException(403, "Métrica fora do acesso atual.")
     try:
         with sql_stage(request.state.correlation_id, "publication"):
             publication = GoldPublicationContext.capture(engine)
@@ -183,6 +201,9 @@ async def _run_f1_sql_analysis_impl(
                 request, status_code=409, code="invalid_continuation", retryable=False,
                 message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
             )
+    requested_metric_id = requested_sql_metric_id(payload.question, sql_context)
+    if requested_metric_id not in scope.allowed_metric_ids:
+        raise HTTPException(403, "Métrica fora do acesso atual.")
     remaining_ms = min(int(GOLD_REQUEST_TIMEOUT_SECONDS * 1000),
                        int(settings.AI_AGENT_TIMEOUT_SECONDS * 1000))
     plan_request = QuestionPlanRequest.model_validate({
@@ -208,7 +229,7 @@ async def _run_f1_sql_analysis_impl(
             source_calls=source_calls,
             batch_ref=publication.batch_ref,
             caller_ref=scope.caller_ref,
-            metric_id="billing.revenue",
+            metric_id=requested_metric_id,
             source_id=scope.source_id,
             evidence_ref=evidence_ref,
             sql_f1_artifact=sql_f1_artifact,
@@ -270,7 +291,21 @@ async def _run_f1_sql_analysis_impl(
             request.state.correlation_id,
             "presentation",
             context_version=(run.evidence.context_version if run.evidence is not None else None),
-            contract_version="text-to-sql-f1-presentation-v1",
+            contract_version=(
+                "text-to-sql-f1-presentation-v3"
+                if run.evidence is not None
+                and run.evidence.metric_id == "service.attendance"
+                else "text-to-sql-f1-presentation-v5"
+                if run.evidence is not None
+                and run.evidence.metric_id == "service.accumulated_attendance"
+                else "text-to-sql-f1-presentation-v4"
+                if run.evidence is not None
+                and run.evidence.metric_id in {
+                    "network.equivalent_interruption_duration",
+                    "network.equivalent_interruption_frequency",
+                }
+                else "text-to-sql-f1-presentation-v1"
+            ),
         ):
             response = SqlAnalysisResponse.from_run(
                 request.state.correlation_id, run, audit_reference=audit_reference,
@@ -298,6 +333,9 @@ async def _run_f1_sql_analysis_impl(
     except SqlAdmissionDenied:
         await record_failure("source", "unavailable", "error", model_calls=1)
         raise HTTPException(503, "A análise Gold está temporariamente indisponível.") from None
+    except (SqlContextUnavailable, GoldCatalogIncompatible):
+        await record_failure("source", "unavailable", "error", model_calls=0)
+        raise HTTPException(503, "A capacidade Gold não está disponível para este recorte.") from None
     except GoldExecutionDenied:
         await record_failure("policy", "denied", "refused")
         raise HTTPException(403, "A consulta não está autorizada com o acesso atual.") from None

@@ -9,6 +9,8 @@ import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy.engine import Engine
 
@@ -19,8 +21,10 @@ from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_publication import GoldPublicationContext
 from app.services.genai_sql_context import build_sql_generation_context
 from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_semantics
+from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
 
-SQL_ADMISSION_POLICY_VERSION = "text-to-sql-f1-admission-1"
+SQL_ADMISSION_POLICY_VERSION = "text-to-sql-f1-admission-2"
+OBSERVED_CONTINUITY_WARNING = "Valores observados; cobertura do alimentador não certificada."
 
 
 class SqlAdmissionDenied(ValueError):
@@ -36,14 +40,28 @@ class SqlAdmission:
     batch_ref: str
     policy_version: str
     requested_periods: tuple[str, ...]
+    quality_mode: str
     expires_at: float
     digest: str
 
 
 def _digest(value) -> str:
     serialized = json.dumps(value, sort_keys=True, ensure_ascii=False,
-                            allow_nan=False, separators=(",", ":"))
+                            allow_nan=False, separators=(",", ":"),
+                            default=_canonical_scalar)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _canonical_scalar(value):
+    if type(value) is datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise TypeError("timestamp do digest precisa de fuso explícito")
+        return value.isoformat()
+    if type(value) is date:
+        return value.isoformat()
+    if type(value) is Decimal and value.is_finite():
+        return format(value, "f")
+    raise TypeError(f"valor não canônico para digest: {type(value).__name__}")
 
 
 def _require(value) -> None:
@@ -89,13 +107,67 @@ async def admit_sql_candidate(
     review = review_sql_semantics(candidate, fresh_request)
     context = build_sql_generation_context(fresh_request)
     periods = _periods(candidate)
+    context_body = json.loads(context.contents)
+    source_capability_id = context_body["source"]["capability_id"]
+    if candidate.interpretation.metric_id in {
+        "billing.revenue",
+        "energy.consumption", "service.attendance",
+        "network.equivalent_interruption_duration",
+        "network.equivalent_interruption_frequency",
+    }:
+        try:
+            await deadline.run(5, lambda: asyncio.to_thread(
+                publication.assert_sql_source_coverage, engine,
+                table_name=context_body["source"]["table"], periods=periods,
+                dimension_ids=request.access_scope.allowed_dimension_ids,
+                metric_ids=frozenset(context.metric_ids),
+                source_capability_id=source_capability_id,
+            ))
+        except GoldCatalogIncompatible:
+            raise SqlAdmissionDenied(
+                "Cobertura ou fonte SQL indisponível para o recorte."
+            ) from None
     report = await deadline.run(60, lambda: client.evaluate_readiness(
         readiness_engine, requested_periods=periods, approved_controls=approved_controls,
         correlation_id=correlation_id, expected_batch_ref=publication.batch_ref))
     _require(report.batch_ref == publication.batch_ref
              and report.lot_state in ("ready", "partial"))
-    capability = report.capabilities.get("faturamento.receita")
-    _require(capability is not None and capability.status == "available" and not capability.reasons)
+    metric = next((item for item in load_gold_catalog().metrics
+                   if item.metric_id == candidate.interpretation.metric_id), None)
+    source_capability_id = context_body["source"]["capability_id"]
+    source = next((item for item in metric.sources
+                   if item.capability_id == source_capability_id), None) if metric else None
+    required_capabilities = (
+        ({source.capability_id} if source.capability_id != metric.capability_id
+         else {*metric.required_capability_ids, source.capability_id})
+        if metric and source else set()
+    )
+    _require(bool(required_capabilities))
+    observed_uncertified = False
+    for capability_id in required_capabilities:
+        capability = report.capabilities.get(capability_id)
+        if capability is not None and capability.status == "available" and not capability.reasons:
+            continue
+        is_continuity = candidate.interpretation.metric_id in {
+            "network.equivalent_interruption_duration",
+            "network.equivalent_interruption_frequency",
+        }
+        feeder_filters = [item for item in candidate.interpretation.filters
+                          if item.dimension_id == "network.feeder"]
+        exact_observed_recorte = (
+            is_continuity
+            and capability is not None
+            and capability.status == "unavailable"
+            and capability.reasons == ("coverage_incomplete",)
+            and len(periods) == 1
+            and len(candidate.interpretation.periods) == 1
+            and candidate.interpretation.operation == "grain_read"
+            and len(feeder_filters) == 1
+            and feeder_filters[0].operator == "eq"
+            and len(feeder_filters[0].values) == 1
+        )
+        _require(exact_observed_recorte)
+        observed_uncertified = True
     await deadline.run(5, lambda: asyncio.to_thread(publication.assert_current, engine))
     _require(resolve_scope() == request.access_scope)
     deadline.remaining_seconds(60)
@@ -111,9 +183,11 @@ async def admit_sql_candidate(
         "sql": review.canonical_sql, "parameters": review.parameter_items,
         "columns": sorted(review.source_columns), "outputs": review.output_names,
         "measure_semantics": review.measure_semantics,
+        "quality_mode": "observed_uncertified" if observed_uncertified else "certified",
     }
     return SqlAdmission(review, context.context_version, candidate_digest, readiness_digest,
                         publication.batch_ref, SQL_ADMISSION_POLICY_VERSION, periods,
+                        "observed_uncertified" if observed_uncertified else "certified",
                         deadline.expires_at, _digest(material))
 
 

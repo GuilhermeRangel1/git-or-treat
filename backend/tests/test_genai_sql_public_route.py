@@ -622,6 +622,11 @@ def test_public_route_domain_policy_without_sql(
     scope = _candidate_request(question, {
         "context": [], "publication": batch, "dimension_values": [],
     }, ["2026-06"]).access_scope
+    metric_id = "energy.consumption" if "consumo" in question.casefold() else "billing.revenue"
+    if metric_id == "energy.consumption":
+        scope = scope.model_copy(update={
+            "allowed_metric_ids": frozenset({"billing.revenue", "energy.consumption"}),
+        })
 
     class Publication:
         batch_ref = batch
@@ -630,7 +635,7 @@ def test_public_route_domain_policy_without_sql(
             return {
                 "batch_ref": batch,
                 "temporal_coverage": [{
-                    "metric_id": "billing.revenue", "kind": "monthly",
+                    "metric_id": metric_id, "kind": "monthly",
                     "competencies": ["2026-06"],
                 }],
             }
@@ -642,10 +647,11 @@ def test_public_route_domain_policy_without_sql(
 
     class Generator:
         async def generate_sql_candidate(self, payload, *, correlation_id):
-            calls.append(json.loads(payload.contents)["question"])
+            context = json.loads(payload.contents)
+            calls.append(context["question"])
             assert model_calls == 1
             candidate = {
-                "generation_contract_version": "text-to-sql-f1-v1",
+                "generation_contract_version": context["generation_contract_version"],
                 "context_version": payload.context_version,
                 "status": expected,
             }
@@ -658,7 +664,11 @@ def test_public_route_domain_policy_without_sql(
                 candidate["clarification"] = {
                     "question": "Qual medida?", "missing_fields": ["metric"],
                 }
-            return SqlGenerationResponse(correlation_id=correlation_id, candidate=candidate)
+            return SqlGenerationResponse(
+                correlation_id=correlation_id,
+                generation_contract_version=context["generation_contract_version"],
+                candidate=candidate,
+            )
 
     def record(_store, event, **_kwargs):
         audits.append(event)

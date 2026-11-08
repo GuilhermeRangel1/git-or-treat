@@ -25,10 +25,12 @@ Version = Annotated[str, StringConstraints(strict=True, min_length=1, max_length
 Cell = Annotated[StrictStr, Field(max_length=16384)] | None
 Row = Annotated[tuple[Cell, ...], Field(min_length=1, max_length=32)]
 Meaning = Literal[
-    "revenue_total", "period_0_total", "period_1_total",
+    "revenue_total", "energy_total", "attendance_total", "attendance_accumulated_total",
+    "dec_value", "fec_value", "period_0_total", "period_1_total",
     "period_0_minus_period_1", "period_0_growth_percent",
 ]
-DimensionMeaning = Literal["competency", "municipality", "consumption_class"]
+DimensionMeaning = Literal["competency", "municipality", "neighborhood",
+                          "consumption_class", "feeder"]
 _DECIMAL = re.compile(r"-?(?:0|[1-9][0-9]{0,100})(?:\.[0-9]{1,100})?\Z")
 
 
@@ -41,10 +43,23 @@ def sql_evidence_digest(payload: dict) -> str:
 class SqlEvidence(ClosedModel):
     evidence_contract_version: Literal[
         "text-to-sql-f1-evidence-v1", "text-to-sql-f1-evidence-v2",
+        "text-to-sql-f1-evidence-v3", "text-to-sql-f1-evidence-v4",
+        "text-to-sql-f1-evidence-v5",
+        "text-to-sql-f1-evidence-v6",
     ]
     source_id: Literal["gold.local"]
-    source_table: Literal["gold_v2.diagnostico_receita"]
-    metric_id: Literal["billing.revenue"]
+    source_table: Literal[
+        "gold_v2.diagnostico_receita", "gold_v2.atendimentos_uc",
+        "gold_v2.indicadores_dec_fec",
+        "gold_v2.consumo_receita_bairro", "gold_v2.visao_360_uc",
+    ]
+    metric_id: Literal[
+        "billing.revenue", "energy.consumption", "service.attendance",
+        "network.equivalent_interruption_duration",
+        "network.equivalent_interruption_frequency",
+        "service.accumulated_attendance",
+    ]
+    coverage_quality: Literal["certified", "observed_uncertified"] = "certified"
     batch_ref: Batch
     context_version: Digest
     admission_digest: Digest
@@ -71,6 +86,57 @@ class SqlEvidence(ClosedModel):
                 or len(set(self.dimension_semantics.values())) != len(dimensions)
                 or set(self.dimension_semantics.values()) != set(self.interpretation.group_by)):
             raise ValueError("linhagem/colunas incompatíveis com a evidência F1")
+        continuity = self.metric_id in {
+            "network.equivalent_interruption_duration",
+            "network.equivalent_interruption_frequency",
+        }
+        if continuity:
+            expected_meaning = (
+                "dec_value" if self.metric_id == "network.equivalent_interruption_duration"
+                else "fec_value"
+            )
+            if (self.source_table != "gold_v2.indicadores_dec_fec"
+                    or self.interpretation.operation != "grain_read"
+                    or self.interpretation.aggregation != "key_grain_read"
+                    or self.evidence_contract_version != "text-to-sql-f1-evidence-v5"
+                    or set(self.measure_semantics.values()) != {expected_meaning}
+                    or self.coverage_quality == "observed_uncertified" and (
+                        len(self.interpretation.periods) != 1
+                        or self.interpretation.periods[0].start.year
+                        != self.interpretation.periods[0].end.year
+                        or self.interpretation.periods[0].start.month
+                        != self.interpretation.periods[0].end.month
+                        or len(self.interpretation.filters) != 1
+                        or self.interpretation.filters[0].dimension_id != "network.feeder"
+                        or self.interpretation.filters[0].operator != "eq"
+                    )):
+                raise ValueError("DEC/FEC exige fonte, grão, evidência e qualidade compatíveis")
+        elif self.coverage_quality != "certified":
+            raise ValueError("qualidade observacional sem certificação só vale para DEC/FEC")
+        if self.metric_id == "service.attendance":
+            if (self.source_table != "gold_v2.atendimentos_uc"
+                    or self.interpretation.operation != "total"
+                    or self.interpretation.aggregation != "count_non_null"
+                    or set(self.measure_semantics.values()) != {"attendance_total"}
+                    or self.evidence_contract_version != "text-to-sql-f1-evidence-v4"):
+                raise ValueError("atendimento exige contagem mensal da fonte autorizada")
+        elif self.metric_id == "service.accumulated_attendance":
+            if (self.source_table != "gold_v2.visao_360_uc"
+                    or self.interpretation.operation != "accumulated_total"
+                    or self.interpretation.periods
+                    or self.interpretation.aggregation != "sum"
+                    or set(self.measure_semantics.values()) != {
+                        "attendance_accumulated_total",
+                    }
+                    or self.evidence_contract_version != "text-to-sql-f1-evidence-v6"):
+                raise ValueError("atendimento acumulado exige histórico sem período e fonte autorizada")
+        elif self.metric_id == "billing.revenue" and self.source_table == "gold_v2.consumo_receita_bairro":
+            if self.evidence_contract_version not in {
+                "text-to-sql-f1-evidence-v1", "text-to-sql-f1-evidence-v2",
+            }:
+                raise ValueError("receita por bairro exige contrato de receita compatível")
+        elif not continuity and self.metric_id != "service.accumulated_attendance" and self.source_table != "gold_v2.diagnostico_receita":
+            raise ValueError("fonte SQL diverge da métrica F1")
         if self.interpretation.operation == "comparison":
             base_meanings = {
                 "period_0_total", "period_1_total", "period_0_minus_period_1",
@@ -80,19 +146,42 @@ class SqlEvidence(ClosedModel):
                 {"period_0_growth_percent"} if has_growth else set()
             )
             expected_version = (
-                "text-to-sql-f1-evidence-v2"
-                if has_growth else "text-to-sql-f1-evidence-v1"
+                "text-to-sql-f1-evidence-v3" if self.metric_id == "energy.consumption"
+                else "text-to-sql-f1-evidence-v2" if has_growth
+                else "text-to-sql-f1-evidence-v1"
             )
             if (len(measures) != len(expected_meanings)
                     or set(self.measure_semantics.values()) != expected_meanings
                     or self.evidence_contract_version != expected_version):
                 raise ValueError("comparação exige dois totais e diferença com linhagem")
-        elif (set(self.measure_semantics.values()) != {"revenue_total"}
-              or self.evidence_contract_version != "text-to-sql-f1-evidence-v1"):
+        elif (set(self.measure_semantics.values()) != {
+                  "energy_total" if self.metric_id == "energy.consumption"
+                  else "attendance_total" if self.metric_id == "service.attendance"
+                  else "attendance_accumulated_total" if self.metric_id == "service.accumulated_attendance"
+                  else "dec_value" if self.metric_id == "network.equivalent_interruption_duration"
+                  else "fec_value" if self.metric_id == "network.equivalent_interruption_frequency"
+                  else "revenue_total",
+              }
+              or self.evidence_contract_version != (
+                  "text-to-sql-f1-evidence-v4" if self.metric_id == "service.attendance"
+                  else "text-to-sql-f1-evidence-v6" if self.metric_id == "service.accumulated_attendance"
+                  else "text-to-sql-f1-evidence-v5" if continuity
+                  else "text-to-sql-f1-evidence-v3" if self.metric_id == "energy.consumption"
+                  else "text-to-sql-f1-evidence-v1"
+              )):
             raise ValueError("medida condicional exige comparação")
         for column in self.columns:
             meaning = self.measure_semantics.get(column.name)
-            expected_unit = "%" if meaning == "period_0_growth_percent" else "R$"
+            expected_unit = (
+                "%" if meaning == "period_0_growth_percent"
+                else "protocolos" if self.metric_id in {
+                    "service.attendance", "service.accumulated_attendance",
+                }
+                else "horas por UC" if meaning == "dec_value"
+                else "interrupções por UC" if meaning == "fec_value"
+                else "kWh" if self.metric_id == "energy.consumption"
+                else "R$"
+            )
             if column.role == "measure" and column.unit != expected_unit:
                 raise ValueError("unidade diverge da semântica da medida")
         present = False
@@ -108,6 +197,12 @@ class SqlEvidence(ClosedModel):
         if self.status != expected:
             raise ValueError("estado diverge das medidas da evidência")
         payload = self.model_dump(mode="json", exclude={"evidence_digest"})
+        if self.evidence_contract_version not in {
+            "text-to-sql-f1-evidence-v5", "text-to-sql-f1-evidence-v6",
+        }:
+            # Existing v1-v4 digests predate the quality field; the validator
+            # fixes those legacy contracts to the certified value above.
+            payload.pop("coverage_quality", None)
         try:
             encoded = json.dumps(self.model_dump(mode="json"), ensure_ascii=False,
                                  separators=(",", ":")).encode("utf-8")

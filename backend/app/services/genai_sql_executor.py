@@ -5,6 +5,7 @@ Sem chamador público. Somente SQL canônico da admissão fresca alcança o driv
 
 import asyncio
 import hashlib
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Event
@@ -23,6 +24,7 @@ from app.services.genai_sql_admission import (
     SqlAdmissionDenied,
     revalidate_sql_admission,
 )
+from app.services.genai_sql_context import build_sql_generation_context
 from app.services.genai_sql_result import (
     SqlMaterializedResult,
     materialize_sql_result,
@@ -43,6 +45,7 @@ class SqlExecutionResult:
 def _read_snapshot(
     admitted: SqlAdmission, *, engine: Engine, publication: GoldPublicationContext,
     resolve_scope: Callable[[], AccessScope], expected_scope: AccessScope,
+    request: QuestionPlanRequest,
     deadline: GenAIRequestDeadline, stopped: Event, correlation_id: str,
 ) -> SqlExecutionResult:
     def active():
@@ -56,10 +59,19 @@ def _read_snapshot(
             raise SqlAdmissionDenied("Escopo SQL alterado durante execução.")
 
     scope_current()
+    context = json.loads(build_sql_generation_context(request).contents)
+    selected_metric_id = context["metric"]["id"]
     with publication.execution_snapshot(
         engine,
         validate_f1_catalog=True,
         dimension_ids=expected_scope.allowed_dimension_ids,
+        metric_ids=expected_scope.allowed_metric_ids & {
+            "billing.revenue", "energy.consumption", "service.attendance",
+            "service.accumulated_attendance",
+            "network.equivalent_interruption_duration",
+            "network.equivalent_interruption_frequency",
+        },
+        source_capability_ids={selected_metric_id: context["source"]["capability_id"]},
     ) as connection:
         milliseconds = deadline.sql_timeout_ms(5)
         connection.execute(text("SELECT set_config('statement_timeout', :timeout, true)"),
@@ -109,6 +121,7 @@ async def execute_sql_admission(
     task = asyncio.create_task(asyncio.to_thread(
         _read_snapshot, fresh, engine=engine, publication=publication,
         resolve_scope=resolve_scope, expected_scope=request.access_scope,
+        request=request,
         deadline=deadline, stopped=stopped, correlation_id=correlation_id))
     try:
         result = await deadline.run(60, lambda: asyncio.shield(task))

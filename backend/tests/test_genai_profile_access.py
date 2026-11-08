@@ -29,12 +29,17 @@ def test_scope_matrix_separates_commercial_and_operations_and_gives_admin_full_s
     assert (admin.profile_id, admin.source_id) == ("v-energy-grid-360-gold", "gold.local")
 
 
-def test_customer_service_and_losses_have_explicit_empty_gold_scope():
-    for profile in (PlatformProfile.CUSTOMER_SERVICE, PlatformProfile.LOSSES):
-        scope = build_profile_access_scope(identity(profile))
-        assert scope.allowed_operations == frozenset({"read"})
-        assert scope.allowed_metric_ids == frozenset()
-        assert scope.allowed_dimension_ids == frozenset()
+def test_customer_service_has_monthly_attendance_only_and_losses_remain_empty():
+    customer_service = build_profile_access_scope(identity(PlatformProfile.CUSTOMER_SERVICE))
+    losses = build_profile_access_scope(identity(PlatformProfile.LOSSES))
+    assert customer_service.allowed_operations == frozenset({"read"})
+    assert customer_service.allowed_metric_ids == frozenset({
+        "service.attendance", "service.accumulated_attendance",
+    })
+    assert customer_service.allowed_dimension_ids == frozenset()
+    assert losses.allowed_operations == frozenset({"read"})
+    assert losses.allowed_metric_ids == frozenset()
+    assert losses.allowed_dimension_ids == frozenset()
 
 
 def test_scope_cannot_be_built_without_ai_permission_or_individual_session():

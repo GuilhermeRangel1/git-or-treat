@@ -10,11 +10,15 @@ from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.schemas.sql_generation import SqlGenerationCandidate
-from app.services.genai_sql_context import build_sql_generation_context
+from app.services.genai_sql_context import (
+    build_sql_generation_context,
+    requested_sql_metric_id,
+)
 from app.services.genai_sql_semantics import review_sql_semantics
 from app.services.genai_sql_structure import SqlStructureRejected
 from sqlalchemy import create_engine, text
@@ -40,6 +44,8 @@ DIMENSIONS = {
 
 
 def _request(case):
+    turns = [SimpleNamespace(**turn) for turn in case["context"]]
+    metric = requested_sql_metric_id(case["question"], turns)
     return QuestionPlanRequest.model_validate({
         "question": case["question"],
         "context": case["context"],
@@ -53,13 +59,14 @@ def _request(case):
             "profile_id": "v-energy-grid-360-gold",
             "source_id": "gold.local",
             "allowed_operations": ["read"],
-            "allowed_metric_ids": ["billing.revenue"],
+            "allowed_metric_ids": [metric],
             "allowed_dimension_ids": [
                 "geography.municipality", "customer.consumption_class",
+                "geography.neighborhood", "network.feeder",
             ],
         },
         "temporal_coverage": [{
-            "metric_id": "billing.revenue", "kind": "monthly",
+            "metric_id": metric, "kind": "monthly",
             "competencies": MONTHS,
         }],
         "dimension_value_coverage": [
@@ -77,8 +84,16 @@ def _period_date(value, *, end=False):
 
 def _make_candidate(case, context_version):
     expected = case["expected_f1"]
+    turns = [SimpleNamespace(**turn) for turn in case["context"]]
+    metric = requested_sql_metric_id(case["question"], turns)
+    generation_version = {
+        "energy.consumption": "text-to-sql-f1-v2",
+        "service.attendance": "text-to-sql-f1-v3",
+        "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
+        "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
+    }.get(metric, "text-to-sql-f1-v1")
     common = {
-        "generation_contract_version": "text-to-sql-f1-v1",
+        "generation_contract_version": generation_version,
         "context_version": context_version,
         "status": expected["status"],
     }
@@ -418,12 +433,28 @@ def test_all_578_questions_use_new_context_and_f1_contract(case, synthetic_gold)
     contents = json.loads(context.contents)
     assert contents["question"] == case["question"]
     assert contents["context"] == case["context"]
-    assert contents["generation_contract_version"] == "text-to-sql-f1-v1"
+    turns = [SimpleNamespace(**turn) for turn in case["context"]]
+    metric = requested_sql_metric_id(case["question"], turns)
+    expected_version = {
+        "energy.consumption": "text-to-sql-f1-v2",
+        "service.attendance": "text-to-sql-f1-v3",
+        "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
+        "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
+    }.get(metric, "text-to-sql-f1-v1")
+    assert contents["generation_contract_version"] == expected_version
     assert contents["source"]["schema"] == "gold_v2"
-    assert contents["source"]["table"] == "diagnostico_receita"
-    assert set(context.column_names) == {
-        "competencia", "receita_total_reais", "municipio", "classe_consumo",
-    }
+    neighborhood_question = "bairro" in case["question"].casefold() or any(
+        "bairro" in turn["content"].casefold() for turn in case["context"]
+        if turn["role"] == "user"
+    )
+    expected_table = {
+        "service.attendance": "atendimentos_uc",
+        "network.equivalent_interruption_duration": "indicadores_dec_fec",
+        "network.equivalent_interruption_frequency": "indicadores_dec_fec",
+    }.get(metric, "consumo_receita_bairro" if metric == "billing.revenue"
+          and neighborhood_question else "diagnostico_receita")
+    assert contents["source"]["table"] == expected_table
+    assert set(context.column_names) == set(contents["source"]["columns"])
     assert set(contents["source"]["columns"]) == set(context.column_names)
     assert context.context_version == contents["context_version"]
 

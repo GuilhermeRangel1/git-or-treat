@@ -144,6 +144,8 @@ class GenAIQuestionClient:
         except ValidationError:
             raise GenAIResponseInvalid from None
         if (result.correlation_id != correlation_id
+                or result.generation_contract_version != payload.generation_contract_version
+                or result.candidate.generation_contract_version != payload.generation_contract_version
                 or result.candidate.context_version != payload.context_version):
             raise GenAIResponseInvalid
         return result

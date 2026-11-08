@@ -12,6 +12,7 @@ from time import monotonic
 
 from sqlalchemy import Table, select
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import ProgrammingError
 
 from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.models.gold_v2_load import TABLES
@@ -27,6 +28,41 @@ from app.services.gold_domain_controls import (
     ANALYTICAL_CONTROLS,
     observe_domain_controls,
 )
+
+_CONTROL_COLUMNS = {
+    "diagnostico_receita": (
+        "competencia", "municipio", "classe_consumo", "consumo_total_kwh",
+        "receita_total_reais", "qtd_ucs_distintas_faturadas_no_mes",
+    ),
+    "consumo_mensal_uc": (
+        "id_uc", "competencia", "consumo_kwh", "receita_reais", "tem_fatura",
+        "tem_leitura", "qtd_faturas", "qtd_leituras_observadas",
+    ),
+    "consumo_receita_bairro": (
+        "competencia", "municipio", "bairro", "consumo_total_kwh",
+        "receita_total_reais", "qtd_ucs_distintas_faturadas_no_mes",
+    ),
+    "visao_360_uc": (
+        "id_uc", "municipio", "classe", "alimentador", "possui_gd",
+        "media_consumo_historico", "total_chamados_callcenter",
+        "media_satisfacao_atendimento",
+    ),
+    "variacao_consumo_uc": (
+        "id_uc", "municipio", "possui_gd", "consumo_medio_inicial",
+        "meses_com_leitura_p1", "consumo_medio_final", "meses_com_leitura_p2",
+        "variacao_pct", "queda_consumo_superior_30_pct",
+    ),
+    "indicadores_dec_fec": (
+        "id_alimentador", "competencia", "total_ucs_alimentador", "ucs_interrompidas",
+        "frequencia_total_interrupcoes", "duracao_total_interrupcoes_horas", "DEC", "FEC",
+    ),
+    "cobertura_dominios": (
+        "dominio", "competencia", "recorte", "estado_cobertura", "qtd_registros",
+        "qtd_sem_competencia", "zero_registros_confirmado", "data_corte_evidencia",
+        "referencia_evidencia", "natureza_certificacao", "reconciliacao_extracao_json",
+        "run_id_silver", "lote_bronze_silver",
+    ),
+}
 
 
 @contextmanager
@@ -120,11 +156,15 @@ def _observe_publication(
             nonlocal coverage_rows
             if table is TABLES["cobertura_dominios"]:
                 if coverage_rows is None:
-                    coverage_rows = tuple(_rows(connection, table, expires))
+                    columns = [table.c[name] for name in _CONTROL_COLUMNS[table.name]]
+                    coverage_rows = tuple(_rows(connection, select(*columns), expires))
                 for row in coverage_rows:
                     if monotonic() >= expires:
                         raise GenAITimeout
                     yield row
+            elif isinstance(table, Table) and table.name in _CONTROL_COLUMNS:
+                columns = [table.c[name] for name in _CONTROL_COLUMNS[table.name]]
+                yield from _rows(connection, select(*columns), expires)
             else:
                 yield from _rows(connection, table, expires)
 
@@ -132,21 +172,31 @@ def _observe_publication(
         origin = publication_lineage(connection, context.batch_ref)
         tables = {}
         for name, table in TABLES.items():
-            _remaining_sql(connection, expires)
-            periods = []
-            column = table.c.get("competencia")
-            if column is not None:
-                # A presença de qualquer competência (inclusive NULL) também prova
-                # existência de linhas; não executar uma segunda consulta por tabela.
-                observed = list(connection.execute(select(column).distinct().limit(1202)).scalars())
-                has_rows = bool(observed)
-                periods = sorted(value for value in observed if value is not None)
-                if len(periods) > 1200:
-                    raise ValueError("Cobertura excede o limite do contrato.")
+            try:
+                with connection.begin_nested():
+                    _remaining_sql(connection, expires)
+                    periods = []
+                    column = table.c.get("competencia")
+                    if column is not None:
+                        observed = list(connection.execute(
+                            select(column).distinct().limit(1202)
+                        ).scalars())
+                        has_rows = bool(observed)
+                        periods = sorted(value for value in observed if value is not None)
+                        if len(periods) > 1200:
+                            raise ValueError("Cobertura excede o limite do contrato.")
+                    else:
+                        has_rows = connection.execute(
+                            select(1).select_from(table).limit(1)
+                        ).first() is not None
+            except ProgrammingError as exc:
+                if getattr(exc.orig, "sqlstate", None) != "42501":
+                    raise
+                tables[name] = {"present": False, "has_rows": False,
+                                "batch_ref": None, "periods": []}
             else:
-                has_rows = connection.execute(select(1).select_from(table).limit(1)).first() is not None
-            tables[name] = {"present": True, "has_rows": has_rows,
-                            "batch_ref": context.batch_ref, "periods": periods}
+                tables[name] = {"present": True, "has_rows": has_rows,
+                                "batch_ref": context.batch_ref, "periods": periods}
         summary = {}
         detail = defaultdict(lambda: [0, Decimal(0), 0])
         monthly = Counter()

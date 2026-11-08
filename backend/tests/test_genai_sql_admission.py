@@ -19,9 +19,13 @@ from app.services.genai_sql_observation import (
     prepare_sql_candidate,
 )
 from app.services.genai_sql_structure import SqlStructureRejected
+from app.services.gold_catalog import GoldCatalogIncompatible
 
 from tests.test_genai_sql_comparison import comparison
-from tests.test_genai_sql_semantics import query
+from tests.test_genai_sql_semantics import (
+    accumulated_attendance_query, continuity_candidate, consumption_query,
+    neighborhood_revenue_query, query,
+)
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
 sql_request = fixture_sql_request
@@ -43,8 +47,12 @@ class Environment:
             "batch_ref", "temporal_coverage", "dimension_value_coverage")}
         self.report = {"readiness_version": "gold-readiness-v2", "batch_ref": self.batch_ref,
                        "lot_state": "ready", "capabilities": {
-                           "faturamento.receita": {"status": "available"}}}
+                           "faturamento.receita": {"status": "available"},
+                           "faturamento.receita_bairro": {"status": "available"},
+                           "atendimento.uc_acumulado": {"status": "available"},
+                           "consumo.mensal_uc": {"status": "available"}}}
         self.events = []
+        self.source_coverage_failure = False
         self.on_readiness = lambda: None
         self.on_publication_check = lambda: None
 
@@ -57,6 +65,12 @@ class Environment:
     def assert_current(self, engine):
         self.events.append("publication")
         self.on_publication_check()
+
+    def assert_sql_source_coverage(self, engine, **kwargs):
+        assert engine is self.analytic_engine
+        self.events.append(("source_coverage", kwargs))
+        if self.source_coverage_failure:
+            raise GoldCatalogIncompatible("synthetic source coverage failure")
 
     async def evaluate_readiness(self, engine, **kwargs):
         assert engine is self.readiness_engine
@@ -96,7 +110,8 @@ def test_comparison_checks_readiness_for_both_windows(sql_request):
     env = Environment(request)
     admitted = env.admit(candidate)
     assert admitted.requested_periods == ("2025-06", "2026-06")
-    request_args = next(item[1] for item in env.events if isinstance(item, tuple))
+    request_args = next(item[1] for item in env.events
+                        if isinstance(item, tuple) and item[0] == "readiness")
     assert request_args["requested_periods"] == admitted.requested_periods
     assert request_args["expected_batch_ref"] == request.batch_ref
 
@@ -117,6 +132,23 @@ def test_partial_lot_can_admit_only_available_revenue(sql_request):
         "status": "unavailable", "reasons": ["coverage_incomplete"]}
     with pytest.raises(SqlAdmissionDenied):
         env.admit(query(sql_request))
+
+
+@pytest.mark.parametrize("reason", ["coverage_incomplete", "control_pending"])
+def test_continuity_only_allows_observed_feeder_month_after_c11_passes(sql_request, reason):
+    candidate, request = continuity_candidate(sql_request)
+    env = Environment(request)
+    env.report["lot_state"] = "partial"
+    env.report["capabilities"] = {
+        "interrupcoes.dec_fec": {"status": "unavailable", "reasons": [reason]},
+    }
+    if reason == "coverage_incomplete":
+        admitted = env.admit(candidate)
+        assert admitted.quality_mode == "observed_uncertified"
+        assert admitted.requested_periods == ("2026-06",)
+    else:
+        with pytest.raises(SqlAdmissionDenied):
+            env.admit(candidate)
 
 
 def test_metadata_change_invalidates_original_context(sql_request):
@@ -204,6 +236,98 @@ def test_missing_revenue_capability_is_denied(sql_request):
     env.report["capabilities"] = {}
     with pytest.raises(SqlAdmissionDenied):
         env.admit(query(sql_request))
+
+
+def test_consumption_uses_legacy_revenue_controls_and_exact_source_month(sql_request):
+    candidate, request = consumption_query(sql_request)
+    env = Environment(request)
+
+    admitted = env.admit(candidate)
+
+    coverage = next(item[1] for item in env.events
+                    if isinstance(item, tuple) and item[0] == "source_coverage")
+    assert coverage["table_name"] == "diagnostico_receita"
+    assert coverage["periods"] == ("2026-06",)
+    assert coverage["metric_ids"] == frozenset({"energy.consumption"})
+    readiness = next(item[1] for item in env.events
+                     if isinstance(item, tuple) and item[0] == "readiness")
+    assert readiness["requested_periods"] == ("2026-06",)
+    assert admitted.requested_periods == ("2026-06",)
+
+
+def test_neighborhood_revenue_requires_its_own_controls_and_exact_source(sql_request):
+    candidate, request = neighborhood_revenue_query(sql_request)
+    env = Environment(request)
+    admitted = env.admit(candidate)
+    coverage = next(item[1] for item in env.events
+                    if isinstance(item, tuple) and item[0] == "source_coverage")
+    assert coverage["table_name"] == "consumo_receita_bairro"
+    assert coverage["source_capability_id"] == "faturamento.receita_bairro"
+    readiness = next(item[1] for item in env.events
+                     if isinstance(item, tuple) and item[0] == "readiness")
+    assert readiness["requested_periods"] == ("2026-06",)
+    assert admitted.requested_periods == ("2026-06",)
+    env.report["capabilities"]["faturamento.receita_bairro"] = {
+        "status": "unavailable", "reasons": ["control_pending"],
+    }
+    with pytest.raises(SqlAdmissionDenied):
+        env.admit(candidate)
+
+
+def test_accumulated_attendance_admission_uses_c14_without_fabricated_period(sql_request):
+    candidate, request = accumulated_attendance_query(sql_request)
+    env = Environment(request)
+    admitted = env.admit(candidate)
+    readiness = next(item[1] for item in env.events
+                     if isinstance(item, tuple) and item[0] == "readiness")
+    assert readiness["requested_periods"] == ()
+    assert admitted.requested_periods == ()
+    assert not any(isinstance(item, tuple) and item[0] == "source_coverage"
+                   for item in env.events)
+    env.report["capabilities"]["atendimento.uc_acumulado"] = {
+        "status": "unavailable", "reasons": ["control_pending"],
+    }
+    with pytest.raises(SqlAdmissionDenied):
+        env.admit(candidate)
+
+
+def test_consumption_is_denied_when_legacy_revenue_capability_is_not_available(sql_request):
+    candidate, request = consumption_query(sql_request)
+    env = Environment(request)
+    env.report["capabilities"]["faturamento.receita"] = {
+        "status": "unavailable", "reasons": ["control_pending"]}
+    with pytest.raises(SqlAdmissionDenied):
+        env.admit(candidate)
+    assert any(item[0] == "source_coverage" for item in env.events
+               if isinstance(item, tuple))
+
+
+def test_consumption_is_denied_when_monthly_control_capability_is_not_available(sql_request):
+    candidate, request = consumption_query(sql_request)
+    env = Environment(request)
+    env.report["capabilities"]["consumo.mensal_uc"] = {
+        "status": "unavailable", "reasons": ["control_pending"]}
+    with pytest.raises(SqlAdmissionDenied):
+        env.admit(candidate)
+
+
+def test_consumption_is_denied_when_monthly_capability_is_missing(sql_request):
+    candidate, request = consumption_query(sql_request)
+    env = Environment(request)
+    del env.report["capabilities"]["consumo.mensal_uc"]
+    with pytest.raises(SqlAdmissionDenied):
+        env.admit(candidate)
+
+
+def test_consumption_source_missing_month_is_denied_before_readiness(sql_request):
+    candidate, request = consumption_query(sql_request)
+    env = Environment(request)
+    env.report["capabilities"]["consumo.mensal_uc"] = {"status": "available"}
+    env.source_coverage_failure = True
+    with pytest.raises(SqlAdmissionDenied, match="Cobertura ou fonte"):
+        env.admit(candidate)
+    assert not any(item[0] == "readiness" for item in env.events
+                   if isinstance(item, tuple))
 
 
 def test_observed_dec_fec_readiness_cannot_authorize_billing_sql(sql_request):
