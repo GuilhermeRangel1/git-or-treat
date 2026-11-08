@@ -52,6 +52,41 @@ def test_billing_consumption_class_is_not_misread_as_two_metrics():
     )
 
 
+@pytest.mark.parametrize(
+    ("question", "metric_id"),
+    [
+        ("Qual foi o ticket médio por UC faturada em junho de 2026?", "billing.average_ticket"),
+        ("Qual foi o preço médio observado por kWh em junho de 2026?", "billing.effective_tariff"),
+        ("Qual foi a tarifa média efetiva em junho de 2026?", "billing.effective_tariff"),
+    ],
+)
+def test_billing_ratio_questions_map_to_their_distinct_catalog_metrics(question, metric_id):
+    assert requested_sql_metric_id(question) == metric_id
+
+
+def test_average_consumption_question_maps_to_catalog_ratio_metric():
+    assert requested_sql_metric_id(
+        "Qual foi o consumo médio por UC com leitura em junho de 2026?"
+    ) == "energy.average_consumption_per_uc"
+
+    payload = request_payload()
+    payload["question"] = "Qual foi o consumo médio por UC com leitura em junho de 2026?"
+    payload["access_scope"]["allowed_metric_ids"].append(
+        "energy.average_consumption_per_uc"
+    )
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.average_consumption_per_uc",
+        "kind": "monthly",
+        "competencies": ["2026-06"],
+    }]
+    context = json.loads(build(payload).contents)
+    assert context["generation_contract_version"] == "text-to-sql-f1-v11"
+    assert context["metric"]["aggregation"] == "ratio_of_sums"
+    assert set(context["source"]["columns"]) >= {
+        "consumo_total_kwh", "qtd_ucs_com_leitura"
+    }
+
+
 def build(payload):
     return build_sql_generation_context(QuestionPlanRequest.model_validate(payload))
 

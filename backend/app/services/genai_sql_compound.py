@@ -29,7 +29,11 @@ class RevenueEffect:
     municipality: str
     consumption_class: str
     variation_brl: Decimal
-    volume_effect_brl: Decimal
+    volume_effect_brl: Decimal | None
+    price_effect_brl: Decimal | None = Decimal(0)
+    interaction_effect_brl: Decimal | None = Decimal(0)
+    state: str = "CALCULADA_BASE_COMUM"
+    neighborhood: str = ""
 
 
 @dataclass(frozen=True)
@@ -53,7 +57,7 @@ def compose_consumption_revenue(
     revenue: tuple[RevenueEffect, ...],
     *,
     expected_municipalities: frozenset[str],
-    expected_revenue_groups: frozenset[tuple[str, str]],
+    expected_revenue_groups: frozenset[tuple[str, ...]],
 ) -> CompoundResult:
     """Combine validated totals and published effects, without joining raw facts.
 
@@ -83,14 +87,26 @@ def compose_consumption_revenue(
         raise CompoundEvidenceUnavailable("Evidência de consumo incompleta para o recorte.")
 
     groups: dict[str, list[RevenueEffect]] = {}
-    seen_groups: set[tuple[str, str]] = set()
+    seen_groups: set[tuple[str, ...]] = set()
     for effect in revenue:
-        key = (effect.municipality, effect.consumption_class)
+        key = (
+            (effect.municipality, effect.neighborhood, effect.consumption_class)
+            if effect.neighborhood
+            else (effect.municipality, effect.consumption_class)
+        )
         if (
             not all(key)
             or key in seen_groups
             or not effect.variation_brl.is_finite()
-            or not effect.volume_effect_brl.is_finite()
+            or effect.state not in {"CALCULADA_BASE_COMUM", "SEM_BASE_COMUM"}
+            or effect.state == "CALCULADA_BASE_COMUM"
+            and any(value is None or not value.is_finite() for value in (
+                effect.volume_effect_brl, effect.price_effect_brl, effect.interaction_effect_brl
+            ))
+            or effect.state == "SEM_BASE_COMUM"
+            and any(value is not None for value in (
+                effect.volume_effect_brl, effect.price_effect_brl, effect.interaction_effect_brl
+            ))
         ):
             raise CompoundEvidenceUnavailable("Decomposição inválida ou duplicada.")
         seen_groups.add(key)

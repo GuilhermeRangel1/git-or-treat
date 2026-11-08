@@ -111,7 +111,7 @@ def _evidence(
         "result_digest": "0" * 64,
         "mapping_version": "gold-catalog-v2",
         "dictionary_version": "gold-dictionary-v2",
-        "interpretation": {
+        "interpretation": SqlInterpretation.model_validate({
             "metric_id": "billing.revenue",
             "operation": operation or ("grouped_total" if grouped else "total"),
             "aggregation": "sum",
@@ -130,7 +130,7 @@ def _evidence(
             "ranking_limit": (
                 5 if operation == "ranking" else 10 if ranking_direction else None
             ),
-        },
+        }),
         "columns": columns,
         "measure_semantics": measure_semantics,
         "dimension_semantics": {dimension: dimension} if grouped else {},
@@ -180,6 +180,63 @@ def test_grouped_table_is_identical_to_evidence_and_answer_uses_exact_decimal():
     assert presentation.limitations == (
         "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
     )
+
+
+def test_weighted_continuity_presents_weighted_value_and_included_excluded_feeders():
+    columns = (
+        SqlResultColumn(name="dec_value", role="measure", value_type="decimal", unit="horas por UC"),
+        SqlResultColumn(name="feeders_included", role="measure", value_type="integer", unit="alimentadores"),
+        SqlResultColumn(name="feeders_excluded", role="measure", value_type="integer", unit="alimentadores"),
+    )
+    row = ("1.25", "3", "2")
+    result_payload = {
+        "columns": [column.name for column in columns],
+        "measure_semantics": [["dec_value", "dec_value"], ["feeders_included", "feeders_included"], ["feeders_excluded", "feeders_excluded"]],
+        "rows": (row,),
+        "status": "available",
+    }
+    payload = {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v12",
+        "source_id": "gold.local",
+        "source_table": "gold_v2.indicadores_dec_fec",
+        "metric_id": "network.equivalent_interruption_duration",
+        "coverage_quality": "observed_uncertified",
+        "batch_ref": "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "a" * 64,
+        "admission_digest": "b" * 64,
+        "execution_digest": "c" * 64,
+        "result_digest": hashlib.sha256(json.dumps(result_payload, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest(),
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-dictionary-v2",
+        "interpretation": SqlInterpretation.model_validate({
+            "metric_id": "network.equivalent_interruption_duration",
+            "operation": "weighted_continuity",
+            "aggregation": "weighted_ratio",
+            "periods": [{"start": "2025-01-01", "end": "2025-03-31"}],
+            "filters": [], "group_by": [], "ranking_direction": None, "ranking_limit": None,
+        }),
+        "columns": columns,
+        "measure_semantics": {"dec_value": "dec_value", "feeders_included": "feeders_included", "feeders_excluded": "feeders_excluded"},
+        "dimension_semantics": {},
+        "rows": (row,),
+        "status": "available",
+    }
+    provisional = SqlEvidence.model_construct(**payload, evidence_digest="0" * 64)
+    payload["evidence_digest"] = sql_evidence_digest(
+        provisional.model_dump(mode="json", exclude={"evidence_digest"})
+    )
+    evidence = SqlEvidence.model_validate(payload)
+
+    presentation = present_sql_evidence(evidence)
+
+    assert presentation.contract_version == "text-to-sql-f1-presentation-v11"
+    assert presentation.operation == "weighted_continuity"
+    assert "DEC ponderado" in presentation.answer
+    assert "3 alimentadores elegíveis" in presentation.answer
+    assert "2 alimentadores observados" in presentation.answer
+    assert presentation.rows[0].cells == evidence.rows[0]
+    assert presentation.columns[1].unit == "alimentadores"
+    assert presentation.limitations == ("Valores observados; cobertura do alimentador não certificada.",)
 
 
 def test_neighborhood_dimension_is_presented_as_bairro():

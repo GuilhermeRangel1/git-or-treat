@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
+
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.services.genai_sql_context import build_sql_generation_context
@@ -94,6 +95,12 @@ def test_accepts_two_filtered_sums_and_difference(sql_request):
     (
         f"SELECT SUM(a.receita_total_reais) AS revenue FROM {SOURCE} AS a "
         f"JOIN {SOURCE} AS b ON a.competencia = b.competencia"
+    ),
+    (
+        "SELECT SUM(r.receita_total_reais) AS revenue "
+        "FROM gold_v2.diagnostico_receita AS r "
+        "JOIN gold_v2.consumo_mensal_uc AS c "
+        "ON r.competencia = c.competencia AND r.id_uc = c.id_uc"
     ),
     TOTAL.replace(SOURCE, f"(SELECT * FROM {SOURCE}) r"),
     TOTAL + " UNION ALL " + TOTAL,

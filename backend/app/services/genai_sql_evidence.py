@@ -189,6 +189,12 @@ def build_sql_evidence(
             if candidate.interpretation.metric_id == "energy.gd_units"
             else "text-to-sql-f1-evidence-v10"
             if candidate.interpretation.metric_id == "energy.gd_consumption_drop"
+            else "text-to-sql-f1-evidence-v13"
+            if candidate.interpretation.metric_id in {"billing.average_ticket", "billing.effective_tariff"}
+            else "text-to-sql-f1-evidence-v11"
+            if candidate.interpretation.metric_id == "energy.average_consumption_per_uc"
+            else "text-to-sql-f1-evidence-v12"
+            if candidate.interpretation.operation == "weighted_continuity"
             else "text-to-sql-f1-evidence-v9"
             if candidate.interpretation.metric_id == "service.accumulated_satisfaction"
             else "text-to-sql-f1-evidence-v6"
@@ -246,6 +252,9 @@ def build_sql_evidence(
         "text-to-sql-f1-evidence-v8",
         "text-to-sql-f1-evidence-v9",
         "text-to-sql-f1-evidence-v10",
+        "text-to-sql-f1-evidence-v11",
+        "text-to-sql-f1-evidence-v12",
+        "text-to-sql-f1-evidence-v13",
     }:
         digest_payload.pop("coverage_quality", None)
     evidence = SqlEvidence.model_validate(

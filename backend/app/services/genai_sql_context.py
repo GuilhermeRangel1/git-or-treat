@@ -23,8 +23,11 @@ F1_DIMENSIONS = {
 }
 F1_METRIC_SOURCE_CAPABILITY = {
     "billing.revenue": "faturamento.receita",
+    "billing.average_ticket": "faturamento.receita",
+    "billing.effective_tariff": "faturamento.receita",
     # O fluxo legado validava a medida kWh junto da receita em diagnostico_receita.
     "energy.consumption": "faturamento.receita",
+    "energy.average_consumption_per_uc": "faturamento.receita",
     "service.attendance": "atendimento.mensal",
     "service.satisfaction": "atendimento.mensal",
     "service.accumulated_attendance": "atendimento.uc_acumulado",
@@ -48,6 +51,7 @@ class SqlContextUnavailable(ValueError):
 @dataclass(frozen=True)
 class SqlGenerationContext:
     context_version: str
+    generation_contract_version: str
     contents: str
     mapping_version: str
     dictionary_version: str
@@ -65,6 +69,21 @@ def _canonical(value) -> str:
 
 def requested_sql_metric_id(question: str, context=()) -> str:
     normalized = question.casefold()
+    normalized_unaccented = _normalize_question(question)
+    if re.search(r"\b(?:ticket medio|preco medio por uc|valor medio por uc faturada)\b", normalized_unaccented):
+        return "billing.average_ticket"
+    if re.search(
+        r"\b(?:preco medio observado(?: por kwh| do kwh)?|preco medio por kwh|"
+        r"preco observado por kwh|tarifa media efetiva)\b",
+        normalized_unaccented,
+    ):
+        return "billing.effective_tariff"
+    if re.search(
+        r"consumo.{0,30}(?:m[eé]di[oa]|m[eé]dia).{0,30}(?:uc|unidade)|"
+        r"(?:m[eé]di[oa]|m[eé]dia).{0,30}consumo.{0,30}(?:uc|unidade)",
+        normalized,
+    ):
+        return "energy.average_consumption_per_uc"
     if is_gd_consumption_drop_question(question):
         return "energy.gd_consumption_drop"
     if _is_gd_units_question(question):
@@ -106,6 +125,15 @@ def requested_sql_metric_id(question: str, context=()) -> str:
         if turn.role != "user":
             continue
         previous = turn.content.casefold()
+        previous_unaccented = _normalize_question(turn.content)
+        if re.search(r"\b(?:ticket medio|preco medio por uc|valor medio por uc faturada)\b", previous_unaccented):
+            return "billing.average_ticket"
+        if re.search(
+            r"\b(?:preco medio observado(?: por kwh| do kwh)?|preco medio por kwh|"
+            r"preco observado por kwh|tarifa media efetiva)\b",
+            previous_unaccented,
+        ):
+            return "billing.effective_tariff"
         if is_gd_consumption_drop_question(turn.content):
             return "energy.gd_consumption_drop"
         if _is_gd_units_question(turn.content):
@@ -289,11 +317,50 @@ def requested_sql_source_capability(question: str, metric_id: str, context=()) -
     return F1_METRIC_SOURCE_CAPABILITY[metric_id]
 
 
+def _uses_weighted_continuity(question: str, context, dimension_value_coverage) -> bool:
+    """Select the weighted contract only for explicit multi-month/feeder requests."""
+    turns = [question, *(turn.content for turn in context if turn.role == "user")]
+    text = " ".join(turns).casefold()
+    dates = re.findall(r"\b20\d{2}[-/](?:0[1-9]|1[0-2])\b", text)
+    named_months = re.findall(
+        r"\b(?:jan(?:eiro)?|fev(?:ereiro)?|mar(?:ço|co)?|abr(?:il)?|"
+        r"mai(?:o)?|jun(?:ho)?|jul(?:ho)?|ago(?:sto)?|set(?:embro)?|"
+        r"out(?:ubro)?|nov(?:embro)?|dez(?:embro)?)\s+(?:de\s+)?20\d{2}\b",
+        text,
+    )
+    if len(set(dates)) > 1 or len(set(named_months)) > 1:
+        return True
+    if re.search(r"\b(?:ultim[oa]s?\s+\d+\s+meses|ultim[oa]\s+ano|ano\s+inteiro)\b", text):
+        return True
+    if re.search(
+        r"\b(?:alimentadores|todos\s+os\s+alimentadores|consolidado|consolidar)\b",
+        text,
+    ):
+        return True
+    normalized = _normalize_question(text)
+    matched_feeders = {
+        value
+        for item in dimension_value_coverage
+        if item.dimension_id == "network.feeder"
+        for value in item.values
+        if re.search(
+            rf"(?<![\w]){re.escape(_normalize_question(str(value)))}(?![\w])",
+            normalized,
+        )
+    }
+    return len(matched_feeders) > 1
+
+
 def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationContext:
     scope = request.access_scope
     metric_id = requested_sql_metric_id(request.question, request.context)
     generation_version = (
-        "text-to-sql-f1-v4"
+        "text-to-sql-f1-v12"
+        if metric_id.startswith("network.equivalent_interruption_")
+        and _uses_weighted_continuity(
+            request.question, request.context, request.dimension_value_coverage
+        )
+        else "text-to-sql-f1-v4"
         if metric_id.startswith("network.equivalent_interruption_")
         else "text-to-sql-f1-v7"
         if metric_id == "service.satisfaction"
@@ -309,6 +376,10 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         if metric_id == "service.attendance"
         else "text-to-sql-f1-v2"
         if metric_id == "energy.consumption"
+        else "text-to-sql-f1-v13"
+        if metric_id in {"billing.average_ticket", "billing.effective_tariff"}
+        else "text-to-sql-f1-v11"
+        if metric_id == "energy.average_consumption_per_uc"
         else "text-to-sql-f1-v1"
     )
     if (
@@ -406,8 +477,23 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         for column in (source.temporal_column, measure_column, *dimensions.values())
         if column is not None
     ]
+    if metric_id in {
+        "energy.average_consumption_per_uc",
+        "billing.average_ticket",
+        "billing.effective_tariff",
+    }:
+        columns.extend((source.numerator_column, source.denominator_column))
     if metric_id == "energy.gd_consumption_drop":
         columns.extend(("meses_com_leitura_p1", "meses_com_leitura_p2"))
+    if (
+        metric_id.startswith("network.equivalent_interruption_")
+        and generation_version == "text-to-sql-f1-v12"
+    ):
+        columns.extend((
+            "total_ucs_alimentador",
+            "duracao_total_interrupcoes_horas",
+            "frequencia_total_interrupcoes",
+        ))
     table = TABLES[source.table]
     payload = {
         "generation_contract_version": generation_version,
@@ -487,6 +573,29 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
             "satisfaction_operations": ["average"]
             if metric_id == "service.satisfaction"
             else [],
+            "ratio_operations": ["ratio_of_sums"]
+            if metric_id in {
+                "energy.average_consumption_per_uc",
+                "billing.average_ticket",
+                "billing.effective_tariff",
+            }
+            else [],
+            "ratio_definition": {
+                "energy.average_consumption_per_uc": (
+                    "SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0); "
+                    "não usar média das médias; os dois componentes devem pertencer à mesma população"
+                ),
+                "billing.average_ticket": (
+                    "ROUND(SUM(receita_total_reais) / "
+                    "NULLIF(SUM(qtd_ucs_distintas_faturadas_no_mes), 0), 2); "
+                    "razão das somas do mesmo recorte, em R$ por UC faturada no mês"
+                ),
+                "billing.effective_tariff": (
+                    "ROUND(SUM(receita_base_comparavel_reais) / "
+                    "NULLIF(SUM(consumo_base_comparavel_kwh)::numeric, 0), 4); "
+                    "preço observado na mesma base comparável, não tarifa homologada"
+                ),
+            }.get(metric_id),
             "satisfaction_definition": (
                 "AVG(nota_satisfacao) por data_abertura no mês UTC; NULL é ignorado, zero é válido"
                 if metric_id == "service.satisfaction"
@@ -539,11 +648,22 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
             )
             if metric_id == "energy.gd_consumption_drop"
             else None,
-            "continuity_operations": ["grain_read"]
+            "continuity_operations": ["weighted_continuity"]
+            if generation_version == "text-to-sql-f1-v12"
+            else ["grain_read"]
             if metric_id.startswith("network.equivalent_interruption_")
             else [],
-            "continuity_no_aggregation": metric_id.startswith(
-                "network.equivalent_interruption_"
+            "continuity_definition": (
+                "Para cada alimentador, exigir todas as competências pedidas, numerador válido em todas, "
+                "denominador positivo e constante; somar os numeradores e contar o denominador uma única "
+                "vez. Agregar entre alimentadores pela razão entre a soma dos numeradores elegíveis e a "
+                "soma dos denominadores elegíveis. Nunca somar ou tirar média simples dos índices DEC/FEC. "
+                "A qualidade permanece observada não certificada quando C11 só falhar por cobertura."
+                if metric_id.startswith("network.equivalent_interruption_") else None
+            ),
+            "continuity_no_aggregation": (
+                metric_id.startswith("network.equivalent_interruption_")
+                and generation_version != "text-to-sql-f1-v12"
             ),
         },
     }
@@ -569,6 +689,7 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         )
     return SqlGenerationContext(
         context_version=digest,
+        generation_contract_version=generation_version,
         contents=contents,
         mapping_version=catalog.mapping_version,
         dictionary_version=catalog.dictionary_version,

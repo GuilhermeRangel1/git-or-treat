@@ -35,21 +35,6 @@ from app.services.genai_sql_telemetry import record_sql_stage, sql_stage
 logger = logging.getLogger(__name__)
 
 
-def _contract_version(metric_id: str) -> str:
-    return {
-        "billing.revenue": "text-to-sql-f1-v1",
-        "energy.consumption": "text-to-sql-f1-v2",
-        "service.attendance": "text-to-sql-f1-v3",
-        "service.satisfaction": "text-to-sql-f1-v7",
-        "service.accumulated_attendance": "text-to-sql-f1-v5",
-        "energy.gd_units": "text-to-sql-f1-v8",
-        "energy.gd_consumption_drop": "text-to-sql-f1-v10",
-        "service.accumulated_satisfaction": "text-to-sql-f1-v9",
-        "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
-        "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
-    }[metric_id]
-
-
 def log_sql_context_ready(context, correlation_id: str) -> None:
     """Registra composição e versões do contexto, nunca conteúdo ou valores."""
     logger.info(
@@ -167,7 +152,7 @@ async def observe_sql_generation(
         )
         return SqlGenerationObservation(
             SqlGenerationCandidate(
-                generation_contract_version=_contract_version(context.metric_ids[0]),
+                    generation_contract_version=context.generation_contract_version,
                 status="unsupported",
                 context_version=context.context_version,
                 unsupported_reason={
@@ -195,7 +180,7 @@ async def observe_sql_generation(
         )
         return SqlGenerationObservation(
             SqlGenerationCandidate(
-                generation_contract_version=_contract_version(context.metric_ids[0]),
+                    generation_contract_version=context.generation_contract_version,
                 status="unsupported",
                 context_version=context.context_version,
                 unsupported_reason={
@@ -217,7 +202,7 @@ async def observe_sql_generation(
         )
         return SqlGenerationObservation(
             SqlGenerationCandidate(
-                generation_contract_version=_contract_version(context.metric_ids[0]),
+                    generation_contract_version=context.generation_contract_version,
                 status="unsupported",
                 context_version=context.context_version,
                 unsupported_reason={
@@ -245,7 +230,7 @@ async def observe_sql_generation(
         )
         return SqlGenerationObservation(
             SqlGenerationCandidate(
-                generation_contract_version=_contract_version(context.metric_ids[0]),
+                    generation_contract_version=context.generation_contract_version,
                 status="needs_clarification",
                 context_version=context.context_version,
                 clarification={
@@ -257,7 +242,7 @@ async def observe_sql_generation(
             model_calls=0,
         )
     payload = SqlGenerationRequest(
-        generation_contract_version=_contract_version(context.metric_ids[0]),
+        generation_contract_version=context.generation_contract_version,
         context_version=context.context_version,
         contents=context.contents,
         remaining_timeout_ms=deadline.remaining_timeout_ms(stage_seconds),

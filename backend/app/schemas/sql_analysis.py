@@ -1,14 +1,115 @@
 """Envelope público da análise Text-to-SQL; nunca expõe SQL nem parâmetros."""
 
+import hashlib
+import json
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.schemas.ai import AICorrelationId, AIQuestionRequest
+from app.schemas.genai_evidence import PublishedWindows
 from app.schemas.sql_evidence import SqlEvidence
 from app.schemas.sql_generation import SqlClarification, SqlUnsupported
 
 PresentationText = Annotated[str, StringConstraints(min_length=1, max_length=4000)]
+ExactDecimal = Annotated[str, StringConstraints(pattern=r"^-?(?:0|[1-9][0-9]{0,100})(?:\.[0-9]{1,100})?$")]
+
+
+class SqlCompoundRevenueEffect(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    consumption_class: str = Field(min_length=1, max_length=120)
+    neighborhood: str = Field(min_length=1, max_length=120)
+    variation_brl: ExactDecimal
+    volume_effect_brl: ExactDecimal | None
+    price_effect_brl: ExactDecimal | None
+    interaction_effect_brl: ExactDecimal | None
+    state: Literal["CALCULADA_BASE_COMUM", "SEM_BASE_COMUM"]
+
+
+class SqlCompoundMunicipality(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    municipality: str = Field(min_length=1, max_length=120)
+    previous_consumption_kwh: ExactDecimal
+    current_consumption_kwh: ExactDecimal
+    change_kwh: ExactDecimal
+    change_percent: ExactDecimal
+    revenue_by_class: tuple[SqlCompoundRevenueEffect, ...] = Field(min_length=1, max_length=1500)
+
+
+class SqlCompoundAnalysis(BaseModel):
+    """Multi-source evidence; Gold and local staging retain separate provenance."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    contract_version: Literal["text-to-sql-f1-compound-v1"]
+    answer: PresentationText
+    active_gold_batch: str = Field(min_length=1, max_length=200)
+    staging_manifest_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    staging_csv_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    method: Literal["PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3"]
+    windows: PublishedWindows
+    municipalities: tuple[SqlCompoundMunicipality, ...] = Field(max_length=100)
+    limitations: tuple[str, ...] = Field(min_length=1, max_length=10)
+    evidence_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def validate_digest(self):
+        payload = self.model_dump(mode="json", exclude={"evidence_digest"})
+        actual = hashlib.sha256(json.dumps(
+            payload, ensure_ascii=False, allow_nan=False, sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")).hexdigest()
+        if actual != self.evidence_digest:
+            raise ValueError("digest da evidência composta diverge")
+        return self
+
+    @classmethod
+    def from_sources(cls, result, manifest, manifest_digest):
+        municipalities = tuple(SqlCompoundMunicipality(
+            municipality=row.consumption.municipality,
+            previous_consumption_kwh=format(row.consumption.previous_kwh, "f"),
+            current_consumption_kwh=format(row.consumption.current_kwh, "f"),
+            change_kwh=format(row.change_kwh, "f"),
+            change_percent=format(row.change_percent, ".6f"),
+            revenue_by_class=tuple(SqlCompoundRevenueEffect(
+                consumption_class=effect.consumption_class,
+                neighborhood=effect.neighborhood,
+                variation_brl=format(effect.variation_brl, "f"),
+                volume_effect_brl=format(effect.volume_effect_brl, "f") if effect.volume_effect_brl is not None else None,
+                price_effect_brl=format(effect.price_effect_brl, "f") if effect.price_effect_brl is not None else None,
+                interaction_effect_brl=format(effect.interaction_effect_brl, "f") if effect.interaction_effect_brl is not None else None,
+                state=effect.state,
+            ) for effect in row.revenue_by_class),
+        ) for row in result.municipalities)
+        answer = (
+            "A comparação preço-volume foi calculada para jul/2024–jun/2025 "
+            "contra jul/2025–jun/2026. A tabela mostra municípios com queda de "
+            "consumo e a decomposição da receita por classe de consumo."
+        )
+        base = {
+            "contract_version": "text-to-sql-f1-compound-v1",
+            "answer": answer,
+            "active_gold_batch": result.scope.batch_ref,
+            "staging_manifest_digest": manifest_digest,
+            "staging_csv_digest": manifest["csv_sha256"],
+            "method": manifest["method"],
+            "windows": result.scope.windows.model_dump(mode="json"),
+            "municipalities": [item.model_dump(mode="json") for item in municipalities],
+            "limitations": [
+                "A decomposição foi lida de staging local Gold v2, não da Gold ativa.",
+                "Consumo e faturamento vêm de agregações independentes; as bases populacionais podem diferir.",
+                "Preço observado não é tarifa regulada e não indica causalidade.",
+                "A resposta lista apenas municípios com queda de consumo; efeitos de receita são detalhados por classe.",
+                "Para grupos sem base comum comparável, os efeitos de volume, preço e interação permanecem sem valor.",
+            ],
+        }
+        digest = hashlib.sha256(json.dumps(
+            base, ensure_ascii=False, allow_nan=False, sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")).hexdigest()
+        return cls(**base, evidence_digest=digest)
 
 
 class SqlPresentationColumn(BaseModel):
@@ -32,12 +133,17 @@ class SqlPresentationColumn(BaseModel):
         "satisfaction_average",
         "dec_value",
         "fec_value",
+        "feeders_included",
+        "feeders_excluded",
+        "average_consumption_per_uc",
+        "average_ticket",
+        "effective_tariff",
         "period_0_total",
         "period_1_total",
         "period_0_minus_period_1",
         "period_0_growth_percent",
     ]
-    unit: str | None = Field(default=None, max_length=20)
+    unit: str | None = Field(default=None, max_length=64)
 
 
 class SqlPresentationRow(BaseModel):
@@ -62,6 +168,9 @@ class SqlAnalysisPresentation(BaseModel):
         "text-to-sql-f1-presentation-v7",
         "text-to-sql-f1-presentation-v8",
         "text-to-sql-f1-presentation-v9",
+        "text-to-sql-f1-presentation-v10",
+        "text-to-sql-f1-presentation-v11",
+        "text-to-sql-f1-presentation-v12",
     ]
     state: Literal["ready", "empty", "all_measures_null"]
     operation: Literal[
@@ -75,6 +184,8 @@ class SqlAnalysisPresentation(BaseModel):
         "average",
         "snapshot_total",
         "accumulated_average",
+        "ratio_of_sums",
+        "weighted_continuity",
     ]
     answer: PresentationText
     period: str = Field(min_length=1, max_length=100)
@@ -96,6 +207,7 @@ class SqlAnalysisResponse(BaseModel):
     status: Literal["answered", "needs_clarification", "unsupported"]
     evidence: SqlEvidence | None = None
     presentation: SqlAnalysisPresentation | None = None
+    compound_analysis: SqlCompoundAnalysis | None = None
     clarification: SqlClarification | None = None
     unsupported_reason: SqlUnsupported | None = None
     continuation_token: (
@@ -105,6 +217,10 @@ class SqlAnalysisResponse(BaseModel):
     @model_validator(mode="after")
     def validate_result_shape(self):
         if self.status == "answered":
+            if self.compound_analysis is not None:
+                if self.evidence is not None or self.presentation is not None or self.clarification is not None or self.unsupported_reason is not None:
+                    raise ValueError("evidência composta não pode misturar o envelope de métrica única")
+                return self
             from app.services.genai_sql_presentation import present_sql_evidence
 
             if (
@@ -137,7 +253,7 @@ class SqlAnalysisResponse(BaseModel):
                     or row.cells != self.evidence.rows[index - 1]
                 ):
                     raise ValueError("tabela de apresentação diverge da evidência")
-        elif self.evidence is not None or self.presentation is not None:
+        elif self.evidence is not None or self.presentation is not None or self.compound_analysis is not None:
             raise ValueError(
                 "estado não respondido não pode incluir resultado quantitativo"
             )
@@ -167,6 +283,15 @@ class SqlAnalysisResponse(BaseModel):
             status=candidate.status,
             clarification=candidate.clarification,
             unsupported_reason=candidate.unsupported_reason,
+        )
+
+    @classmethod
+    def from_compound(cls, correlation_id, analysis, *, audit_reference):
+        return cls(
+            correlation_id=correlation_id,
+            audit_reference=audit_reference,
+            status="answered",
+            compound_analysis=analysis,
         )
 
 

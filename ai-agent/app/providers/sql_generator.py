@@ -114,6 +114,20 @@ no início do mês pedido e do mês seguinte. AVG ignora notas NULL; nota zero �
 e deve permanecer na média. Não substitua a média por COUNT,
 não filtre valores zero ou NULL no WHERE e não infira satisfação de protocolos
 sem nota.
+Exceção estrita para DEC/FEC agregado no contrato v12: aceite somente
+`weighted_continuity`, `aggregation="weighted_ratio"`, uma janela mensal completa
+ou várias competências completas dentro da cobertura, sem agrupamento/ranking.
+Admite filtro opcional `network.feeder` com `eq` ou `in`; não invente alimentadores.
+Retorne `sql=null` e `parameters={}`: o Backend compila uma consulta fixa e validada
+para a fórmula ponderada. Declare três medidas: o alias `dec_value` para DEC
+(unidade `horas por UC`) ou `fec_value` para FEC (unidade `interrupções por UC`),
+mais `feeders_included` e `feeders_excluded` como inteiros em `alimentadores`.
+Não some nem tire média simples de DEC/FEC publicados. Cada alimentador só é
+elegível se tiver todas as competências solicitadas, numerador válido em todas,
+denominador positivo e constante. O denominador entra uma única vez por
+alimentador elegível. O Backend valida o lote e pode manter a resposta como
+observada não certificada; nunca chame a cobertura de certificada.
+Exceção restrita de leitura direta no contrato v4 permanece indisponível nesta rota.
 Exceção estrita para DEC/FEC no contrato v4: aceite somente `grain_read`,
 `aggregation="key_grain_read"`, uma competência mensal e um único filtro
 `network.feeder` com operador `eq`. Projete somente a coluna física declarada em
@@ -150,6 +164,27 @@ geração/injeção. A resposta é um retrato do cadastro no lote publicado. Nã
 COUNT(DISTINCT id_uc): o grão aprovado já é uma linha por UC e a chave física é
 revalidada pelo Backend.
 
+Exceção estrita para ticket médio e preço observado no contrato v13: aceite
+`ratio_of_sums`, `aggregation="ratio_of_sums"`, uma janela mensal ou intervalo
+completo, filtros autorizados e nenhum agrupamento, ranking ou limite. Para
+`billing.average_ticket`, calcule exatamente
+`ROUND(SUM(receita_total_reais) / NULLIF(SUM(qtd_ucs_distintas_faturadas_no_mes), 0), 2)`
+como `average_ticket`, tipo `decimal` e unidade `R$ por UC faturada no mês`. Para
+`billing.effective_tariff`, calcule exatamente
+`ROUND(SUM(receita_base_comparavel_reais) / NULLIF(SUM(consumo_base_comparavel_kwh)::numeric, 0), 4)`
+como `effective_tariff`, tipo `decimal` e unidade `R$/kWh`. Use uma única fonte e
+os parâmetros/filtros autorizados do contexto. Não calcule média de razões nem
+misture populações. Preço observado não é tarifa homologada; não responda pedido
+explícito de tarifa regulada com essa métrica. O Backend revalida fórmula, fonte,
+controles e cobertura antes da execução.
+Exceção estrita para consumo médio por UC com leitura no contrato v11: aceite somente
+`ratio_of_sums`, `aggregation="ratio_of_sums"`, uma janela mensal e nenhum
+agrupamento, ranking ou limite. Consulte a única fonte declarada no contexto, sem
+JOIN. Calcule exatamente `SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0)`
+como `average_consumption`, unidade `kWh por UC com leitura no mês`, tipo `decimal`.
+Os dois componentes têm de pertencer à mesma população; não calcule AVG, nem média
+simples de médias ou razões por grupo. Preserve filtros autorizados e os meses
+completos. O Backend valida a expressão e a prontidão dos controles antes de executar.
 Exceção estrita para queda de consumo de UCs com GD no contrato v10: aceite somente
 `snapshot_total`, `aggregation="count_gd_drop"`, períodos vazios e filtro fixo
 `generation.distributed eq ["Sim"]`; admita município como filtro e/ou agrupamento
@@ -315,6 +350,9 @@ No estado sql_candidate, interpretation deve obedecer a estas combinações:
 - grain_read: somente DEC/FEC, um mês, group_by=[], exatamente um filtro eq de
   network.feeder, sem ranking. Retorne a medida física direta como value, sem
   agregação e sem GROUP BY.
+- ratio_of_sums: energy.average_consumption_per_uc no v11; billing.average_ticket e
+  billing.effective_tariff no v13. Sem agrupamento/ranking; use a fórmula exata e os
+  dois componentes declarados em metric/source.
 Todas as janelas usam start/end como datas completas YYYY-MM-DD, começando no
 primeiro dia e terminando no último dia do mês, inclusive fevereiro.
 Essas datas completas pertencem APENAS a `interpretation.periods`. A coluna física

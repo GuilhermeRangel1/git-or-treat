@@ -23,7 +23,7 @@ from app.services.genai_sql_context import build_sql_generation_context
 from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_semantics
 from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
 
-SQL_ADMISSION_POLICY_VERSION = "text-to-sql-f1-admission-3"
+SQL_ADMISSION_POLICY_VERSION = "text-to-sql-f1-admission-4"
 OBSERVED_CONTINUITY_WARNING = "Valores observados; cobertura do alimentador não certificada."
 
 
@@ -120,7 +120,10 @@ async def admit_sql_candidate(
     source_capability_id = context_body["source"]["capability_id"]
     if candidate.interpretation.metric_id in {
         "billing.revenue",
-        "energy.consumption", "service.attendance", "service.satisfaction",
+        "energy.consumption", "energy.average_consumption_per_uc",
+                    "billing.average_ticket",
+                    "billing.effective_tariff",
+        "service.attendance", "service.satisfaction",
         "network.equivalent_interruption_duration",
         "network.equivalent_interruption_frequency",
     }:
@@ -163,17 +166,33 @@ async def admit_sql_candidate(
         }
         feeder_filters = [item for item in candidate.interpretation.filters
                           if item.dimension_id == "network.feeder"]
+        observed_operation = candidate.interpretation.operation
+        weighted_period = candidate.interpretation.periods[0] if candidate.interpretation.periods else None
+        weighted_month_count = len(periods)
+        observed_filter_is_safe = (
+            len(feeder_filters) <= 1
+            if observed_operation == "weighted_continuity"
+            else len(feeder_filters) == 1
+            and feeder_filters[0].operator == "eq"
+            and len(feeder_filters[0].values) == 1
+        )
         exact_observed_recorte = (
             is_continuity
             and capability is not None
             and capability.status == "unavailable"
             and capability.reasons == ("coverage_incomplete",)
-            and len(periods) == 1
-            and len(candidate.interpretation.periods) == 1
-            and candidate.interpretation.operation == "grain_read"
-            and len(feeder_filters) == 1
-            and feeder_filters[0].operator == "eq"
-            and len(feeder_filters[0].values) == 1
+            and observed_operation in {"grain_read", "weighted_continuity"}
+            and (
+                observed_operation == "grain_read"
+                and len(periods) == 1
+                and len(candidate.interpretation.periods) == 1
+                and observed_filter_is_safe
+                or observed_operation == "weighted_continuity"
+                and weighted_period is not None
+                and 1 <= weighted_month_count <= 120
+                and len(candidate.interpretation.periods) == 1
+                and observed_filter_is_safe
+            )
         )
         _require(exact_observed_recorte)
         observed_uncertified = True

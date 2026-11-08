@@ -24,6 +24,9 @@ def assert_live_f1_catalog(
     if not metric_ids or not metric_ids <= {
         "billing.revenue",
         "energy.consumption",
+        "energy.average_consumption_per_uc",
+        "billing.average_ticket",
+        "billing.effective_tariff",
         "service.attendance",
         "service.satisfaction",
         "service.accumulated_attendance",
@@ -57,6 +60,8 @@ def assert_live_f1_catalog(
         if metric is None or source is None:
             raise GoldCatalogIncompatible("Fonte F1 ausente do catálogo aprovado.")
         required = {source.temporal_column, source.measure_column}
+        if metric_id in {"energy.average_consumption_per_uc", "billing.average_ticket", "billing.effective_tariff"}:
+            required.update({source.numerator_column, source.denominator_column})
         required.update(
             column
             for dimension_id, column in source.dimension_columns.items()

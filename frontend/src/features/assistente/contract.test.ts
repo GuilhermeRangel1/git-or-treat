@@ -133,6 +133,80 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
     },
   };
 
+  it("decodifica resposta composta com origem Gold e staging do histórico F1", () => {
+    const response = decodeSqlAnalysisResponse({
+      correlation_id: "0123456789abcdef0123456789abcdef",
+      audit_reference: "abcdef0123456789abcdef0123456789",
+      status: "answered",
+      evidence: null,
+      presentation: null,
+      clarification: null,
+      unsupported_reason: null,
+      continuation_token: "signed-continuation-token",
+      compound_analysis: {
+        contract_version: "text-to-sql-f1-compound-v1",
+        answer: "A comparação foi concluída.",
+        active_gold_batch: "gold-csv-v2:GOLD_20261103T173853Z_76c37784:12345678-1234-4123-8123-123456789abc",
+        staging_manifest_digest: "a".repeat(64),
+        staging_csv_digest: "b".repeat(64),
+        method: "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3",
+        windows: {
+          p0_start: "2024-07", p0_end: "2025-06",
+          p1_start: "2025-07", p1_end: "2026-06",
+          method: "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3",
+        },
+        municipalities: [{
+          municipality: "Recife",
+          previous_consumption_kwh: "100.0",
+          current_consumption_kwh: "80.0",
+          change_kwh: "-20.0",
+          change_percent: "-20.000000",
+          revenue_by_class: [{
+            neighborhood: "Centro",
+            consumption_class: "RESIDENCIAL",
+            variation_brl: "12.50",
+            volume_effect_brl: "-3.00",
+            price_effect_brl: "14.00",
+            interaction_effect_brl: "1.50",
+            state: "CALCULADA_BASE_COMUM",
+          }, {
+            neighborhood: "Várzea",
+            consumption_class: "INDUSTRIAL",
+            variation_brl: "-2.25",
+            volume_effect_brl: null,
+            price_effect_brl: null,
+            interaction_effect_brl: null,
+            state: "SEM_BASE_COMUM",
+          }],
+        }],
+        limitations: [
+          "A decomposição foi lida de staging local Gold v2, não é Gold ativa.",
+          "Consumo e faturamento vêm de agregações independentes.",
+        ],
+        evidence_digest: "c".repeat(64),
+      },
+    });
+
+    expect(response).toMatchObject({
+      status: "answered",
+      sql_analysis_mode: true,
+      continuation_token: "signed-continuation-token",
+      sql_compound_analysis: {
+        municipalities: [{
+          municipality: "Recife",
+          revenue_by_class: [
+            { state: "CALCULADA_BASE_COMUM" },
+            { state: "SEM_BASE_COMUM", volume_effect_brl: null },
+          ],
+        }],
+      },
+      evidence: [
+        { source: "gold.local" },
+        { source: "gold-v2.staging" },
+      ],
+    });
+  });
+
   it("deriva resposta, tabela e gráfico das linhas exatas da evidência", () => {
     const result = decodeSqlAnalysisResponse(sqlResponse);
     expect(result).toMatchObject({
@@ -551,6 +625,61 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
     });
     expect(result.answer).toContain("cobertura do alimentador não certificada");
     expect(result.visualization).toBeUndefined();
+  });
+
+  it("aceita DEC ponderado com população elegível e excluída na evidência", () => {
+    const warning = "Valores observados; cobertura do alimentador não certificada.";
+    const result = decodeSqlAnalysisResponse({
+      ...sqlResponse,
+      evidence: {
+        ...sqlResponse.evidence,
+        evidence_contract_version: "text-to-sql-f1-evidence-v12",
+        source_table: "gold_v2.indicadores_dec_fec",
+        metric_id: "network.equivalent_interruption_duration",
+        coverage_quality: "observed_uncertified",
+        interpretation: {
+          metric_id: "network.equivalent_interruption_duration",
+          operation: "weighted_continuity",
+          aggregation: "weighted_ratio",
+          periods: [{ start: "2025-01-01", end: "2025-03-31" }],
+          filters: [],
+        },
+        columns: [
+          { name: "dec_value", role: "measure", unit: "horas por UC" },
+          { name: "feeders_included", role: "measure", unit: "alimentadores" },
+          { name: "feeders_excluded", role: "measure", unit: "alimentadores" },
+        ],
+        measure_semantics: {
+          dec_value: "dec_value",
+          feeders_included: "feeders_included",
+          feeders_excluded: "feeders_excluded",
+        },
+        dimension_semantics: {},
+        rows: [["1.25", "3", "2"]],
+      },
+      presentation: {
+        ...sqlResponse.presentation,
+        contract_version: "text-to-sql-f1-presentation-v11",
+        state: "ready",
+        operation: "weighted_continuity",
+        answer: `DEC ponderado em janeiro a março de 2025: 1,25. Foram incluídos 3 alimentadores elegíveis e excluídos 2 alimentadores observados. ${warning}`,
+        period: "2025-01 a 2025-03",
+        filters: [],
+        universe: [],
+        limitations: [warning],
+        columns: [
+          { key: "dec_value", label: "DEC", role: "measure", semantic_id: "dec_value", unit: "horas por UC" },
+          { key: "feeders_included", label: "Alimentadores elegíveis", role: "measure", semantic_id: "feeders_included", unit: "alimentadores" },
+          { key: "feeders_excluded", label: "Alimentadores observados excluídos", role: "measure", semantic_id: "feeders_excluded", unit: "alimentadores" },
+        ],
+        rows: [{ observation_id: "row_1", cells: ["1.25", "3", "2"] }],
+      },
+    });
+    expect(result.sql_presentation?.operation).toBe("weighted_continuity");
+    expect(result.sql_presentation?.columns.map((column) => column.semantic_id)).toEqual([
+      "dec_value", "feeders_included", "feeders_excluded",
+    ]);
+    expect(result.limitations).toContain(warning);
   });
 
   it("recusa divergência entre a tabela de apresentação e a evidência", () => {

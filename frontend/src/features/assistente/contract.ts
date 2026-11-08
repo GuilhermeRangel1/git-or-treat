@@ -40,10 +40,13 @@ export type SqlAnalysisPresentation = {
     | "text-to-sql-f1-presentation-v6"
     | "text-to-sql-f1-presentation-v7"
     | "text-to-sql-f1-presentation-v8"
-    | "text-to-sql-f1-presentation-v9";
+    | "text-to-sql-f1-presentation-v9"
+    | "text-to-sql-f1-presentation-v10"
+    | "text-to-sql-f1-presentation-v11"
+    | "text-to-sql-f1-presentation-v12";
   state: "ready" | "empty" | "all_measures_null";
   operation:
-    "total" | "monthly_series" | "grouped_total" | "ranking" | "comparison" | "grain_read" | "accumulated_total" | "average" | "snapshot_total" | "accumulated_average";
+    "total" | "monthly_series" | "grouped_total" | "ranking" | "comparison" | "grain_read" | "accumulated_total" | "average" | "snapshot_total" | "accumulated_average" | "ratio_of_sums" | "weighted_continuity";
   answer: string;
   period: string;
   filters: string[];
@@ -68,11 +71,16 @@ export type SqlAnalysisPresentation = {
       | "satisfaction_average"
       | "dec_value"
       | "fec_value"
+      | "feeders_included"
+      | "feeders_excluded"
+      | "average_consumption_per_uc"
+      | "average_ticket"
+      | "effective_tariff"
       | "period_0_total"
       | "period_1_total"
       | "period_0_minus_period_1"
       | "period_0_growth_percent";
-  unit: "R$" | "kWh" | "protocolos" | "UCs" | "pontos" | "horas por UC" | "interrupções por UC" | "%" | null;
+  unit: "R$" | "R$ por UC faturada no mês" | "R$/kWh" | "kWh" | "kWh por UC com leitura no mês" | "protocolos" | "UCs" | "pontos" | "horas por UC" | "interrupções por UC" | "alimentadores" | "%" | null;
   }[];
   rows: { observation_id: string; cells: (string | null)[] }[];
   evidence_digest: string;
@@ -110,6 +118,35 @@ export type AIQuestionResponse = {
   visualization?: ChatVisualization;
   sql_analysis_mode?: boolean;
   sql_presentation?: SqlAnalysisPresentation;
+  sql_compound_analysis?: SqlCompoundAnalysis;
+};
+
+export type SqlCompoundAnalysis = {
+  contract_version: "text-to-sql-f1-compound-v1";
+  answer: string;
+  active_gold_batch: string;
+  staging_manifest_digest: string;
+  staging_csv_digest: string;
+  method: "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3";
+  windows: { p0_start: string; p0_end: string; p1_start: string; p1_end: string; method: string };
+  municipalities: {
+    municipality: string;
+    previous_consumption_kwh: string;
+    current_consumption_kwh: string;
+    change_kwh: string;
+    change_percent: string;
+    revenue_by_class: {
+      consumption_class: string;
+      neighborhood: string;
+      variation_brl: string;
+      volume_effect_brl: string | null;
+      price_effect_brl: string | null;
+      interaction_effect_brl: string | null;
+      state: "CALCULADA_BASE_COMUM" | "SEM_BASE_COMUM";
+    }[];
+  }[];
+  limitations: string[];
+  evidence_digest: string;
 };
 
 export type AIQuestionErrorResponse = {
@@ -126,6 +163,9 @@ const SQL_F1_LIMITATIONS = [
   "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
 ];
 const SQL_ENERGY_LIMITATIONS = ["Consumo medido não é energia faturada."];
+const SQL_AVERAGE_CONSUMPTION_LIMITATIONS = [
+  "Razão entre o consumo total e a soma de UCs com leitura na mesma base mensal; não é média simples de médias.",
+];
 const SQL_GD_LIMITATIONS = [
   "Retrato do cadastro no lote publicado; não informa quando a GD entrou em operação nem confirma geração ou injeção.",
 ];
@@ -400,6 +440,24 @@ function decodeSqlAnalysisPresentation(
   if (satisfactionPresentation) acceptedLimitations.push([
     "Média das notas informadas; valores ausentes são excluídos e zero é válido.",
   ]);
+  const averageConsumptionPresentation = Array.isArray(value.columns) && value.columns.some(
+    (item) => isRecord(item) && item.semantic_id === "average_consumption_per_uc",
+  );
+  if (averageConsumptionPresentation) acceptedLimitations.push(SQL_AVERAGE_CONSUMPTION_LIMITATIONS);
+  const averageTicketPresentation = Array.isArray(value.columns) && value.columns.some(
+    (item) => isRecord(item) && item.semantic_id === "average_ticket",
+  );
+  const effectiveTariffPresentation = Array.isArray(value.columns) && value.columns.some(
+    (item) => isRecord(item) && item.semantic_id === "effective_tariff",
+  );
+  const averageTicketLimitations = [
+    "Razão entre receita faturada e UCs faturadas na mesma base mensal; não é média simples de tickets por grupo.",
+  ];
+  const effectiveTariffLimitations = [
+    "Preço observado na base comparável com fatura e leitura válida; não é tarifa homologada.",
+  ];
+  if (averageTicketPresentation) acceptedLimitations.push(averageTicketLimitations);
+  if (effectiveTariffPresentation) acceptedLimitations.push(effectiveTariffLimitations);
   if (continuityPresentation) acceptedLimitations.push(
     [], ["Valores observados; cobertura do alimentador não certificada."],
   );
@@ -428,6 +486,9 @@ function decodeSqlAnalysisPresentation(
       "text-to-sql-f1-presentation-v7",
       "text-to-sql-f1-presentation-v8",
       "text-to-sql-f1-presentation-v9",
+      "text-to-sql-f1-presentation-v10",
+      "text-to-sql-f1-presentation-v11",
+      "text-to-sql-f1-presentation-v12",
     ].includes(String(value.contract_version)) ||
     !["ready", "empty", "all_measures_null"].includes(String(value.state)) ||
     ![
@@ -441,6 +502,8 @@ function decodeSqlAnalysisPresentation(
       "average",
       "snapshot_total",
       "accumulated_average",
+      "ratio_of_sums",
+      "weighted_continuity",
     ].includes(String(value.operation)) ||
     !isText(value.answer, 4000) ||
     !isText(value.period, 100) ||
@@ -486,12 +549,17 @@ function decodeSqlAnalysisPresentation(
         "satisfaction_average",
         "dec_value",
         "fec_value",
+        "feeders_included",
+        "feeders_excluded",
+        "average_consumption_per_uc",
+        "average_ticket",
+        "effective_tariff",
         "period_0_total",
         "period_1_total",
         "period_0_minus_period_1",
         "period_0_growth_percent",
       ].includes(String(item.semantic_id)) ||
-      (item.unit !== null && item.unit !== "R$" && item.unit !== "kWh" && item.unit !== "protocolos" && item.unit !== "UCs" && item.unit !== "pontos" && item.unit !== "horas por UC" && item.unit !== "interrupções por UC" && item.unit !== "%") ||
+      (item.unit !== null && item.unit !== "R$" && item.unit !== "R$ por UC faturada no mês" && item.unit !== "R$/kWh" && item.unit !== "kWh" && item.unit !== "kWh por UC com leitura no mês" && item.unit !== "protocolos" && item.unit !== "UCs" && item.unit !== "pontos" && item.unit !== "horas por UC" && item.unit !== "interrupções por UC" && item.unit !== "alimentadores" && item.unit !== "%") ||
       (item.role === "measure") !== (item.unit !== null) ||
       (item.role === "measure" && (
         (item.semantic_id === "period_0_growth_percent" && item.unit !== "%") ||
@@ -504,6 +572,10 @@ function decodeSqlAnalysisPresentation(
         (item.semantic_id === "satisfaction_average" && item.unit !== "pontos") ||
         (item.semantic_id === "dec_value" && item.unit !== "horas por UC") ||
         (item.semantic_id === "fec_value" && item.unit !== "interrupções por UC") ||
+        (["feeders_included", "feeders_excluded"].includes(String(item.semantic_id)) && item.unit !== "alimentadores") ||
+        (item.semantic_id === "average_consumption_per_uc" && item.unit !== "kWh por UC com leitura no mês") ||
+        (item.semantic_id === "average_ticket" && item.unit !== "R$ por UC faturada no mês") ||
+        (item.semantic_id === "effective_tariff" && item.unit !== "R$/kWh") ||
         (item.semantic_id === "revenue_total" && item.unit !== "R$")
       ))
     )
@@ -538,7 +610,17 @@ function decodeSqlAnalysisPresentation(
       (value.contract_version === "text-to-sql-f1-presentation-v8" &&
        !columns.some((column) => column.semantic_id === "satisfaction_accumulated_average")) ||
       (value.contract_version === "text-to-sql-f1-presentation-v9" &&
-       !columns.some((column) => column.semantic_id === "gd_consumption_drop_units")))
+       !columns.some((column) => column.semantic_id === "gd_consumption_drop_units")) ||
+      (value.contract_version === "text-to-sql-f1-presentation-v10" &&
+       !columns.some((column) => column.semantic_id === "average_consumption_per_uc")) ||
+      (value.contract_version === "text-to-sql-f1-presentation-v11" &&
+       (!columns.some((column) => ["dec_value", "fec_value"].includes(column.semantic_id)) ||
+        !columns.some((column) => column.semantic_id === "feeders_included") ||
+        !columns.some((column) => column.semantic_id === "feeders_excluded") ||
+        value.operation !== "weighted_continuity")) ||
+      (value.contract_version === "text-to-sql-f1-presentation-v12" &&
+       (!columns.some((column) => ["average_ticket", "effective_tariff"].includes(column.semantic_id)) ||
+        value.operation !== "ratio_of_sums")))
     return fail();
   const energyResult = columns.some((column) => column.role === "measure" && column.unit === "kWh");
   if (JSON.stringify(value.limitations) !== JSON.stringify(
@@ -551,6 +633,9 @@ function decodeSqlAnalysisPresentation(
       : gdUnitsPresentation ? SQL_GD_LIMITATIONS
       : gdDropPresentation ? gdDropLimitations
       : accumulatedSatisfactionPresentation ? SQL_ACCUMULATED_SATISFACTION_LIMITATIONS
+      : averageConsumptionPresentation ? SQL_AVERAGE_CONSUMPTION_LIMITATIONS
+      : averageTicketPresentation ? averageTicketLimitations
+      : effectiveTariffPresentation ? effectiveTariffLimitations
       : attendancePresentation ? [] : SQL_F1_LIMITATIONS,
   )) return fail();
   const rows = value.rows.map((item, index) => {
@@ -618,6 +703,7 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           "clarification",
           "unsupported_reason",
           "continuation_token",
+          "compound_analysis",
         ].includes(key),
     ) ||
     !/^[a-f0-9]{32}$/.test(String(value.correlation_id))
@@ -625,6 +711,55 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
     return fail();
   const continuationToken = value.continuation_token;
   if (continuationToken != null && !isText(continuationToken, 16000)) return fail();
+  if (value.status === "answered" && isRecord(value.compound_analysis)) {
+    const compound = value.compound_analysis;
+    const decimal = /^-?(?:0|[1-9][0-9]{0,100})(?:\.[0-9]{1,100})?$/;
+    const digest = /^[a-f0-9]{64}$/;
+    const windows = compound.windows;
+    if (
+      Object.keys(value).some((key) => !["correlation_id", "audit_reference", "status", "evidence", "presentation", "clarification", "unsupported_reason", "compound_analysis", "continuation_token"].includes(key)) ||
+      (value.evidence != null) || (value.presentation != null) ||
+      (value.clarification != null) || (value.unsupported_reason != null) ||
+      !isText(value.audit_reference, 32) || !/^[a-f0-9]{32}$/.test(String(value.audit_reference)) ||
+      compound.contract_version !== "text-to-sql-f1-compound-v1" ||
+      !isText(compound.answer, 4000) || !isText(compound.active_gold_batch, 200) ||
+      !String(compound.active_gold_batch).startsWith("gold-csv-v2:") ||
+      !isRecord(windows) || windows.p0_start !== "2024-07" || windows.p0_end !== "2025-06" ||
+      windows.p1_start !== "2025-07" || windows.p1_end !== "2026-06" ||
+      compound.method !== "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3" ||
+      !digest.test(String(compound.staging_manifest_digest)) || !digest.test(String(compound.staging_csv_digest)) ||
+      !digest.test(String(compound.evidence_digest)) || !Array.isArray(compound.municipalities) ||
+      compound.municipalities.length > 100 || !Array.isArray(compound.limitations) ||
+      compound.limitations.length < 1 || compound.limitations.some((item) => !isText(item, 1000))
+    ) return fail();
+    for (const municipality of compound.municipalities) {
+      if (!isRecord(municipality) || !isText(municipality.municipality, 120) ||
+          ![municipality.previous_consumption_kwh, municipality.current_consumption_kwh,
+            municipality.change_kwh, municipality.change_percent].every((item) => typeof item === "string" && decimal.test(item)) ||
+          !Array.isArray(municipality.revenue_by_class) || municipality.revenue_by_class.length < 1 ||
+          municipality.revenue_by_class.length > 1500) return fail();
+      for (const effect of municipality.revenue_by_class) {
+        if (!isRecord(effect) || !isText(effect.consumption_class, 120) || !isText(effect.neighborhood, 120) ||
+            ![effect.variation_brl, ...(effect.volume_effect_brl == null ? [] : [effect.volume_effect_brl]),
+              ...(effect.price_effect_brl == null ? [] : [effect.price_effect_brl]),
+              ...(effect.interaction_effect_brl == null ? [] : [effect.interaction_effect_brl])].every((item) => typeof item === "string" && decimal.test(item)) ||
+            !["CALCULADA_BASE_COMUM", "SEM_BASE_COMUM"].includes(String(effect.state)) ||
+            (effect.state === "CALCULADA_BASE_COMUM" && [effect.volume_effect_brl, effect.price_effect_brl, effect.interaction_effect_brl].some((item) => item == null)) ||
+            (effect.state === "SEM_BASE_COMUM" && [effect.volume_effect_brl, effect.price_effect_brl, effect.interaction_effect_brl].some((item) => item != null))) return fail();
+      }
+    }
+    const base = decodeAIQuestionResponse({
+      contract_version: "v1", correlation_id: value.correlation_id,
+      audit_reference: value.audit_reference, status: "answered", answer: compound.answer,
+      evidence: [
+        { source: "gold.local", description: "Consumo agregado da publicação Gold v2 ativa.", is_demo: false },
+        { source: "gold-v2.staging", description: "Decomposição preço-volume em staging local, validada pelo manifesto.", is_demo: false },
+      ],
+      limitations: compound.limitations,
+      continuation_token: continuationToken as string | null | undefined,
+    });
+    return { ...base, sql_analysis_mode: true, sql_compound_analysis: compound as SqlCompoundAnalysis };
+  }
   if (value.status === "answered") {
     const evidence = value.evidence;
     if (
@@ -672,6 +807,13 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
       (column) => column.semantic_id === "period_0_growth_percent",
     );
     const expectedPresentationVersion =
+      evidence.evidence_contract_version === "text-to-sql-f1-evidence-v13"
+        ? "text-to-sql-f1-presentation-v12"
+      : evidence.evidence_contract_version === "text-to-sql-f1-evidence-v11"
+        ? "text-to-sql-f1-presentation-v10"
+      : evidence.evidence_contract_version === "text-to-sql-f1-evidence-v12"
+        ? "text-to-sql-f1-presentation-v11"
+        :
       evidence.evidence_contract_version === "text-to-sql-f1-evidence-v8"
         ? "text-to-sql-f1-presentation-v7"
         :
@@ -707,8 +849,14 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           "text-to-sql-f1-evidence-v8",
           "text-to-sql-f1-evidence-v9",
           "text-to-sql-f1-evidence-v10",
+          "text-to-sql-f1-evidence-v11",
+          "text-to-sql-f1-evidence-v12",
+          "text-to-sql-f1-evidence-v13",
         ].includes(String(evidence.evidence_contract_version))) ||
-      (continuityMetric !== (evidence.evidence_contract_version === "text-to-sql-f1-evidence-v5")) ||
+      (continuityMetric !== ["text-to-sql-f1-evidence-v5", "text-to-sql-f1-evidence-v12"].includes(String(evidence.evidence_contract_version))) ||
+      (isRecord(evidence.interpretation) &&
+        ((evidence.interpretation.operation === "weighted_continuity") !==
+          (evidence.evidence_contract_version === "text-to-sql-f1-evidence-v12"))) ||
       (continuityMetric
         ? !["certified", "observed_uncertified"].includes(String(evidence.coverage_quality))
         : evidence.evidence_contract_version != null && evidence.coverage_quality !== "certified") ||
@@ -716,14 +864,20 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
         const interpretation = evidence.interpretation;
         const filterList = isRecord(interpretation) ? interpretation.filters : null;
         const periods = isRecord(interpretation) ? interpretation.periods : null;
-        return !Array.isArray(filterList) || filterList.length !== 1 ||
-          !isRecord(filterList[0]) || filterList[0].dimension_id !== "network.feeder" ||
-          filterList[0].operator !== "eq" || !Array.isArray(filterList[0].values) ||
-          filterList[0].values.length !== 1 || !Array.isArray(periods) || periods.length !== 1 ||
+        const weighted = isRecord(interpretation) && interpretation.operation === "weighted_continuity";
+        const validWeightedFilters = Array.isArray(filterList) && filterList.length <= 1 &&
+          filterList.every((item) => isRecord(item) && item.dimension_id === "network.feeder" &&
+            ["eq", "in"].includes(String(item.operator)) && Array.isArray(item.values) &&
+            item.values.length >= 1 && item.values.length <= 100);
+        const validSingleFeederFilter = Array.isArray(filterList) && filterList.length === 1 &&
+          isRecord(filterList[0]) && filterList[0].dimension_id === "network.feeder" &&
+          filterList[0].operator === "eq" && Array.isArray(filterList[0].values) && filterList[0].values.length === 1;
+        return !Array.isArray(periods) || periods.length !== 1 ||
+          !(weighted ? validWeightedFilters : validSingleFeederFilter) ||
           !presentation.limitations.includes("Valores observados; cobertura do alimentador não certificada.");
       })()) ||
       presentation.contract_version !== expectedPresentationVersion ||
-      (evidence.evidence_contract_version != null && evidence.metric_id !== "billing.revenue" && evidence.metric_id !== "energy.consumption" && evidence.metric_id !== "service.attendance" && evidence.metric_id !== "service.satisfaction" && evidence.metric_id !== "service.accumulated_attendance" && evidence.metric_id !== "energy.gd_units" && evidence.metric_id !== "energy.gd_consumption_drop" && evidence.metric_id !== "service.accumulated_satisfaction" && !continuityMetric) ||
+      (evidence.evidence_contract_version != null && evidence.metric_id !== "billing.revenue" && evidence.metric_id !== "energy.consumption" && evidence.metric_id !== "energy.average_consumption_per_uc" && evidence.metric_id !== "billing.average_ticket" && evidence.metric_id !== "billing.effective_tariff" && evidence.metric_id !== "service.attendance" && evidence.metric_id !== "service.satisfaction" && evidence.metric_id !== "service.accumulated_attendance" && evidence.metric_id !== "energy.gd_units" && evidence.metric_id !== "energy.gd_consumption_drop" && evidence.metric_id !== "service.accumulated_satisfaction" && !continuityMetric) ||
       presentation.evidence_digest !== evidence.evidence_digest ||
       presentation.columns.length !== evidenceColumns.length ||
       presentation.rows.length !== evidenceRows.length ||
@@ -769,6 +923,12 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
               ? "FEC"
           : evidence.metric_id === "energy.consumption"
             ? "Consumo medido"
+          : evidence.metric_id === "energy.average_consumption_per_uc"
+            ? "Consumo médio por UC com leitura"
+          : evidence.metric_id === "billing.average_ticket"
+            ? "Ticket médio por UC faturada"
+          : evidence.metric_id === "billing.effective_tariff"
+            ? "Preço médio observado por kWh"
             : "Faturamento",
       unit:
         evidence.metric_id === "service.satisfaction"
@@ -787,6 +947,12 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
               ? "interrupções por UC"
           : evidence.metric_id === "energy.consumption"
             ? "kWh"
+          : evidence.metric_id === "energy.average_consumption_per_uc"
+            ? "kWh por UC com leitura no mês"
+          : evidence.metric_id === "billing.average_ticket"
+            ? "R$ por UC faturada no mês"
+          : evidence.metric_id === "billing.effective_tariff"
+            ? "R$/kWh"
             : "R$",
       period: presentation.period,
       filters: {},
