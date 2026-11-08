@@ -102,6 +102,9 @@ def _make_candidate(case, context_version):
         "service.accumulated_satisfaction": "text-to-sql-f1-v9",
         "energy.gd_units": "text-to-sql-f1-v8",
         "energy.gd_consumption_drop": "text-to-sql-f1-v10",
+        "energy.average_consumption_per_uc": "text-to-sql-f1-v11",
+        "billing.average_ticket": "text-to-sql-f1-v13",
+        "billing.effective_tariff": "text-to-sql-f1-v13",
         "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
         "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
     }.get(metric, "text-to-sql-f1-v1")
@@ -456,6 +459,9 @@ def test_all_578_questions_use_new_context_and_f1_contract(case, synthetic_gold)
         "service.accumulated_satisfaction": "text-to-sql-f1-v9",
         "energy.gd_units": "text-to-sql-f1-v8",
         "energy.gd_consumption_drop": "text-to-sql-f1-v10",
+        "energy.average_consumption_per_uc": "text-to-sql-f1-v11",
+        "billing.average_ticket": "text-to-sql-f1-v13",
+        "billing.effective_tariff": "text-to-sql-f1-v13",
         "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
         "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
     }.get(metric, "text-to-sql-f1-v1")

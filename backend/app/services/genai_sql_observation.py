@@ -11,7 +11,7 @@ from sqlalchemy.engine import Engine
 
 from app.schemas.genai_internal import AccessScope, QuestionPlanRequest
 from app.schemas.sql_generation import SqlGenerationCandidate, SqlGenerationRequest
-from app.services.genai_client import GenAIQuestionClient
+from app.services.genai_client import GenAIQuestionClient, GenAIResponseInvalid
 from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_domain_policy import (
     OUT_OF_DOMAIN_MESSAGE,
@@ -30,6 +30,7 @@ from app.services.genai_sql_context import (
     is_periodized_accumulated_attendance_question,
 )
 from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_semantics
+from app.services.genai_sql_structure import SqlStructureRejected
 from app.services.genai_sql_telemetry import record_sql_stage, sql_stage
 
 logger = logging.getLogger(__name__)
@@ -272,7 +273,12 @@ async def observe_sql_generation(
     with sql_stage(
         correlation_id, "semantic_review", context_version=context.context_version
     ):
-        reviewed = review_sql_semantics(candidate, request)
+        try:
+            reviewed = review_sql_semantics(candidate, request)
+        except SqlStructureRejected:
+            # An invalid model proposal is a controlled provider-response failure,
+            # not an unhandled Backend exception. Keep the public error generic.
+            raise GenAIResponseInvalid from None
     deadline.remaining_seconds(stage_seconds)
     return SqlGenerationObservation(candidate, reviewed)
 

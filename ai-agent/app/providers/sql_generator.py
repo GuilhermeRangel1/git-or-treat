@@ -15,7 +15,7 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-29"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-31"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
     "$id",
@@ -63,6 +63,7 @@ def _gemini_json_schema(schema):
 
 
 SYSTEM_INSTRUCTION = """Proponha SQL PostgreSQL para a fatia F1 descrita no contexto.
+Retorne exatamente um objeto JSON no nível superior, nunca um array, string, número ou null.
 Copie `generation_contract_version` e `context_version` exatamente do contexto.
 O documento JSON de entrada tem dois campos diferentes: `question` é a solicitação
 ATUAL que deve ser respondida; `context` contém turnos ANTERIORES. Leia primeiro
@@ -181,7 +182,13 @@ Exceção estrita para consumo médio por UC com leitura no contrato v11: aceite
 `ratio_of_sums`, `aggregation="ratio_of_sums"`, uma janela mensal e nenhum
 agrupamento, ranking ou limite. Consulte a única fonte declarada no contexto, sem
 JOIN. Calcule exatamente `SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0)`
-como `average_consumption`, unidade `kWh por UC com leitura no mês`, tipo `decimal`.
+como `average_consumption_per_uc`, unidade `kWh por UC com leitura no mês`, tipo `decimal`.
+Quando a pergunta pedir "consumo médio por UC", "consumo médio por unidade" ou
+"média de consumo por UC com leitura", preencha `interpretation.operation="ratio_of_sums"`
+e `interpretation.aggregation="ratio_of_sums"`; nunca classifique como `total`,
+`average` ou `average_non_null`. A palavra "médio" aqui significa a razão das somas
+definida acima, não AVG de consumo nem total de consumo.
+Exemplo obrigatório de SQL e coluna de resultado: `SELECT SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) AS average_consumption_per_uc FROM gold_v2.diagnostico_receita WHERE competencia = :month`; declare `result_columns` com `name="average_consumption_per_uc"`.
 Os dois componentes têm de pertencer à mesma população; não calcule AVG, nem média
 simples de médias ou razões por grupo. Preserve filtros autorizados e os meses
 completos. O Backend valida a expressão e a prontidão dos controles antes de executar.
@@ -351,8 +358,10 @@ No estado sql_candidate, interpretation deve obedecer a estas combinações:
   network.feeder, sem ranking. Retorne a medida física direta como value, sem
   agregação e sem GROUP BY.
 - ratio_of_sums: energy.average_consumption_per_uc no v11; billing.average_ticket e
-  billing.effective_tariff no v13. Sem agrupamento/ranking; use a fórmula exata e os
-  dois componentes declarados em metric/source.
+  billing.effective_tariff no v13. Para "consumo médio por UC com leitura",
+  operation e aggregation são ambos ratio_of_sums, nunca total nem average. Sem
+  agrupamento/ranking; use a fórmula exata e os dois componentes declarados em
+  metric/source.
 Todas as janelas usam start/end como datas completas YYYY-MM-DD, começando no
 primeiro dia e terminando no último dia do mês, inclusive fevereiro.
 Essas datas completas pertencem APENAS a `interpretation.periods`. A coluna física
