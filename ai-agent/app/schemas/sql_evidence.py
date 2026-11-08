@@ -26,7 +26,7 @@ Cell = Annotated[StrictStr, Field(max_length=16384)] | None
 Row = Annotated[tuple[Cell, ...], Field(min_length=1, max_length=32)]
 Meaning = Literal[
     "revenue_total", "energy_total", "attendance_total", "attendance_accumulated_total",
-    "gd_units_total", "dec_value", "fec_value", "satisfaction_average",
+    "gd_units_total", "gd_consumption_drop_units", "dec_value", "fec_value", "satisfaction_average",
     "period_0_total", "period_1_total",
     "satisfaction_accumulated_average",
     "period_0_minus_period_1", "period_0_growth_percent",
@@ -51,6 +51,7 @@ class SqlEvidence(ClosedModel):
         "text-to-sql-f1-evidence-v7",
         "text-to-sql-f1-evidence-v8",
         "text-to-sql-f1-evidence-v9",
+        "text-to-sql-f1-evidence-v10",
     ]
     source_id: Literal["gold.local"]
     source_table: Literal[
@@ -67,6 +68,7 @@ class SqlEvidence(ClosedModel):
         "service.satisfaction",
         "service.accumulated_satisfaction",
         "energy.gd_units",
+        "energy.gd_consumption_drop",
     ]
     coverage_quality: Literal["certified", "observed_uncertified"] = "certified"
     batch_ref: Batch
@@ -134,6 +136,18 @@ class SqlEvidence(ClosedModel):
                     or set(self.measure_semantics.values()) != {"gd_units_total"}
                     or self.evidence_contract_version != "text-to-sql-f1-evidence-v8"):
                 raise ValueError("GD exige contagem cadastral do lote sem período")
+        elif self.metric_id == "energy.gd_consumption_drop":
+            gd_filters = [item for item in self.interpretation.filters
+                          if item.dimension_id == "generation.distributed"]
+            if (self.source_table != "gold_v2.variacao_consumo_uc"
+                    or self.interpretation.operation != "snapshot_total"
+                    or self.interpretation.aggregation != "count_gd_drop"
+                    or self.interpretation.periods
+                    or len(gd_filters) != 1 or gd_filters[0].operator != "eq"
+                    or gd_filters[0].values != ("Sim",)
+                    or set(self.measure_semantics.values()) != {"gd_consumption_drop_units"}
+                    or self.evidence_contract_version != "text-to-sql-f1-evidence-v10"):
+                raise ValueError("queda de GD exige contagem do recorte Gold aprovado")
         elif self.metric_id == "service.satisfaction":
             if (self.source_table != "gold_v2.atendimentos_uc"
                     or self.interpretation.operation != "average"
@@ -180,7 +194,7 @@ class SqlEvidence(ClosedModel):
                 raise ValueError("receita por bairro exige contrato de receita compatível")
         elif (not continuity and self.metric_id not in {
                   "service.accumulated_attendance", "service.accumulated_satisfaction",
-                  "energy.gd_units",
+                  "energy.gd_units", "energy.gd_consumption_drop",
               }
               and self.source_table != "gold_v2.diagnostico_receita"):
             raise ValueError("fonte SQL diverge da métrica F1")
@@ -209,6 +223,7 @@ class SqlEvidence(ClosedModel):
                   else "satisfaction_accumulated_average"
                   if self.metric_id == "service.accumulated_satisfaction"
                   else "gd_units_total" if self.metric_id == "energy.gd_units"
+                  else "gd_consumption_drop_units" if self.metric_id == "energy.gd_consumption_drop"
                   else "satisfaction_average" if self.metric_id == "service.satisfaction"
                   else "dec_value" if self.metric_id == "network.equivalent_interruption_duration"
                   else "fec_value" if self.metric_id == "network.equivalent_interruption_frequency"
@@ -222,6 +237,7 @@ class SqlEvidence(ClosedModel):
                   else "text-to-sql-f1-evidence-v9"
                   if self.metric_id == "service.accumulated_satisfaction"
                   else "text-to-sql-f1-evidence-v8" if self.metric_id == "energy.gd_units"
+                  else "text-to-sql-f1-evidence-v10" if self.metric_id == "energy.gd_consumption_drop"
                   else "text-to-sql-f1-evidence-v5" if continuity
                   else "text-to-sql-f1-evidence-v3" if self.metric_id == "energy.consumption"
                   else "text-to-sql-f1-evidence-v1"
@@ -235,6 +251,7 @@ class SqlEvidence(ClosedModel):
                     "service.attendance", "service.accumulated_attendance",
                 }
                 else "UCs" if self.metric_id == "energy.gd_units"
+                else "UCs" if self.metric_id == "energy.gd_consumption_drop"
                 else "pontos" if self.metric_id == "service.satisfaction"
                 else "pontos" if self.metric_id == "service.accumulated_satisfaction"
                 else "horas por UC" if meaning == "dec_value"
@@ -262,6 +279,7 @@ class SqlEvidence(ClosedModel):
             "text-to-sql-f1-evidence-v7",
             "text-to-sql-f1-evidence-v8",
             "text-to-sql-f1-evidence-v9",
+            "text-to-sql-f1-evidence-v10",
         }:
             # Existing v1-v4 digests predate the quality field; the validator
             # fixes those legacy contracts to the certified value above.

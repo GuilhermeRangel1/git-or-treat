@@ -13,6 +13,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import create_engine, text
+
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.services.genai_sql_context import (
@@ -21,7 +23,6 @@ from app.services.genai_sql_context import (
 )
 from app.services.genai_sql_semantics import review_sql_semantics
 from app.services.genai_sql_structure import SqlStructureRejected
-from sqlalchemy import create_engine, text
 
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS = json.loads(
@@ -66,8 +67,15 @@ def _request(case):
             ],
         },
         "temporal_coverage": [{
-            "metric_id": metric, "kind": "monthly",
-            "competencies": MONTHS,
+            "metric_id": metric,
+            "kind": "none" if metric in {
+                "service.accumulated_attendance", "service.accumulated_satisfaction",
+                "energy.gd_units", "energy.gd_consumption_drop",
+            } else "monthly",
+            **({} if metric in {
+                "service.accumulated_attendance", "service.accumulated_satisfaction",
+                "energy.gd_units", "energy.gd_consumption_drop",
+            } else {"competencies": MONTHS}),
         }],
         "dimension_value_coverage": [
             {"dimension_id": "geography.municipality", "values": MUNICIPALITIES},
@@ -89,6 +97,11 @@ def _make_candidate(case, context_version):
     generation_version = {
         "energy.consumption": "text-to-sql-f1-v2",
         "service.attendance": "text-to-sql-f1-v3",
+        "service.satisfaction": "text-to-sql-f1-v7",
+        "service.accumulated_attendance": "text-to-sql-f1-v5",
+        "service.accumulated_satisfaction": "text-to-sql-f1-v9",
+        "energy.gd_units": "text-to-sql-f1-v8",
+        "energy.gd_consumption_drop": "text-to-sql-f1-v10",
         "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
         "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
     }.get(metric, "text-to-sql-f1-v1")
@@ -438,6 +451,11 @@ def test_all_578_questions_use_new_context_and_f1_contract(case, synthetic_gold)
     expected_version = {
         "energy.consumption": "text-to-sql-f1-v2",
         "service.attendance": "text-to-sql-f1-v3",
+        "service.satisfaction": "text-to-sql-f1-v7",
+        "service.accumulated_attendance": "text-to-sql-f1-v5",
+        "service.accumulated_satisfaction": "text-to-sql-f1-v9",
+        "energy.gd_units": "text-to-sql-f1-v8",
+        "energy.gd_consumption_drop": "text-to-sql-f1-v10",
         "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
         "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
     }.get(metric, "text-to-sql-f1-v1")
@@ -449,6 +467,9 @@ def test_all_578_questions_use_new_context_and_f1_contract(case, synthetic_gold)
     )
     expected_table = {
         "service.attendance": "atendimentos_uc",
+        "service.satisfaction": "atendimentos_uc",
+        "energy.gd_units": "variacao_consumo_uc",
+        "energy.gd_consumption_drop": "variacao_consumo_uc",
         "network.equivalent_interruption_duration": "indicadores_dec_fec",
         "network.equivalent_interruption_frequency": "indicadores_dec_fec",
     }.get(metric, "consumo_receita_bairro" if metric == "billing.revenue"

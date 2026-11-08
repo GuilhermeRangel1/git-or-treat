@@ -39,7 +39,8 @@ export type SqlAnalysisPresentation = {
     | "text-to-sql-f1-presentation-v5"
     | "text-to-sql-f1-presentation-v6"
     | "text-to-sql-f1-presentation-v7"
-    | "text-to-sql-f1-presentation-v8";
+    | "text-to-sql-f1-presentation-v8"
+    | "text-to-sql-f1-presentation-v9";
   state: "ready" | "empty" | "all_measures_null";
   operation:
     "total" | "monthly_series" | "grouped_total" | "ranking" | "comparison" | "grain_read" | "accumulated_total" | "average" | "snapshot_total" | "accumulated_average";
@@ -62,6 +63,7 @@ export type SqlAnalysisPresentation = {
       | "attendance_total"
       | "attendance_accumulated_total"
       | "gd_units_total"
+      | "gd_consumption_drop_units"
       | "satisfaction_accumulated_average"
       | "satisfaction_average"
       | "dec_value"
@@ -380,6 +382,13 @@ function decodeSqlAnalysisPresentation(
     (item) => isRecord(item) && item.semantic_id === "gd_units_total",
   );
   if (gdUnitsPresentation) acceptedLimitations.push(SQL_GD_LIMITATIONS);
+  const gdDropPresentation = Array.isArray(value.columns) && value.columns.some(
+    (item) => isRecord(item) && item.semantic_id === "gd_consumption_drop_units",
+  );
+  const gdDropLimitations = [
+    "Queda bruta nas janelas fixas; exige ao menos seis meses com leitura em cada janela e não demonstra causa nem origem solar.",
+  ];
+  if (gdDropPresentation) acceptedLimitations.push(gdDropLimitations);
   const accumulatedSatisfactionPresentation = Array.isArray(value.columns) && value.columns.some(
     (item) => isRecord(item) && item.semantic_id === "satisfaction_accumulated_average",
   );
@@ -418,6 +427,7 @@ function decodeSqlAnalysisPresentation(
       "text-to-sql-f1-presentation-v6",
       "text-to-sql-f1-presentation-v7",
       "text-to-sql-f1-presentation-v8",
+      "text-to-sql-f1-presentation-v9",
     ].includes(String(value.contract_version)) ||
     !["ready", "empty", "all_measures_null"].includes(String(value.state)) ||
     ![
@@ -471,6 +481,7 @@ function decodeSqlAnalysisPresentation(
         "attendance_total",
         "attendance_accumulated_total",
         "gd_units_total",
+        "gd_consumption_drop_units",
         "satisfaction_accumulated_average",
         "satisfaction_average",
         "dec_value",
@@ -488,6 +499,7 @@ function decodeSqlAnalysisPresentation(
         (item.semantic_id === "attendance_total" && item.unit !== "protocolos") ||
         (item.semantic_id === "attendance_accumulated_total" && item.unit !== "protocolos") ||
         (item.semantic_id === "gd_units_total" && item.unit !== "UCs") ||
+        (item.semantic_id === "gd_consumption_drop_units" && item.unit !== "UCs") ||
         (item.semantic_id === "satisfaction_accumulated_average" && item.unit !== "pontos") ||
         (item.semantic_id === "satisfaction_average" && item.unit !== "pontos") ||
         (item.semantic_id === "dec_value" && item.unit !== "horas por UC") ||
@@ -524,7 +536,9 @@ function decodeSqlAnalysisPresentation(
       (value.contract_version === "text-to-sql-f1-presentation-v7" &&
        !columns.some((column) => column.semantic_id === "gd_units_total")) ||
       (value.contract_version === "text-to-sql-f1-presentation-v8" &&
-       !columns.some((column) => column.semantic_id === "satisfaction_accumulated_average")))
+       !columns.some((column) => column.semantic_id === "satisfaction_accumulated_average")) ||
+      (value.contract_version === "text-to-sql-f1-presentation-v9" &&
+       !columns.some((column) => column.semantic_id === "gd_consumption_drop_units")))
     return fail();
   const energyResult = columns.some((column) => column.role === "measure" && column.unit === "kWh");
   if (JSON.stringify(value.limitations) !== JSON.stringify(
@@ -535,6 +549,7 @@ function decodeSqlAnalysisPresentation(
       : satisfactionPresentation
       ? ["Média das notas informadas; valores ausentes são excluídos e zero é válido."]
       : gdUnitsPresentation ? SQL_GD_LIMITATIONS
+      : gdDropPresentation ? gdDropLimitations
       : accumulatedSatisfactionPresentation ? SQL_ACCUMULATED_SATISFACTION_LIMITATIONS
       : attendancePresentation ? [] : SQL_F1_LIMITATIONS,
   )) return fail();
@@ -623,7 +638,7 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
       !/^[a-f0-9]{64}$/.test(evidence.evidence_digest) ||
       !Array.isArray(evidence.columns) ||
       !Array.isArray(evidence.rows) ||
-      !(
+      (evidence.evidence_contract_version != null && !(
         evidence.source_table === (
           ["network.equivalent_interruption_duration", "network.equivalent_interruption_frequency"].includes(String(evidence.metric_id))
             ? "gold_v2.indicadores_dec_fec"
@@ -635,13 +650,15 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
                 ? "gold_v2.visao_360_uc"
               : evidence.metric_id === "energy.gd_units"
                 ? "gold_v2.variacao_consumo_uc"
+              : evidence.metric_id === "energy.gd_consumption_drop"
+                ? "gold_v2.variacao_consumo_uc"
               : evidence.metric_id === "service.accumulated_satisfaction"
                 ? "gold_v2.atendimentos_uc"
               : "gold_v2.diagnostico_receita"
         ) ||
         (evidence.metric_id === "billing.revenue" &&
           evidence.source_table === "gold_v2.consumo_receita_bairro")
-      )
+      ))
     )
       return fail();
     const evidenceColumns = evidence.columns as unknown[];
@@ -660,6 +677,9 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
         :
       evidence.evidence_contract_version === "text-to-sql-f1-evidence-v9"
         ? "text-to-sql-f1-presentation-v8"
+        :
+      evidence.evidence_contract_version === "text-to-sql-f1-evidence-v10"
+        ? "text-to-sql-f1-presentation-v9"
         :
       evidence.evidence_contract_version === "text-to-sql-f1-evidence-v7"
         ? "text-to-sql-f1-presentation-v6"
@@ -686,11 +706,12 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           "text-to-sql-f1-evidence-v7",
           "text-to-sql-f1-evidence-v8",
           "text-to-sql-f1-evidence-v9",
+          "text-to-sql-f1-evidence-v10",
         ].includes(String(evidence.evidence_contract_version))) ||
       (continuityMetric !== (evidence.evidence_contract_version === "text-to-sql-f1-evidence-v5")) ||
       (continuityMetric
         ? !["certified", "observed_uncertified"].includes(String(evidence.coverage_quality))
-        : evidence.coverage_quality !== "certified") ||
+        : evidence.evidence_contract_version != null && evidence.coverage_quality !== "certified") ||
       (evidence.coverage_quality === "observed_uncertified" && (() => {
         const interpretation = evidence.interpretation;
         const filterList = isRecord(interpretation) ? interpretation.filters : null;
@@ -702,7 +723,7 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           !presentation.limitations.includes("Valores observados; cobertura do alimentador não certificada.");
       })()) ||
       presentation.contract_version !== expectedPresentationVersion ||
-      (evidence.metric_id !== "billing.revenue" && evidence.metric_id !== "energy.consumption" && evidence.metric_id !== "service.attendance" && evidence.metric_id !== "service.satisfaction" && evidence.metric_id !== "service.accumulated_attendance" && evidence.metric_id !== "energy.gd_units" && evidence.metric_id !== "service.accumulated_satisfaction" && !continuityMetric) ||
+      (evidence.evidence_contract_version != null && evidence.metric_id !== "billing.revenue" && evidence.metric_id !== "energy.consumption" && evidence.metric_id !== "service.attendance" && evidence.metric_id !== "service.satisfaction" && evidence.metric_id !== "service.accumulated_attendance" && evidence.metric_id !== "energy.gd_units" && evidence.metric_id !== "energy.gd_consumption_drop" && evidence.metric_id !== "service.accumulated_satisfaction" && !continuityMetric) ||
       presentation.evidence_digest !== evidence.evidence_digest ||
       presentation.columns.length !== evidenceColumns.length ||
       presentation.rows.length !== evidenceRows.length ||
@@ -734,6 +755,8 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           ? "Chamados no histórico acumulado"
           : evidence.metric_id === "energy.gd_units"
           ? "UCs com GD cadastrada"
+          : evidence.metric_id === "energy.gd_consumption_drop"
+          ? "UCs com GD e queda de consumo superior a 30%"
           : evidence.metric_id === "service.accumulated_satisfaction"
           ? "Nota média de satisfação no histórico"
           : evidence.metric_id === "service.attendance"
@@ -753,6 +776,8 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           : evidence.metric_id === "service.attendance" || evidence.metric_id === "service.accumulated_attendance"
           ? "protocolos"
           : evidence.metric_id === "energy.gd_units"
+          ? "UCs"
+          : evidence.metric_id === "energy.gd_consumption_drop"
           ? "UCs"
           : evidence.metric_id === "service.accumulated_satisfaction"
           ? "pontos"

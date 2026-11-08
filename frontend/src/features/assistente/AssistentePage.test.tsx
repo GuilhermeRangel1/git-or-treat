@@ -65,6 +65,10 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
       batch_ref:
         "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
       evidence_digest: "a".repeat(64),
+      evidence_contract_version: "text-to-sql-f1-evidence-v1",
+      source_table: "gold_v2.diagnostico_receita",
+      metric_id: "billing.revenue",
+      coverage_quality: "certified",
       columns: [
         { name: "municipality", role: "dimension", unit: null },
         { name: "revenue", role: "measure", unit: "R$" },
@@ -114,9 +118,10 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
   renderPage();
 
   const toggle = screen.getByRole("checkbox", {
-    name: "Testar faturamento F1",
+    name: "Testar análise F1",
   });
   await user.click(toggle);
+  expect(toggle).toBeChecked();
   await user.type(
     screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
     "Quanto foi o faturamento por município em 2025?",

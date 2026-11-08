@@ -42,40 +42,62 @@ class GoldPublicationContext:
             current_publication(connection, self.batch_ref)
 
     def assert_sql_source_coverage(
-        self, engine: Engine, *, table_name: str, periods: tuple[str, ...],
-        dimension_ids: frozenset[str], metric_ids: frozenset[str],
+        self,
+        engine: Engine,
+        *,
+        table_name: str,
+        periods: tuple[str, ...],
+        dimension_ids: frozenset[str],
+        metric_ids: frozenset[str],
         source_capability_id: str | None = None,
     ) -> None:
         """Confere os meses na fonte exata escolhida, sem emprestar cobertura de outra tabela."""
         catalog = load_gold_catalog()
         sources = [
             source
-            for metric in catalog.metrics if metric.metric_id in metric_ids
+            for metric in catalog.metrics
+            if metric.metric_id in metric_ids
             for source in metric.sources
             if source.capability_id == (source_capability_id or metric.capability_id)
         ]
         source = next((item for item in sources if item.table == table_name), None)
         if source is None or source.temporal_column is None:
-            raise GoldCatalogIncompatible("Fonte temporal fora do catálogo SQL autorizado.")
+            raise GoldCatalogIncompatible(
+                "Fonte temporal fora do catálogo SQL autorizado."
+            )
         table = GOLD_V2_TABLES[table_name]
         if source.temporal_transform == "utc_month":
-            period = func.to_char(func.timezone("UTC", table.c[source.temporal_column]), "YYYY-MM")
+            period = func.to_char(
+                func.timezone("UTC", table.c[source.temporal_column]), "YYYY-MM"
+            )
         else:
             period = table.c[source.temporal_column]
         with self.execution_snapshot(
-            engine, validate_f1_catalog=True, dimension_ids=dimension_ids,
+            engine,
+            validate_f1_catalog=True,
+            dimension_ids=dimension_ids,
             metric_ids=metric_ids,
-            source_capability_ids={metric_id: source_capability_id
-                                   for metric_id in metric_ids}
-            if source_capability_id else None,
+            source_capability_ids={
+                metric_id: source_capability_id for metric_id in metric_ids
+            }
+            if source_capability_id
+            else None,
         ) as connection:
             if connection.dialect.name == "postgresql":
-                connection.execute(text("SELECT set_config('statement_timeout', '4000ms', true)")).close()
-            observed = set(connection.execute(
-                select(period).where(table.c[source.temporal_column].is_not(None)).distinct()
-            ).scalars())
+                connection.execute(
+                    text("SELECT set_config('statement_timeout', '4000ms', true)")
+                ).close()
+            observed = set(
+                connection.execute(
+                    select(period)
+                    .where(table.c[source.temporal_column].is_not(None))
+                    .distinct()
+                ).scalars()
+            )
         if not set(periods) <= observed:
-            raise GoldCatalogIncompatible("Cobertura incompleta na fonte SQL escolhida.")
+            raise GoldCatalogIncompatible(
+                "Cobertura incompleta na fonte SQL escolhida."
+            )
 
     def planning_fields(
         self, engine: Engine, access_scope: AccessScope | None = None
@@ -101,22 +123,32 @@ class GoldPublicationContext:
         if engine.dialect.name == "postgresql":
             with self.execution_snapshot(
                 engine,
-                validate_f1_catalog=bool(access_scope.allowed_metric_ids & {
-                    "billing.revenue", "energy.consumption", "service.attendance",
-                    "service.satisfaction",
-                    "service.accumulated_attendance",
-                    "service.accumulated_satisfaction",
-                    "energy.gd_units",
-                    "network.equivalent_interruption_duration",
-                    "network.equivalent_interruption_frequency",
-                }),
+                validate_f1_catalog=bool(
+                    access_scope.allowed_metric_ids
+                    & {
+                        "billing.revenue",
+                        "energy.consumption",
+                        "service.attendance",
+                        "service.satisfaction",
+                        "service.accumulated_attendance",
+                        "service.accumulated_satisfaction",
+                        "energy.gd_units",
+                        "energy.gd_consumption_drop",
+                        "network.equivalent_interruption_duration",
+                        "network.equivalent_interruption_frequency",
+                    }
+                ),
                 dimension_ids=access_scope.allowed_dimension_ids,
-                metric_ids=access_scope.allowed_metric_ids & {
-                    "billing.revenue", "energy.consumption", "service.attendance",
+                metric_ids=access_scope.allowed_metric_ids
+                & {
+                    "billing.revenue",
+                    "energy.consumption",
+                    "service.attendance",
                     "service.satisfaction",
                     "service.accumulated_attendance",
                     "service.accumulated_satisfaction",
                     "energy.gd_units",
+                    "energy.gd_consumption_drop",
                     "network.equivalent_interruption_duration",
                     "network.equivalent_interruption_frequency",
                 },
@@ -131,7 +163,10 @@ class GoldPublicationContext:
 
     @contextmanager
     def execution_snapshot(
-        self, engine: Engine, *, validate_f1_catalog: bool = False,
+        self,
+        engine: Engine,
+        *,
+        validate_f1_catalog: bool = False,
         dimension_ids: frozenset[str] = frozenset(),
         metric_ids: frozenset[str] = frozenset({"billing.revenue"}),
         source_capability_ids: dict[str, str] | None = None,
@@ -153,8 +188,9 @@ class GoldPublicationContext:
             connection.exec_driver_sql("SET TRANSACTION READ ONLY")
             current_publication(connection, self.batch_ref)
             if validate_f1_catalog:
-                assert_live_f1_catalog(connection, dimension_ids, metric_ids,
-                                       source_capability_ids)
+                assert_live_f1_catalog(
+                    connection, dimension_ids, metric_ids, source_capability_ids
+                )
             yield connection
         self.assert_current(engine)
 
