@@ -688,7 +688,7 @@ export default function AssistentePage() {
   >("idle");
   const isSending = requestPhase !== "idle";
   const [draft, setDraft] = useState("");
-  const [sqlF1Mode, setSqlF1Mode] = useState(false);
+  const sqlF1Mode = sqlF1ModeAvailable;
   const [conversationId, setConversationId] = useState<string>(() =>
     crypto.randomUUID(),
   );
@@ -792,7 +792,7 @@ export default function AssistentePage() {
       question,
       context,
       conversation_id: conversationId,
-      ...(historyEnabled
+      ...(historyEnabled && !sqlF1Mode
         ? {
             history_request_id: crypto.randomUUID(),
             refresh_context: false,
@@ -829,7 +829,7 @@ export default function AssistentePage() {
     requestAbort.current = abortController;
     setRequestPhase("consulting");
     try {
-      const saveHistory = historyEnabled;
+      const saveHistory = historyEnabled && !sqlF1Mode;
       if (saveHistory && !savedIdRef.current) {
         const created = await createConversation(conversationId);
         if (!current()) return;
@@ -845,7 +845,7 @@ export default function AssistentePage() {
           context: context.slice(-3),
           conversation_id: retryRequest.conversation_id,
           continuation_token: retryRequest.continuation_token,
-          ...(historyEnabled
+          ...(saveHistory
             ? {
                 history_request_id: retryRequest.history_request_id,
                 refresh_context: retryRequest.refresh_context,
@@ -1104,20 +1104,6 @@ export default function AssistentePage() {
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-1">
           <IndicatorHelp screen="assistente" />
-          {sqlF1ModeAvailable && (
-            <label className="inline-flex min-h-10 items-center gap-2 rounded-md px-2 text-sm text-muted">
-              <input
-                type="checkbox"
-                checked={sqlF1Mode}
-                disabled={hasMessages || isSending}
-                onChange={(event) => setSqlF1Mode(event.currentTarget.checked)}
-                className="size-4 accent-[var(--brand)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-              />
-              <span title="A F1 cobre as análises Gold v2 disponíveis para o acesso atual.">
-                Testar análise F1
-              </span>
-            </label>
-          )}
           {hasMessages && (
             <Button
               variant="ghost"
@@ -1268,8 +1254,7 @@ export default function AssistentePage() {
           </div>
           {sqlF1Mode && (
             <p className="mt-2 px-1 text-xs leading-4 text-muted">
-              Modo experimental: somente faturamento Gold v2; esta conversa não
-              será salva.
+              Consulta Gold v2; esta conversa não será salva.
             </p>
           )}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs leading-4 text-muted">
@@ -1281,7 +1266,7 @@ export default function AssistentePage() {
                   <span aria-hidden="true">·</span>
                   <Check aria-hidden="true" className="size-3.5" />
                   {sqlF1Mode
-                    ? "conversa temporária (F1)"
+                    ? "conversa temporária"
                     : historyEnabled
                       ? "histórico privado"
                       : "conversa temporária"}
