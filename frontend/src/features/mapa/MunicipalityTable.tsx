@@ -87,7 +87,7 @@ export default function MunicipalityTable({
           </span>
         </p>
       ) : null}
-      <div className="mt-3 max-h-[420px] overflow-auto rounded-lg border border-border">
+      <div className="relative mt-3 max-h-[420px] overflow-auto rounded-lg border border-border">
         <table className="w-full min-w-[320px] border-collapse text-left text-sm">
           <caption className="sr-only">
             Valores da camada selecionada por município

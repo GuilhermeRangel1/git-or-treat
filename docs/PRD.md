@@ -465,6 +465,11 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 08/11/2026 — Mapa — tentativa de corrigir espaço após o conteúdo
+
+- A lista de municípios contém os textos acessíveis de cobertura parcial dentro da própria área rolável; antes, esses elementos posicionados fora do fluxo podiam ampliar a rolagem da página após a carga. O layout e a barra lateral permanecem inalterados.
+- Em reprodução isolada no navegador, o documento media 1.880 px para uma janela de 720 px antes da correção e 720 px depois. Os 68 testes do mapa, Prettier do arquivo e `git diff --check` passaram. Inspeção da página autenticada pendente; estados dos requisitos preservados.
+
 ### 08/11/2026 — WEB-04 / WEB-05 / WEB-06 — paginação e ajuda
 
 - Operação posiciona a ajuda junto ao subtítulo e usa a paginação compartilhada no ranking e nas ocorrências; alterar a quantidade reinicia a página. Inspeções e Ordens unem listas e paginação na mesma superfície; em Inspeções a ação de investigar fica abaixo do bloco. Sem mudança de estado dos requisitos.
