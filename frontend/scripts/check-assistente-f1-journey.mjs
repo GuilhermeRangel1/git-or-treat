@@ -66,7 +66,7 @@ const cases = [
     question: "Compare esse acumulado com janeiro a junho de 2025.",
     status: "answered",
     answer:
-      "O faturamento foi R$ 950,00 em 2026 e R$ 720,00 em 2025. A diferença foi R$ 230,00.",
+      "O faturamento foi R$ 950,00 em 2026 e R$ 720,00 em 2025. A diferença foi R$ 230,00, uma variação de 31,94%.",
     period: "2026-01 a 2026-06 e 2025-01 a 2025-06",
     filters: ["Município: Recife"],
     columns: [
@@ -91,9 +91,16 @@ const cases = [
         semantic_id: "period_0_minus_period_1",
         unit: "R$",
       },
+      {
+        key: "growth",
+        label: "Variação percentual",
+        role: "measure",
+        semantic_id: "period_0_growth_percent",
+        unit: "%",
+      },
     ],
-    rows: [["950.00", "720.00", "230.00"]],
-    amounts: ["R$ 950,00", "R$ 720,00", "R$ 230,00"],
+    rows: [["950.00", "720.00", "230.00", "31.94"]],
+    amounts: ["R$ 950,00", "R$ 720,00", "R$ 230,00", "31,94%"],
   },
   {
     id: "F1-05",
@@ -228,6 +235,7 @@ function sqlResponse(testCase, index) {
       correlation_id: correlationId,
       audit_reference: auditReference,
       status: testCase.status,
+      continuation_token: `continuation-token-${index}`,
       clarification: {
         question: testCase.clarification,
         missing_fields: testCase.missing_fields,
@@ -242,27 +250,39 @@ function sqlResponse(testCase, index) {
     unit,
   }));
   const evidenceRows = testCase.rows;
+  const comparisonWithGrowth = testCase.id === "F1-04";
   return {
     correlation_id: correlationId,
     audit_reference: auditReference,
     status: "answered",
+    continuation_token: `continuation-token-${index}`,
     evidence: {
+      evidence_contract_version: comparisonWithGrowth
+        ? "text-to-sql-f1-evidence-v3"
+        : "text-to-sql-f1-evidence-v1",
+      source_table: "gold_v2.diagnostico_receita",
+      metric_id: "billing.revenue",
+      coverage_quality: "certified",
       batch_ref: batchRef,
       evidence_digest: digest,
       columns: evidenceColumns,
       rows: evidenceRows,
     },
     presentation: {
-      contract_version: "text-to-sql-f1-presentation-v1",
+      contract_version: comparisonWithGrowth
+        ? "text-to-sql-f1-presentation-v2"
+        : "text-to-sql-f1-presentation-v1",
       state: "ready",
       operation:
         testCase.id === "F1-05"
           ? "monthly_series"
-          : testCase.id === "F1-06" || testCase.id === "F1-07"
-            ? "grouped_total"
-            : testCase.id === "F1-04"
-              ? "comparison"
-              : "total",
+          : testCase.id === "F1-06"
+            ? "ranking"
+            : testCase.id === "F1-07"
+              ? "grouped_total"
+              : testCase.id === "F1-04"
+                ? "comparison"
+                : "total",
       answer: testCase.answer,
       period: testCase.period,
       filters: testCase.filters,
@@ -301,8 +321,15 @@ try {
       const requests = [];
       const analysisStatuses = [];
       page.on("pageerror", (error) => pageErrors.push(error.message));
+      page.on("console", (message) => {
+        if (message.type() === "error") pageErrors.push(message.text());
+      });
       page.on("response", (response) => {
-        if (new URL(response.url()).pathname === "/api/v1/ai/sql-analyses") {
+        const pathname = new URL(response.url()).pathname;
+        if (
+          pathname === "/api/v1/ai/sql-analyses" ||
+          /^\/api\/v1\/ai\/conversations\/[^/]+\/questions$/.test(pathname)
+        ) {
           analysisStatuses.push(response.status());
         }
       });
@@ -323,16 +350,33 @@ try {
             },
           });
         }
-        if (
-          url.pathname === "/api/v1/ai/conversations" &&
-          route.request().method() === "GET"
-        ) {
-          return route.fulfill({ json: { items: [], has_more: false } });
+        if (url.pathname === "/api/v1/ai/conversations") {
+          if (route.request().method() === "GET") {
+            return route.fulfill({ json: { items: [], has_more: false } });
+          }
+          if (!useLiveBackend && route.request().method() === "POST") {
+            const now = new Date().toISOString();
+            return route.fulfill({
+              json: {
+                id: "12345678-1234-4123-8123-123456789abc",
+                title: "Revisão de interface",
+                revision: 1,
+                message_count: 0,
+                created_at: now,
+                updated_at: now,
+                expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+              },
+            });
+          }
         }
-        if (url.pathname === "/api/v1/ai/sql-analyses") {
+        if (
+          url.pathname === "/api/v1/ai/sql-analyses" ||
+          /^\/api\/v1\/ai\/conversations\/[^/]+\/questions$/.test(url.pathname)
+        ) {
           const body = route.request().postDataJSON();
           requests.push({
             method: route.request().method(),
+            path: url.pathname,
             body,
           });
           const testCase = cases.find(
@@ -370,19 +414,19 @@ try {
 
       await page.goto(`${baseUrl}/assistente`, { waitUntil: "networkidle" });
       const modeToggle = page.getByRole("checkbox", {
-        name: "Testar faturamento F1",
+        name: "Testar análise F1",
       });
       await modeToggle.check();
       const question = page.getByRole("textbox", {
         name: "Escreva sua pergunta",
       });
       for (const testCase of cases) {
-        const previousAssistantCount = await page
-          .getByText("Assistente Grid 360", { exact: true })
-          .count();
         const responsePromise = page.waitForResponse(
           (response) =>
-            new URL(response.url()).pathname === "/api/v1/ai/sql-analyses" &&
+            (/^\/api\/v1\/ai\/conversations\/[^/]+\/questions$/.test(
+              new URL(response.url()).pathname,
+            ) ||
+              new URL(response.url()).pathname === "/api/v1/ai/sql-analyses") &&
             response.request().method() === "POST",
           { timeout: 30000 },
         );
@@ -391,11 +435,25 @@ try {
         const apiResponse = await responsePromise;
         assert.equal(apiResponse.status(), 200, `${testCase.id}: HTTP status`);
         const apiResult = await apiResponse.json();
-        const assistantHeader = page
-          .getByText("Assistente Grid 360", { exact: true })
-          .nth(previousAssistantCount);
-        await assistantHeader.waitFor();
-        const assistantCard = assistantHeader.locator(
+        const renderedResponse = page
+          .getByText(
+            testCase.status === "needs_clarification"
+              ? apiResult.clarification.question
+              : apiResult.presentation.answer,
+            { exact: true },
+          )
+          .last();
+        try {
+          await renderedResponse.waitFor();
+        } catch (error) {
+          console.error(`${testCase.id} page errors:`, pageErrors);
+          console.error(
+            `${testCase.id} visible text:`,
+            await page.locator("body").innerText(),
+          );
+          throw error;
+        }
+        const assistantCard = renderedResponse.locator(
           "xpath=ancestor::article[1]",
         );
         if (testCase.status === "needs_clarification") {
@@ -475,16 +533,16 @@ try {
         cases.map((testCase) => testCase.question),
       );
       assert.ok(
-        requests[1].body.context.some(
-          (turn) => turn.role === "user" && turn.content === cases[0].question,
-        ),
-        "F1-02 deve chegar com o turno anterior no contexto",
+        requests[1].path === requests[0].path &&
+          requests[1].body.strategy === "sql_f1" &&
+          requests[1].body.request_id !== requests[0].body.request_id,
+        "F1-02 deve continuar a mesma conversa pela rota F1 salva",
       );
       assert.ok(
-        requests[2].body.context.some(
-          (turn) => turn.role === "user" && turn.content === cases[1].question,
-        ),
-        "F1-03 deve preservar o acompanhamento após o esclarecimento",
+        requests[2].path === requests[0].path &&
+          requests[2].body.strategy === "sql_f1" &&
+          requests[2].body.request_id !== requests[1].body.request_id,
+        "F1-03 deve continuar a mesma conversa F1 após o esclarecimento",
       );
 
       const viewportWidth = await page.evaluate(() => window.innerWidth);
