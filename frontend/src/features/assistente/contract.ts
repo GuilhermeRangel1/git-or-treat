@@ -485,7 +485,8 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
   )
     return fail();
   const continuationToken = value.continuation_token;
-  if (continuationToken != null && !isText(continuationToken, 16000)) return fail();
+  if (continuationToken != null && !isText(continuationToken, 16000))
+    return fail();
   if (value.status === "answered") {
     const evidence = value.evidence;
     if (
