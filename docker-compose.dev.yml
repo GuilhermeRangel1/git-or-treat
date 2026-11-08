@@ -3,14 +3,17 @@ services:
   backend:
     environment:
       APP_ENV: development
+      GENAI_PRICE_VOLUME_STAGING_DIR: /staging/price-volume
     command: [uvicorn, app.main:app, --host, "0.0.0.0", --port, "8000", --reload]
     volumes:
       - ./backend:/app
+      - ./work/tsql11-price-volume-staging:/staging/price-volume:ro
   frontend:
     build:
       dockerfile: frontend/Dockerfile.dev
     environment:
       VITE_API_URL: /
+      VITE_GENAI_SQL_ANALYSIS_ENABLED: ${VITE_GENAI_SQL_ANALYSIS_ENABLED:-false}
       API_PROXY_TARGET: http://backend:8000
       DEV_USE_POLLING: "false"
     volumes:

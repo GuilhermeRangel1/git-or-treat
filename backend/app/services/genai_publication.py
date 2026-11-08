@@ -128,6 +128,9 @@ class GoldPublicationContext:
                     & {
                         "billing.revenue",
                         "energy.consumption",
+                        "energy.average_consumption_per_uc",
+                    "billing.average_ticket",
+                    "billing.effective_tariff",
                         "service.attendance",
                         "service.satisfaction",
                         "service.accumulated_attendance",
@@ -143,6 +146,9 @@ class GoldPublicationContext:
                 & {
                     "billing.revenue",
                     "energy.consumption",
+                    "energy.average_consumption_per_uc",
+                    "billing.average_ticket",
+                    "billing.effective_tariff",
                     "service.attendance",
                     "service.satisfaction",
                     "service.accumulated_attendance",

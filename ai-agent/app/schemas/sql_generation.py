@@ -159,6 +159,9 @@ class SqlInterpretation(ClosedModel):
     metric_id: Literal[
         "billing.revenue",
         "energy.consumption",
+        "billing.average_ticket",
+        "billing.effective_tariff",
+        "energy.average_consumption_per_uc",
         "service.attendance",
         "service.satisfaction",
         "service.accumulated_attendance",
@@ -179,9 +182,17 @@ class SqlInterpretation(ClosedModel):
         "average",
         "snapshot_total",
         "accumulated_average",
+        "ratio_of_sums",
+        "weighted_continuity",
     ]
     aggregation: Literal[
-        "sum", "count_non_null", "count_gd_drop", "key_grain_read", "average_non_null"
+        "sum",
+        "count_non_null",
+        "count_gd_drop",
+        "key_grain_read",
+        "average_non_null",
+        "ratio_of_sums",
+        "weighted_ratio",
     ]
     periods: tuple[SqlPeriod, ...] = Field(max_length=2)
     filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=2)
@@ -252,6 +263,18 @@ class SqlInterpretation(ClosedModel):
             or self.ranking_limit is not None
         ):
             raise ValueError("satisfação histórica exige média sem período ou recortes")
+        if self.operation == "ratio_of_sums" and (
+            self.metric_id not in {
+                "energy.average_consumption_per_uc",
+                "billing.average_ticket",
+                "billing.effective_tariff",
+            }
+            or self.aggregation != "ratio_of_sums"
+            or self.group_by
+            or self.ranking_direction is not None
+            or self.ranking_limit is not None
+        ):
+            raise ValueError("razão de somas exige métrica F1 compatível sem grupos")
         if self.operation == "snapshot_total":
             gd_filters = [
                 item for item in self.filters if item.dimension_id == "generation.distributed"
@@ -307,8 +330,27 @@ class SqlInterpretation(ClosedModel):
                 or self.ranking_limit is not None
             ):
                 raise ValueError("leitura DEC/FEC exige grão e alimentador fixos")
+        elif self.operation == "weighted_continuity":
+            feeder_filters = [
+                item for item in self.filters if item.dimension_id == "network.feeder"
+            ]
+            if (
+                self.metric_id not in {
+                    "network.equivalent_interruption_duration",
+                    "network.equivalent_interruption_frequency",
+                }
+                or self.aggregation != "weighted_ratio"
+                or self.group_by
+                or len(feeder_filters) > 1
+                or any(item.dimension_id != "network.feeder" for item in self.filters)
+                or feeder_filters and feeder_filters[0].operator not in {"eq", "in"}
+                or self.ranking_direction is not None
+                or self.ranking_limit is not None
+            ):
+                raise ValueError("DEC/FEC ponderado exige janela e alimentadores autorizados")
         elif (
             self.aggregation == "key_grain_read"
+            or self.aggregation == "weighted_ratio"
             or "feeder" in self.group_by
             or self.metric_id
             in {
@@ -327,12 +369,16 @@ class SqlResultColumn(ClosedModel):
     unit: (
         Literal[
             "R$",
+            "R$ por UC faturada no mês",
+            "R$/kWh",
             "kWh",
+            "kWh por UC com leitura no mês",
             "protocolos",
             "UCs",
             "pontos",
             "horas por UC",
             "interrupções por UC",
+            "alimentadores",
             "%",
         ]
         | None
@@ -342,18 +388,22 @@ class SqlResultColumn(ClosedModel):
     def check_role(self) -> Self:
         if self.role == "measure":
             if (
-                self.unit in {"protocolos", "UCs"}
+                self.unit in {"protocolos", "UCs", "alimentadores"}
                 and self.value_type != "integer"
-                or self.unit not in {"protocolos", "UCs"}
+                or self.unit not in {"protocolos", "UCs", "alimentadores"}
                 and (
                     self.value_type != "decimal"
                     or self.unit
                     not in {
                         "R$",
+                        "R$ por UC faturada no mês",
+                        "R$/kWh",
                         "kWh",
+                        "kWh por UC com leitura no mês",
                         "pontos",
                         "horas por UC",
                         "interrupções por UC",
+                        "alimentadores",
                         "%",
                     }
                 )
@@ -386,6 +436,9 @@ GenerationContractVersion = Literal[
     "text-to-sql-f1-v8",
     "text-to-sql-f1-v9",
     "text-to-sql-f1-v10",
+    "text-to-sql-f1-v11",
+    "text-to-sql-f1-v12",
+    "text-to-sql-f1-v13",
 ]
 
 
@@ -412,6 +465,11 @@ class SqlGenerationCandidate(ClosedModel):
         if self.status == "sql_candidate":
             if (
                 self.sql is None
+                and not (
+                    self.generation_contract_version == "text-to-sql-f1-v12"
+                    and self.interpretation is not None
+                    and self.interpretation.operation == "weighted_continuity"
+                )
                 or self.interpretation is None
                 or not self.result_columns
                 or self.clarification is not None
@@ -468,6 +526,26 @@ class SqlGenerationCandidate(ClosedModel):
                 and self.interpretation.metric_id != "energy.gd_consumption_drop"
             ):
                 raise ValueError("F1 v10 só admite queda de consumo elegível com GD")
+            if (
+                self.generation_contract_version == "text-to-sql-f1-v11"
+                and self.interpretation.metric_id
+                != "energy.average_consumption_per_uc"
+            ):
+                raise ValueError("F1 v11 só admite consumo médio por UC com leitura")
+            if (
+                self.generation_contract_version == "text-to-sql-f1-v12"
+                and self.interpretation.operation != "weighted_continuity"
+            ):
+                raise ValueError("F1 v12 só admite agregação ponderada DEC/FEC")
+            if (
+                self.generation_contract_version == "text-to-sql-f1-v13"
+                and (
+                    self.interpretation.metric_id
+                    not in {"billing.average_ticket", "billing.effective_tariff"}
+                    or self.interpretation.operation != "ratio_of_sums"
+                )
+            ):
+                raise ValueError("F1 v13 só admite ticket médio e preço observado")
         else:
             if (
                 self.sql is not None

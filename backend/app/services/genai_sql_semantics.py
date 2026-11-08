@@ -279,6 +279,35 @@ def review_sql_semantics(
         intent.metric_id == metric["id"],
         "Métrica da interpretação diverge da pergunta e do contexto autorizado.",
     )
+    if intent.operation == "weighted_continuity":
+        meaning = (
+            "dec_value"
+            if intent.metric_id == "network.equivalent_interruption_duration"
+            else "fec_value"
+        )
+        _require(
+            intent.aggregation == "weighted_ratio"
+            and intent.metric_id.startswith("network.equivalent_interruption_")
+            and tuple(item.name for item in candidate.result_columns)
+            == (meaning, "feeders_included", "feeders_excluded")
+            and candidate.result_columns[0].unit == metric["unit"]
+            and all(
+                item.unit == "alimentadores" and item.value_type == "integer"
+                for item in candidate.result_columns[1:]
+            ),
+            "DEC/FEC ponderado diverge da unidade, operação ou contrato Gold.",
+        )
+        return SqlSemanticReview(
+            reviewed.canonical_sql,
+            reviewed.parameter_items,
+            reviewed.source_columns,
+            reviewed.output_names,
+            (
+                (meaning, meaning),
+                ("feeders_included", "feeders_included"),
+                ("feeders_excluded", "feeders_excluded"),
+            ),
+        )
     _require(
         intent.aggregation == metric["aggregation"],
         "Agregação da interpretação diverge da definição Gold autorizada.",
@@ -815,6 +844,99 @@ def review_sql_semantics(
         return replace(
             _semantic_review(reviewed, [(output.alias, "satisfaction_average")]),
             measure_value_type="double",
+        )
+    if intent.metric_id in {
+        "energy.average_consumption_per_uc",
+        "billing.average_ticket",
+        "billing.effective_tariff",
+    }:
+        _require(
+            intent.aggregation == "ratio_of_sums"
+            and intent.operation == "ratio_of_sums"
+            and not intent.group_by
+            and intent.ranking_direction is None
+            and intent.ranking_limit is None,
+            "Razão mensal das somas exige uma métrica F1 autorizada, sem grupos.",
+        )
+        formulas = {
+            "energy.average_consumption_per_uc": (
+                "consumo_total_kwh", "qtd_ucs_com_leitura",
+                "average_consumption_per_uc", "kWh por UC com leitura no mês", None,
+            ),
+            "billing.average_ticket": (
+                "receita_total_reais", "qtd_ucs_distintas_faturadas_no_mes",
+                "average_ticket", "R$ por UC faturada no mês", 2,
+            ),
+            "billing.effective_tariff": (
+                "receita_base_comparavel_reais", "consumo_base_comparavel_kwh",
+                "effective_tariff", "R$/kWh", 4,
+            ),
+        }
+        numerator, denominator, meaning, unit, decimals = formulas[intent.metric_id]
+        _require(
+            len(candidate.result_columns) == 1
+            and candidate.result_columns[0].role == "measure"
+            and candidate.result_columns[0].value_type == "decimal"
+            and candidate.result_columns[0].unit == unit,
+            "Razão exige uma medida decimal com unidade autorizada.",
+        )
+        months = _period_months(intent.periods[0])
+        _require(months <= available, "Período sem cobertura mensal completa.")
+        expected = {"competencia": months}
+        for item in intent.filters:
+            expected[F1_DIMENSIONS[item.dimension_id]] = frozenset(item.values)
+        where = tree.args.get("where")
+        actual = _selection(where.this, dict(reviewed.parameter_items)) if where else {}
+        _require(actual == expected, "Recortes SQL divergem da razão solicitada.")
+        _require(
+            not tree.args.get("group")
+            and not tree.args.get("order")
+            and not tree.args.get("limit"),
+            "Razão mensal não admite agrupamento ou truncamento nesta versão.",
+        )
+        expression = tree.expressions[0].this
+        if decimals is not None:
+            _require(
+                type(expression) is exp.Round
+                and type(expression.args.get("decimals")) is exp.Literal
+                and not expression.args["decimals"].is_string
+                and expression.args["decimals"].this == str(decimals),
+                f"Razão exige arredondamento Gold de {decimals} casas decimais.",
+            )
+            expression = expression.this
+        denominator_expression = (
+            expression.expression.this
+            if type(expression) is exp.Div and type(expression.expression) is exp.Nullif
+            else None
+        )
+        denominator_sum = denominator_expression
+        if intent.metric_id == "billing.effective_tariff":
+            denominator_sum = (
+                denominator_expression.this
+                if type(denominator_expression) is exp.Cast
+                and type(denominator_expression.args.get("to")) is exp.DataType
+                and denominator_expression.args["to"].this.value == "DECIMAL"
+                else None
+            )
+        _require(
+            type(expression) is exp.Div
+            and type(expression.this) is exp.Sum
+            and type(expression.this.this) is exp.Column
+            and expression.this.this.name == numerator
+            and type(expression.expression) is exp.Nullif
+            and type(denominator_sum) is exp.Sum
+            and type(denominator_sum.this) is exp.Column
+            and denominator_sum.this.name == denominator
+            and type(expression.expression.expression) is exp.Literal
+            and expression.expression.expression.this == "0"
+            and not expression.expression.expression.is_string,
+            f"Use SUM({numerator}) / NULLIF(SUM({denominator}), 0).",
+        )
+        return replace(
+            _semantic_review(reviewed, [(tree.expressions[0].alias, meaning)]),
+            measure_value_type="double"
+            if intent.metric_id == "energy.average_consumption_per_uc"
+            else "decimal",
         )
     if intent.operation == "comparison":
         result = _review_comparison(tree, candidate, reviewed, available)

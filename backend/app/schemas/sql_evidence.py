@@ -34,12 +34,17 @@ Row = Annotated[tuple[Cell, ...], Field(min_length=1, max_length=32)]
 Meaning = Literal[
     "revenue_total",
     "energy_total",
+    "average_consumption_per_uc",
+    "average_ticket",
+    "effective_tariff",
     "attendance_total",
     "attendance_accumulated_total",
     "gd_units_total",
     "gd_consumption_drop_units",
     "dec_value",
     "fec_value",
+    "feeders_included",
+    "feeders_excluded",
     "satisfaction_average",
     "period_0_total",
     "period_1_total",
@@ -76,6 +81,9 @@ class SqlEvidence(ClosedModel):
         "text-to-sql-f1-evidence-v8",
         "text-to-sql-f1-evidence-v9",
         "text-to-sql-f1-evidence-v10",
+        "text-to-sql-f1-evidence-v11",
+        "text-to-sql-f1-evidence-v12",
+        "text-to-sql-f1-evidence-v13",
     ]
     source_id: Literal["gold.local"]
     source_table: Literal[
@@ -89,6 +97,9 @@ class SqlEvidence(ClosedModel):
     metric_id: Literal[
         "billing.revenue",
         "energy.consumption",
+        "energy.average_consumption_per_uc",
+        "billing.average_ticket",
+        "billing.effective_tariff",
         "service.attendance",
         "network.equivalent_interruption_duration",
         "network.equivalent_interruption_frequency",
@@ -139,7 +150,17 @@ class SqlEvidence(ClosedModel):
                 if self.metric_id == "network.equivalent_interruption_duration"
                 else "fec_value"
             )
-            if (
+            if self.interpretation.operation == "weighted_continuity":
+                if (
+                    self.source_table != "gold_v2.indicadores_dec_fec"
+                    or self.interpretation.aggregation != "weighted_ratio"
+                    or self.evidence_contract_version != "text-to-sql-f1-evidence-v12"
+                    or set(self.measure_semantics.values())
+                    != {expected_meaning, "feeders_included", "feeders_excluded"}
+                    or len(self.measure_semantics) != 3
+                ):
+                    raise ValueError("DEC/FEC ponderado exige contrato e linhagem v12")
+            elif (
                 self.source_table != "gold_v2.indicadores_dec_fec"
                 or self.interpretation.operation != "grain_read"
                 or self.interpretation.aggregation != "key_grain_read"
@@ -250,6 +271,29 @@ class SqlEvidence(ClosedModel):
                 raise ValueError(
                     "satisfação acumulada exige média sem período e fonte autorizada"
                 )
+        elif self.metric_id == "energy.average_consumption_per_uc":
+            if (
+                self.source_table != "gold_v2.diagnostico_receita"
+                or self.interpretation.operation != "ratio_of_sums"
+                or self.interpretation.aggregation != "ratio_of_sums"
+                or set(self.measure_semantics.values()) != {"average_consumption_per_uc"}
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v11"
+            ):
+                raise ValueError("consumo médio exige razão de somas da fonte autorizada")
+        elif self.metric_id in {"billing.average_ticket", "billing.effective_tariff"}:
+            expected_meaning = (
+                "average_ticket"
+                if self.metric_id == "billing.average_ticket"
+                else "effective_tariff"
+            )
+            if (
+                self.source_table != "gold_v2.diagnostico_receita"
+                or self.interpretation.operation != "ratio_of_sums"
+                or self.interpretation.aggregation != "ratio_of_sums"
+                or set(self.measure_semantics.values()) != {expected_meaning}
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v13"
+            ):
+                raise ValueError("métrica de razão exige fonte e contrato autorizados")
         elif (
             self.metric_id == "billing.revenue"
             and self.source_table == "gold_v2.consumo_receita_bairro"
@@ -298,9 +342,28 @@ class SqlEvidence(ClosedModel):
                 raise ValueError(
                     "comparação exige dois totais e diferença com linhagem"
                 )
+        elif self.interpretation.operation == "weighted_continuity":
+            expected_meaning = (
+                "dec_value"
+                if self.metric_id == "network.equivalent_interruption_duration"
+                else "fec_value"
+            )
+            if (
+                set(self.measure_semantics.values())
+                != {expected_meaning, "feeders_included", "feeders_excluded"}
+                or len(self.measure_semantics) != 3
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v12"
+            ):
+                raise ValueError("DEC/FEC ponderado exige valor e base elegível/excluída")
         elif set(self.measure_semantics.values()) != {
             "energy_total"
             if self.metric_id == "energy.consumption"
+            else "average_consumption_per_uc"
+            if self.metric_id == "energy.average_consumption_per_uc"
+            else "average_ticket"
+            if self.metric_id == "billing.average_ticket"
+            else "effective_tariff"
+            if self.metric_id == "billing.effective_tariff"
             else "attendance_total"
             if self.metric_id == "service.attendance"
             else "attendance_accumulated_total"
@@ -331,6 +394,12 @@ class SqlEvidence(ClosedModel):
             if self.metric_id == "energy.gd_units"
             else "text-to-sql-f1-evidence-v10"
             if self.metric_id == "energy.gd_consumption_drop"
+            else "text-to-sql-f1-evidence-v13"
+            if self.metric_id in {"billing.average_ticket", "billing.effective_tariff"}
+            else "text-to-sql-f1-evidence-v11"
+            if self.metric_id == "energy.average_consumption_per_uc"
+            else "text-to-sql-f1-evidence-v12"
+            if continuity and self.interpretation.operation == "weighted_continuity"
             else "text-to-sql-f1-evidence-v5"
             if continuity
             else "text-to-sql-f1-evidence-v3"
@@ -361,8 +430,16 @@ class SqlEvidence(ClosedModel):
                 if meaning == "dec_value"
                 else "interrupções por UC"
                 if meaning == "fec_value"
+                else "alimentadores"
+                if meaning in {"feeders_included", "feeders_excluded"}
                 else "kWh"
                 if self.metric_id == "energy.consumption"
+                else "kWh por UC com leitura no mês"
+                if self.metric_id == "energy.average_consumption_per_uc"
+                else "R$ por UC faturada no mês"
+                if self.metric_id == "billing.average_ticket"
+                else "R$/kWh"
+                if self.metric_id == "billing.effective_tariff"
                 else "R$"
             )
             if column.role == "measure" and column.unit != expected_unit:
@@ -393,6 +470,9 @@ class SqlEvidence(ClosedModel):
             "text-to-sql-f1-evidence-v8",
             "text-to-sql-f1-evidence-v9",
             "text-to-sql-f1-evidence-v10",
+            "text-to-sql-f1-evidence-v11",
+            "text-to-sql-f1-evidence-v12",
+            "text-to-sql-f1-evidence-v13",
         }:
             # Existing v1-v4 digests predate the quality field; the validator
             # fixes those legacy contracts to the certified value above.

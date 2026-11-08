@@ -30,6 +30,11 @@ _ARGS = {
     exp.Avg: {"this"},
     exp.Filter: {"this", "expression"},
     exp.Sub: {"this", "expression"},
+    exp.Div: {"this", "expression", "typed", "safe"},
+    exp.Round: {"this", "decimals"},
+    exp.Cast: {"this", "to"},
+    exp.DataType: {"this", "expressions", "nested"},
+    exp.Nullif: {"this", "expression"},
     exp.Where: {"this"},
     exp.Group: {"expressions"},
     exp.Order: {"expressions"},
@@ -140,6 +145,58 @@ def _measure(node: exp.Expression, measure_column: str, metric_id: str) -> bool:
         return _measure(node.this, measure_column, metric_id) and _measure(
             node.expression, measure_column, metric_id
         )
+    ratio_specs = {
+        "energy.average_consumption_per_uc": (
+            "consumo_total_kwh", "qtd_ucs_com_leitura", None,
+        ),
+        "billing.average_ticket": (
+            "receita_total_reais", "qtd_ucs_distintas_faturadas_no_mes", 2,
+        ),
+        "billing.effective_tariff": (
+            "receita_base_comparavel_reais", "consumo_base_comparavel_kwh", 4,
+        ),
+    }
+    if metric_id in ratio_specs:
+        numerator_column, denominator_column, rounding = ratio_specs[metric_id]
+        expression = node
+        if rounding is not None:
+            if type(expression) is not exp.Round:
+                return False
+            decimals = expression.args.get("decimals")
+            if (
+                type(decimals) is not exp.Literal
+                or decimals.is_string
+                or decimals.this != str(rounding)
+            ):
+                return False
+            expression = expression.this
+        elif type(expression) is exp.Round:
+            return False
+        if type(expression) is not exp.Div:
+            return False
+        numerator, denominator = expression.this, expression.expression
+        denominator_expression = denominator.this if type(denominator) is exp.Nullif else None
+        denominator_sum = denominator_expression
+        if metric_id == "billing.effective_tariff":
+            denominator_sum = (
+                denominator_expression.this
+                if type(denominator_expression) is exp.Cast
+                and type(denominator_expression.args.get("to")) is exp.DataType
+                and denominator_expression.args["to"].this.value == "DECIMAL"
+                else None
+            )
+        return (
+            type(numerator) is exp.Sum
+            and type(numerator.this) is exp.Column
+            and numerator.this.name == numerator_column
+            and type(denominator) is exp.Nullif
+            and type(denominator_sum) is exp.Sum
+            and type(denominator_sum.this) is exp.Column
+            and denominator_sum.this.name == denominator_column
+            and type(denominator.expression) is exp.Literal
+            and denominator.expression.this == "0"
+            and not denominator.expression.is_string
+        )
     return False
 
 
@@ -152,21 +209,151 @@ def _normalized_placeholders(tree: exp.Expression) -> exp.Expression:
     return result
 
 
+def _review_weighted_continuity(candidate, request, context, source, metric, metric_id):
+    intent = candidate.interpretation
+    _require(
+        candidate.generation_contract_version == "text-to-sql-f1-v12"
+        and intent is not None
+        and intent.operation == "weighted_continuity"
+        and candidate.sql is None
+        and not candidate.parameters,
+        "DEC/FEC ponderado exige o contrato tipado sem SQL do modelo.",
+    )
+    _require(
+        len(intent.periods) == 1 and not intent.group_by,
+        "DEC/FEC ponderado exige uma única janela sem agrupamento.",
+    )
+    period = intent.periods[0]
+    months = []
+    year, month = period.start.year, period.start.month
+    while (year, month) <= (period.end.year, period.end.month):
+        months.append(f"{year:04d}-{month:02d}")
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    _require(1 <= len(months) <= 120, "Janela DEC/FEC deve conter de 1 a 120 meses.")
+    temporal = context["temporal_coverage"]
+    available = set(temporal.get("competencies", ()))
+    _require(set(months) <= available, "Janela DEC/FEC sem cobertura temporal Gold.")
+    feeder_filter = next(
+        (item for item in intent.filters if item.dimension_id == "network.feeder"),
+        None,
+    )
+    expected_filter_values = {}
+    if feeder_filter is not None:
+        feeder_values = {
+            value
+            for item in context["dimension_values"]
+            if item["dimension_id"] == "network.feeder"
+            for value in item["values"]
+        }
+        _require(
+            set(feeder_filter.values) <= feeder_values,
+            "Alimentador fora do vocabulário Gold autorizado.",
+        )
+        expected_filter_values = dict(enumerate(feeder_filter.values))
+    meaning = (
+        "dec_value"
+        if metric_id == "network.equivalent_interruption_duration"
+        else "fec_value"
+    )
+    measure_alias = meaning
+    expected_columns = (
+        (measure_alias, "decimal", metric["unit"]),
+        ("feeders_included", "integer", "alimentadores"),
+        ("feeders_excluded", "integer", "alimentadores"),
+    )
+    _require(
+        tuple((item.name, item.value_type, item.unit) for item in candidate.result_columns)
+        == expected_columns
+        and all(item.role == "measure" for item in candidate.result_columns),
+        "DEC/FEC exige valor ponderado e contagens de alimentadores elegíveis/excluídos.",
+    )
+    numerator = (
+        "duracao_total_interrupcoes_horas"
+        if meaning == "dec_value"
+        else "frequencia_total_interrupcoes"
+    )
+    feeder_predicate = ""
+    parameters = {
+        "period_start": f"{period.start.year:04d}-{period.start.month:02d}",
+        "period_end": f"{period.end.year:04d}-{period.end.month:02d}",
+        "expected_months": len(months),
+    }
+    if feeder_filter is not None:
+        placeholders = []
+        for index, value in expected_filter_values.items():
+            name = f"feeder_{index}"
+            placeholders.append(f"%({name})s")
+            parameters[name] = value
+        if feeder_filter.operator == "eq":
+            feeder_predicate = f" AND id_alimentador = {placeholders[0]}"
+        else:
+            feeder_predicate = f" AND id_alimentador IN ({', '.join(placeholders)})"
+    sql = f'''WITH feeder_universe AS (
+    SELECT DISTINCT id_alimentador
+    FROM {source["schema"]}.{source["table"]}
+    WHERE TRUE{feeder_predicate}
+), feeder_windows AS (
+    SELECT id_alimentador,
+           COUNT(DISTINCT competencia) = %(expected_months)s
+             AND COUNT(*) = %(expected_months)s
+             AND COUNT({numerator}) = %(expected_months)s
+             AND COUNT(total_ucs_alimentador) = %(expected_months)s
+             AND MIN(total_ucs_alimentador) > 0
+             AND MIN(total_ucs_alimentador) = MAX(total_ucs_alimentador) AS eligible,
+           SUM({numerator}) AS numerator,
+           MIN(total_ucs_alimentador) AS denominator
+    FROM {source["schema"]}.{source["table"]}
+    WHERE competencia BETWEEN %(period_start)s AND %(period_end)s{feeder_predicate}
+    GROUP BY id_alimentador
+), evaluated AS (
+    SELECT universe.id_alimentador,
+           COALESCE(windows.eligible, FALSE) AS eligible,
+           windows.numerator,
+           windows.denominator
+    FROM feeder_universe AS universe
+    LEFT JOIN feeder_windows AS windows USING (id_alimentador)
+)
+SELECT
+    SUM(CASE WHEN eligible THEN numerator END)::numeric
+      / NULLIF(SUM(CASE WHEN eligible THEN denominator END), 0) AS {measure_alias},
+    COUNT(*) FILTER (WHERE eligible)::numeric AS feeders_included,
+    COUNT(*) FILTER (WHERE NOT eligible)::numeric AS feeders_excluded
+FROM evaluated'''
+    source_columns = frozenset(
+        {
+            "id_alimentador",
+            "competencia",
+            "total_ucs_alimentador",
+            numerator,
+        }
+    )
+    return SqlStructureReview(
+        sql,
+        tuple(sorted(parameters.items())),
+        source_columns,
+        tuple(item.name for item in candidate.result_columns),
+    )
+
+
 def review_sql_structure(
     candidate: SqlGenerationCandidate,
     request: QuestionPlanRequest,
 ) -> SqlStructureReview:
     context = build_sql_generation_context(request)
-    _require(
-        candidate.status == "sql_candidate" and candidate.sql is not None,
-        "Estado sem consulta candidata.",
-    )
+    _require(candidate.status == "sql_candidate", "Estado sem consulta candidata.")
     _require(
         candidate.context_version == context.context_version, "Contexto divergente."
     )
     source = json.loads(context.contents)["source"]
     measure_column = json.loads(context.contents)["metric"]["measure_column"]
     metric_id = json.loads(context.contents)["metric"]["id"]
+    context_body = json.loads(context.contents)
+    if candidate.interpretation and candidate.interpretation.operation == "weighted_continuity":
+        _require(candidate.sql is None, "DEC/FEC ponderado não aceita SQL gerado pelo modelo.")
+        return _review_weighted_continuity(
+            candidate, request, context_body, source, context_body["metric"], metric_id
+        )
+    _require(candidate.sql is not None, "Estado sem consulta candidata.")
     key_grain_read = metric_id in {
         "network.equivalent_interruption_duration",
         "network.equivalent_interruption_frequency",
@@ -326,7 +513,36 @@ def review_sql_structure(
             "LIMIT fora da F1.",
         )
     _require(
-        all(type(node) is not exp.Literal or node is limit_value for node in nodes),
+        all(
+            type(node) is not exp.Literal
+            or node is limit_value
+            or (
+                metric_id in {
+                    "energy.average_consumption_per_uc",
+                    "billing.average_ticket",
+                    "billing.effective_tariff",
+                }
+                and node.this == "0"
+                and not node.is_string
+                and type(node.parent) is exp.Nullif
+                and (
+                    type(node.parent.this) is exp.Sum
+                    or metric_id == "billing.effective_tariff"
+                    and type(node.parent.this) is exp.Cast
+                    and type(node.parent.this.this) is exp.Sum
+                )
+                and type(node.parent.parent) is exp.Div
+                and node.parent.parent.expression is node.parent
+            )
+            or (
+                metric_id in {"billing.average_ticket", "billing.effective_tariff"}
+                and node.this == ("2" if metric_id == "billing.average_ticket" else "4")
+                and not node.is_string
+                and type(node.parent) is exp.Round
+                and node.parent.args.get("decimals") is node
+            )
+            for node in nodes
+        ),
         "Valores de filtro exigem parâmetros nomeados.",
     )
     placeholders = [node for node in nodes if type(node) is exp.Placeholder]

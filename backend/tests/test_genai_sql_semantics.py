@@ -55,6 +55,85 @@ def consumption_query(sql_request, *, unit="kWh", metric_id="energy.consumption"
     return type(value).model_validate(payload), request
 
 
+def average_consumption_query(sql_request, *, sql=None):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = "Qual foi o consumo médio por UC com leitura em junho de 2026?"
+    payload["access_scope"]["allowed_metric_ids"].append(
+        "energy.average_consumption_per_uc"
+    )
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.average_consumption_per_uc",
+        "kind": "monthly",
+        "competencies": ["2026-06"],
+    }]
+    request = type(sql_request).model_validate(payload)
+    candidate_sql = sql or (
+        "SELECT SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) "
+        "AS average_consumption_per_uc FROM gold_v2.diagnostico_receita "
+        "WHERE competencia = :month"
+    )
+    value = candidate(
+        request,
+        candidate_sql,
+        parameters={"month": {"type": "string", "value": "2026-06"}},
+    )
+    body = value.model_dump(mode="json")
+    body["generation_contract_version"] = "text-to-sql-f1-v11"
+    body["interpretation"].update(
+        metric_id="energy.average_consumption_per_uc",
+        operation="ratio_of_sums",
+        aggregation="ratio_of_sums",
+        filters=[],
+        group_by=[],
+        ranking_direction=None,
+        ranking_limit=None,
+    )
+    body["result_columns"][0].update(
+        name="average_consumption_per_uc",
+        unit="kWh por UC com leitura no mês",
+    )
+    return type(value).model_validate(body), request
+
+
+def test_average_consumption_uses_ratio_of_sums_and_zero_safe_denominator(sql_request):
+    value, request = average_consumption_query(sql_request)
+
+    review = review_sql_semantics(value, request)
+
+    assert review.measure_semantics == (
+        ("average_consumption_per_uc", "average_consumption_per_uc"),
+    )
+    assert review.measure_value_type == "double"
+    assert "NULLIF(SUM(qtd_ucs_com_leitura), 0)" in review.canonical_sql
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        (
+            "SELECT AVG(consumo_total_kwh / qtd_ucs_com_leitura) "
+            "AS average_consumption_per_uc FROM gold_v2.diagnostico_receita "
+            "WHERE competencia = :month"
+        ),
+        (
+            "SELECT SUM(consumo_total_kwh) / SUM(qtd_ucs_com_leitura) "
+            "AS average_consumption_per_uc FROM gold_v2.diagnostico_receita "
+            "WHERE competencia = :month"
+        ),
+        (
+            "SELECT SUM(receita_total_reais) / NULLIF(SUM(qtd_ucs_com_leitura), 0) "
+            "AS average_consumption_per_uc FROM gold_v2.diagnostico_receita "
+            "WHERE competencia = :month"
+        ),
+    ],
+)
+def test_average_consumption_rejects_other_formulas(sql_request, sql):
+    value, request = average_consumption_query(sql_request, sql=sql)
+
+    with pytest.raises(SqlStructureRejected):
+        review_sql_semantics(value, request)
+
+
 def gd_consumption_query(sql_request, *, filter_value="Sim"):
     payload = sql_request.model_dump(mode="json")
     payload["question"] = (
@@ -620,6 +699,50 @@ def continuity_candidate(
     return type(value).model_validate(body), request
 
 
+def weighted_continuity_candidate(sql_request, *, metric_id="network.equivalent_interruption_duration", filters=None):
+    payload = sql_request.model_dump(mode="json")
+    indicator = "DEC" if metric_id.endswith("duration") else "FEC"
+    payload["question"] = f"Qual foi o {indicator} de todos os alimentadores entre janeiro e março de 2026?"
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = ["network.feeder"]
+    payload["temporal_coverage"] = [{
+        "metric_id": metric_id,
+        "kind": "monthly",
+        "competencies": ["2026-01", "2026-02", "2026-03"],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "network.feeder",
+        "values": ["ALIM-01", "ALIM-02"],
+    }]
+    request = type(sql_request).model_validate(payload)
+    value = candidate(request)
+    body = value.model_dump(mode="json")
+    body.update(
+        generation_contract_version="text-to-sql-f1-v12",
+        sql=None,
+        parameters={},
+        interpretation={
+            **body["interpretation"],
+            "metric_id": metric_id,
+            "aggregation": "weighted_ratio",
+            "operation": "weighted_continuity",
+            "periods":[{"start":"2026-01-01", "end":"2026-03-31"}],
+            "filters": filters or [],
+            "group_by": [],
+            "ranking_direction": None,
+            "ranking_limit": None,
+        },
+        result_columns=[
+            {"name":"dec_value" if metric_id.endswith("duration") else "fec_value",
+             "role":"measure", "value_type":"decimal",
+             "unit":"horas por UC" if metric_id.endswith("duration") else "interrupções por UC"},
+            {"name":"feeders_included", "role":"measure", "value_type":"integer", "unit":"alimentadores"},
+            {"name":"feeders_excluded", "role":"measure", "value_type":"integer", "unit":"alimentadores"},
+        ],
+    )
+    return type(value).model_validate(body), request
+
+
 def test_attendance_counts_protocols_for_one_closed_utc_month(sql_request):
     value, request = attendance_candidate(sql_request)
     review = review_sql_semantics(value, request)
@@ -790,6 +913,48 @@ def test_backend_quotes_uppercase_physical_continuity_column(sql_request):
     )
     review = review_sql_semantics(value, request)
     assert 'SELECT "DEC" AS value' in review.canonical_sql
+
+
+@pytest.mark.parametrize(
+    ("metric_id", "meaning", "numerator"),
+    [
+        ("network.equivalent_interruption_duration", "dec_value", "duracao_total_interrupcoes_horas"),
+        ("network.equivalent_interruption_frequency", "fec_value", "frequencia_total_interrupcoes"),
+    ],
+)
+def test_weighted_continuity_compiles_legacy_ratio_and_discloses_population(
+    sql_request, metric_id, meaning, numerator
+):
+    value, request = weighted_continuity_candidate(sql_request, metric_id=metric_id)
+    review = review_sql_semantics(value, request)
+    assert "COUNT(DISTINCT competencia) = %(expected_months)s" in review.canonical_sql
+    assert "MIN(total_ucs_alimentador) = MAX(total_ucs_alimentador)" in review.canonical_sql
+    assert "SUM(CASE WHEN eligible THEN denominator END)" in review.canonical_sql
+    assert "LEFT JOIN feeder_windows" in review.canonical_sql
+    assert numerator in review.source_columns
+    assert review.measure_semantics == (
+        (meaning, meaning),
+        ("feeders_included", "feeders_included"),
+        ("feeders_excluded", "feeders_excluded"),
+    )
+    assert dict(review.parameter_items)["expected_months"] == 3
+
+
+def test_weighted_continuity_rejects_model_sql_and_unknown_feeder(sql_request):
+    value, request = weighted_continuity_candidate(
+        sql_request,
+        filters=[{
+            "dimension_id": "network.feeder",
+            "operator": "eq",
+            "values": ["ALIM-UNKNOWN"],
+        }],
+    )
+    with pytest.raises(SqlStructureRejected):
+        review_sql_semantics(value, request)
+    body = value.model_dump(mode="json")
+    body["sql"] = "SELECT 1"
+    with pytest.raises((SqlStructureRejected, ValueError)):
+        review_sql_semantics(type(value).model_validate(body), request)
 
 
 @pytest.mark.parametrize(

@@ -428,7 +428,11 @@ class ConversationStore:
             except (ValidationError, TypeError, ValueError):
                 break
             if response.status == "answered":
-                answer = response.presentation.answer
+                answer = (
+                    response.compound_analysis.answer
+                    if response.compound_analysis is not None
+                    else response.presentation.answer
+                )
             elif response.status == "needs_clarification":
                 answer = response.clarification.question
             else:

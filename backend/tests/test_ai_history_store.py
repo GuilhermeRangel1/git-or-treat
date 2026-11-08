@@ -1,5 +1,7 @@
 """Isolamento, recuperação e expiração no armazenamento operacional real."""
 
+import hashlib
+import json
 from datetime import timedelta
 from uuid import uuid4
 
@@ -10,7 +12,7 @@ from app.models.auth import AuthUser
 from app.schemas.ai import AIQuestionResponse
 from app.schemas.ai_conversations import ConversationDetail
 from app.schemas.genai_internal import AccessScope
-from app.schemas.sql_analysis import SqlAnalysisResponse
+from app.schemas.sql_analysis import SqlAnalysisResponse, SqlCompoundAnalysis
 from app.services.ai_conversations import (
     ConversationStore,
     now,
@@ -89,6 +91,33 @@ def sql_unsupported_response():
             "code": "operation_outside_f1",
             "message": "Esta análise ainda não está disponível.",
         },
+    )
+
+
+def sql_compound_response():
+    analysis = {
+        "contract_version": "text-to-sql-f1-compound-v1",
+        "answer": "A análise composta foi calculada.",
+        "active_gold_batch": "gold-csv-v2:GOLD_20261103T173853Z_76c37784:12345678-1234-4123-8123-123456789abc",
+        "staging_manifest_digest": "a" * 64,
+        "staging_csv_digest": "b" * 64,
+        "method": "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3",
+        "windows": {
+            "p0_start": "2024-07", "p0_end": "2025-06",
+            "p1_start": "2025-07", "p1_end": "2026-06",
+            "method": "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3",
+        },
+        "municipalities": [],
+        "limitations": ["Staging local; não representa publicação Gold ativa."],
+    }
+    digest = hashlib.sha256(json.dumps(
+        analysis, ensure_ascii=False, allow_nan=False, sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+    return SqlAnalysisResponse.from_compound(
+        "e" * 32,
+        SqlCompoundAnalysis(**analysis, evidence_digest=digest),
+        audit_reference="f" * 32,
     )
 
 
@@ -240,6 +269,27 @@ def test_sql_unsupported_question_is_private_history_but_clears_followup_context
     assert detail.exchanges[0].question == "compare várias métricas"
     assert detail.exchanges[0].sql_response.status == "unsupported"
     assert owner.sql_context(conversation, "scope", batch_ref="batch-a") == []
+
+
+def test_sql_compound_answer_can_be_used_as_followup_context(storage):
+    _db, owner, _other = storage
+    conversation = owner.create(str(uuid4()))["id"]
+    request = str(uuid4())
+    _, _, attempt, _ = owner.reserve_sql(
+        conversation, request, "Faça a decomposição preço-volume", "scope",
+        batch_ref="batch-a",
+    )
+    owner.finish_sql(
+        conversation, request, attempt, "Faça a decomposição preço-volume",
+        sql_compound_response(), "batch-a",
+    )
+
+    assert [(turn.role, turn.content) for turn in owner.sql_context(
+        conversation, "scope", batch_ref="batch-a",
+    )] == [
+        ("user", "Faça a decomposição preço-volume"),
+        ("assistant", "A análise composta foi calculada."),
+    ]
 
 
 def test_legacy_and_sql_f1_history_coexist_without_crossing_context(storage):

@@ -19,10 +19,15 @@ _DIMENSIONS = {
 _MEASURES = {
     "revenue_total": "Faturamento",
     "energy_total": "Consumo medido",
+    "average_consumption_per_uc": "Consumo médio por UC com leitura",
+    "average_ticket": "Ticket médio por UC faturada",
+    "effective_tariff": "Preço médio observado por kWh",
     "attendance_total": "Protocolos abertos",
     "satisfaction_average": "Nota média de satisfação",
     "dec_value": "DEC",
     "fec_value": "FEC",
+    "feeders_included": "Alimentadores elegíveis",
+    "feeders_excluded": "Alimentadores observados excluídos",
     "gd_units_total": "UCs com GD",
     "gd_consumption_drop_units": "UCs com GD e queda de consumo >30%",
     "satisfaction_accumulated_average": "Nota média de satisfação no histórico",
@@ -190,6 +195,12 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         if evidence.metric_id == "service.accumulated_satisfaction"
         else "consumo medido"
         if evidence.metric_id == "energy.consumption"
+        else "consumo médio por UC com leitura"
+        if evidence.metric_id == "energy.average_consumption_per_uc"
+        else "ticket médio por UC faturada"
+        if evidence.metric_id == "billing.average_ticket"
+        else "preço médio observado por kWh"
+        if evidence.metric_id == "billing.effective_tariff"
         else "faturamento"
     )
     measure_unit = (
@@ -213,16 +224,29 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         if evidence.metric_id == "service.accumulated_satisfaction"
         else "kWh"
         if evidence.metric_id == "energy.consumption"
+        else "kWh por UC com leitura no mês"
+        if evidence.metric_id == "energy.average_consumption_per_uc"
+        else "R$ por UC faturada no mês"
+        if evidence.metric_id == "billing.average_ticket"
+        else "R$/kWh"
+        if evidence.metric_id == "billing.effective_tariff"
         else "R$"
     )
 
     def formatted(value: str) -> str:
         number = _decimal_pt_br(value)
+        if evidence.metric_id == "billing.average_ticket":
+            return f"R$ {number} por UC faturada no mês"
+        if evidence.metric_id == "billing.effective_tariff":
+            return f"{number} R$/kWh"
         return (
             f"{number} {measure_unit}"
             if measure_unit
             in {
                 "kWh",
+                "kWh por UC com leitura no mês",
+                "R$ por UC faturada no mês",
+                "R$/kWh",
                 "protocolos",
                 "UCs",
                 "pontos",
@@ -338,6 +362,65 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         if value is None:
             return f"A nota média de satisfação está indisponível{scope}."
         return f"A nota média de satisfação{scope} foi {formatted(value)}."
+
+    if operation == "ratio_of_sums":
+        expected_meaning = (
+            "average_ticket"
+            if evidence.metric_id == "billing.average_ticket"
+            else "effective_tariff"
+            if evidence.metric_id == "billing.effective_tariff"
+            else "average_consumption_per_uc"
+        )
+        column = next(
+            name
+            for name, meaning in evidence.measure_semantics.items()
+            if meaning == expected_meaning
+        )
+        value = evidence.rows[0][
+            next(index for index, item in enumerate(evidence.columns) if item.name == column)
+        ]
+        if value is None:
+            if evidence.metric_id == "billing.average_ticket":
+                return f"O ticket médio por UC faturada está indisponível{scope}, pois não há denominador válido."
+            if evidence.metric_id == "billing.effective_tariff":
+                return f"O preço observado por kWh está indisponível{scope}, pois não há consumo comparável positivo."
+            return f"O consumo médio por UC com leitura está indisponível{scope}."
+        if evidence.metric_id == "billing.average_ticket":
+            return f"O ticket médio por UC faturada{scope} foi {formatted(value)}."
+        if evidence.metric_id == "billing.effective_tariff":
+            return f"O preço médio observado por kWh{scope} foi {formatted(value)}; ele não é tarifa homologada."
+        return f"O consumo médio por UC com leitura{scope} foi {formatted(value)}."
+
+    if operation == "weighted_continuity":
+        values = {
+            meaning: evidence.rows[0][
+                next(i for i, item in enumerate(evidence.columns) if item.name == name)
+            ]
+            for name, meaning in evidence.measure_semantics.items()
+        }
+        indicator = (
+            "DEC"
+            if evidence.metric_id == "network.equivalent_interruption_duration"
+            else "FEC"
+        )
+        value = values.get("dec_value" if indicator == "DEC" else "fec_value")
+        included = values["feeders_included"] or "0"
+        excluded = values["feeders_excluded"] or "0"
+        window = _period_phrase(
+            evidence.interpretation.periods[0].start,
+            evidence.interpretation.periods[0].end,
+        )
+        scope_text = f" para {'; '.join(filters)}" if filters else ""
+        if value is None:
+            return (
+                f"Não houve alimentadores elegíveis para calcular {indicator} em {window}{scope_text}. "
+                f"Foram incluídos {included} e excluídos {excluded} alimentadores observados."
+            )
+        return (
+            f"{indicator} ponderado em {window}{scope_text}: {formatted(value)}. "
+            f"Foram incluídos {included} alimentadores elegíveis e excluídos {excluded} "
+            "alimentadores observados sem a janela completa, numerador válido ou denominador constante."
+        )
 
     if operation == "grain_read":
         meaning = (
@@ -478,6 +561,12 @@ def _metric_measure_label(evidence: SqlEvidence, meaning: str) -> str:
         return "Protocolos abertos"
     if evidence.metric_id == "service.satisfaction":
         return "Nota média de satisfação"
+    if evidence.metric_id == "energy.average_consumption_per_uc":
+        return "Consumo médio por UC com leitura"
+    if evidence.metric_id == "billing.average_ticket":
+        return "Ticket médio por UC faturada"
+    if evidence.metric_id == "billing.effective_tariff":
+        return "Preço médio observado por kWh"
     if evidence.metric_id == "billing.revenue":
         return _MEASURES[meaning]
     if evidence.metric_id in {
@@ -550,6 +639,18 @@ def present_sql_evidence(evidence: SqlEvidence) -> SqlAnalysisPresentation:
         limitations = (
             "Retrato do cadastro no lote publicado; não informa quando a GD entrou em operação nem confirma geração ou injeção.",
         )
+    if evidence.metric_id == "energy.average_consumption_per_uc":
+        limitations = (
+            "Razão entre o consumo total e a soma de UCs com leitura na mesma base mensal; não é média simples de médias.",
+        )
+    if evidence.metric_id == "billing.average_ticket":
+        limitations = (
+            "Razão entre receita faturada e UCs faturadas na mesma base mensal; não é média simples de tickets por grupo.",
+        )
+    if evidence.metric_id == "billing.effective_tariff":
+        limitations = (
+            "Preço observado na base comparável com fatura e leitura válida; não é tarifa homologada.",
+        )
     if evidence.metric_id == "energy.gd_consumption_drop":
         limitations = (
             "Queda bruta nas janelas fixas; exige ao menos seis meses com leitura em cada janela e não demonstra causa nem origem solar.",
@@ -575,6 +676,12 @@ def present_sql_evidence(evidence: SqlEvidence) -> SqlAnalysisPresentation:
             if evidence.metric_id == "service.accumulated_satisfaction"
             else "text-to-sql-f1-presentation-v9"
             if evidence.metric_id == "energy.gd_consumption_drop"
+            else "text-to-sql-f1-presentation-v12"
+            if evidence.metric_id in {"billing.average_ticket", "billing.effective_tariff"}
+            else "text-to-sql-f1-presentation-v10"
+            if evidence.metric_id == "energy.average_consumption_per_uc"
+            else "text-to-sql-f1-presentation-v11"
+            if evidence.interpretation.operation == "weighted_continuity"
             else "text-to-sql-f1-presentation-v5"
             if evidence.metric_id == "service.accumulated_attendance"
             else "text-to-sql-f1-presentation-v4"

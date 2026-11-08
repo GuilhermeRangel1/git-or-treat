@@ -40,7 +40,11 @@ from app.schemas.ai_insight import (
 from app.schemas.ai_question_publication import AIQuestionPublicRequest
 from app.schemas.genai_audit import BackendAuditEvent
 from app.schemas.genai_internal import AccessScope, QuestionPlanRequest
-from app.schemas.sql_analysis import SqlAnalysisRequest, SqlAnalysisResponse
+from app.schemas.sql_analysis import (
+    SqlAnalysisRequest,
+    SqlAnalysisResponse,
+    SqlCompoundAnalysis,
+)
 from app.services.analytics import AnalyticsAPIError
 from app.services.genai_audit import AuditStore
 from app.services.genai_client import (
@@ -72,6 +76,12 @@ from app.services.genai_expected_publication import (
 )
 from app.services.genai_publication import GoldPublicationContext
 from app.services.genai_sql_admission import SqlAdmissionDenied
+from app.services.genai_sql_compound import CompoundEvidenceUnavailable
+from app.services.genai_sql_compound_route import (
+    CompoundStagingUnavailable,
+    is_price_volume_question,
+    query_compound_from_sources,
+)
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
     requested_sql_metric_id,
@@ -158,6 +168,9 @@ async def _run_f1_sql_analysis_impl(
                 & {
                     "billing.revenue",
                     "energy.consumption",
+                    "energy.average_consumption_per_uc",
+                    "billing.average_ticket",
+                    "billing.effective_tariff",
                     "service.attendance",
                     "service.satisfaction",
                     "service.accumulated_attendance",
@@ -324,10 +337,98 @@ async def _run_f1_sql_analysis_impl(
             return
 
     try:
+        if is_price_volume_question(payload.question):
+            required_metrics = {"billing.revenue", "energy.consumption"}
+            required_dimensions = {"geography.municipality", "customer.consumption_class"}
+            if (
+                not required_metrics <= scope.allowed_metric_ids
+                or not required_dimensions <= scope.allowed_dimension_ids
+            ):
+                raise GoldExecutionDenied
+            staging_dir = settings.GENAI_PRICE_VOLUME_STAGING_DIR
+            if staging_dir is None:
+                raise CompoundStagingUnavailable("Staging local não configurado.")
+            periods = tuple(
+                f"{year:04d}-{month:02d}"
+                for year in (2024, 2025, 2026)
+                for month in range(1, 13)
+                if "2024-07" <= f"{year:04d}-{month:02d}" <= "2026-06"
+            )
+            report = await deadline.run(
+                60,
+                lambda: genai.evaluate_readiness(
+                    engine,
+                    requested_periods=periods,
+                    approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+                    correlation_id=request.state.correlation_id,
+                    expected_batch_ref=publication.batch_ref,
+                ),
+            )
+            if (
+                report.batch_ref != publication.batch_ref
+                or report.lot_state not in {"ready", "partial"}
+                or any(
+                    report.capabilities.get(capability) is None
+                    or report.capabilities[capability].status != "available"
+                    for capability in ("faturamento.receita",)
+                )
+            ):
+                raise CompoundEvidenceUnavailable("Prontidão Gold insuficiente para a composição.")
+            publication.assert_sql_source_coverage(
+                engine,
+                table_name="diagnostico_receita",
+                periods=periods,
+                dimension_ids=frozenset(required_dimensions),
+                metric_ids=frozenset(required_metrics),
+                source_capability_id="faturamento.receita",
+            )
+            current_scope = resolve_f1_scope()
+            if current_scope != scope:
+                raise GoldExecutionDenied
+            result, manifest, manifest_digest = await deadline.run(
+                10,
+                lambda: asyncio.to_thread(
+                    query_compound_from_sources,
+                    engine,
+                    staging_dir,
+                    batch_ref=publication.batch_ref,
+                    publication=publication,
+                ),
+            )
+            publication.assert_current(engine)
+            if resolve_f1_scope() != scope:
+                raise GoldExecutionDenied
+            analysis = SqlCompoundAnalysis.from_sources(result, manifest, manifest_digest)
+            row_count = sum(len(row.revenue_by_class) for row in analysis.municipalities)
+            await record_audit(
+                "source", "completed", "success", row_count=row_count,
+                evidence_ref=analysis.evidence_digest, source_calls=2,
+            )
+            audit_reference = await record_audit(
+                "response", "available", "success", row_count=row_count,
+                evidence_ref=analysis.evidence_digest, source_calls=2, model_calls=0,
+            )
+            response = SqlAnalysisResponse.from_compound(
+                request.state.correlation_id, analysis, audit_reference=audit_reference
+            )
+            if payload.conversation_id is not None and secret and session:
+                token = issue_sql_continuation(
+                    question=payload.question,
+                    response=analysis.answer,
+                    previous_context=sql_context,
+                    scope=scope,
+                    batch_ref=publication.batch_ref,
+                    session=session,
+                    conversation_id=payload.conversation_id,
+                    secret=secret,
+                )
+                if token is not None:
+                    response = response.model_copy(update={"continuation_token": token})
+            return response
         run = await run_sql_question(
             plan_request,
             engine=engine,
-            readiness_engine=db.get_bind(),
+            readiness_engine=engine,
             publication=publication,
             client=genai,
             resolve_scope=resolve_f1_scope,
@@ -374,6 +475,16 @@ async def _run_f1_sql_analysis_impl(
                 run.evidence.context_version if run.evidence is not None else None
             ),
             contract_version=(
+                "text-to-sql-f1-presentation-v12"
+                if run.evidence is not None
+                and run.evidence.metric_id in {"billing.average_ticket", "billing.effective_tariff"}
+                else "text-to-sql-f1-presentation-v11"
+                if run.evidence is not None
+                and run.evidence.interpretation.operation == "weighted_continuity"
+                else "text-to-sql-f1-presentation-v10"
+                if run.evidence is not None
+                and run.evidence.metric_id == "energy.average_consumption_per_uc"
+                else
                 "text-to-sql-f1-presentation-v6"
                 if run.evidence is not None
                 and run.evidence.metric_id == "service.satisfaction"
@@ -422,6 +533,11 @@ async def _run_f1_sql_analysis_impl(
         await record_failure("source", "unavailable", "error", model_calls=1)
         raise HTTPException(
             503, "A análise Gold está temporariamente indisponível."
+        ) from None
+    except (CompoundStagingUnavailable, CompoundEvidenceUnavailable):
+        await record_failure("source", "unavailable", "error")
+        raise HTTPException(
+            503, "A composição entre consumo e faturamento está indisponível para este recorte."
         ) from None
     except (SqlContextUnavailable, GoldCatalogIncompatible):
         await record_failure("source", "unavailable", "error", model_calls=0)

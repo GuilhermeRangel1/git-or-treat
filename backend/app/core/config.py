@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     # Credencial operacional do CLI administrativo; nunca usada pela API.
     GENAI_AUDIT_DATABASE_URL: SecretStr | None = None
     GENAI_GOLD_APPROVED_CONTROLS: list[str] = []
+    GENAI_PRICE_VOLUME_STAGING_DIR: Path | None = None
 
     # Data directory (Mocks now, Gold exported CSVs later)
     GOLD_DATA_DIR: Path = Path(__file__).resolve().parent.parent.parent / "data" / "gold"
