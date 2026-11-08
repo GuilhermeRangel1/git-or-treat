@@ -368,9 +368,7 @@ it("abre detalhe mensal, mostra alternativa textual e pagina ocorrências sem pe
   expect(
     screen.getByRole("table", { name: "Ocorrências de interrupção" }),
   ).toHaveTextContent("EV-01");
-  await user.click(
-    screen.getByRole("button", { name: "Próxima página de ocorrências" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Página 2" }));
   await waitFor(() =>
     expect(screen.getByLabelText("URL atual")).toHaveTextContent("page=2"),
   );

@@ -4,7 +4,7 @@ import { apiClient } from "@/shared/api/client";
 import Button from "@/shared/ui/Button";
 import { decodeGoldMetadata } from "@/shared/analytics/goldContract";
 import { useGoldPublicationKey } from "@/shared/analytics/goldPublication";
-import NumberedPagination from "./NumberedPagination";
+import Pagination from "@/shared/ui/Pagination";
 
 type Item = {
   event_id: string;
@@ -74,6 +74,7 @@ export default function GoldOccurrences({
   end: string;
 }) {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const publication = useGoldPublicationKey();
   const query = useQuery({
     // Mantém a página anterior na tela enquanto a próxima carrega, para a
@@ -87,13 +88,14 @@ export default function GoldOccurrences({
       start,
       end,
       page,
+      pageSize,
     ],
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams({
         competencia_inicio: start,
         competencia_fim: end,
         page: String(page),
-        page_size: "20",
+        page_size: String(pageSize),
       });
       return decode(
         await apiClient<unknown>(
@@ -197,17 +199,18 @@ export default function GoldOccurrences({
           </table>
         </div>
       )}
-      {query.data && query.data.pages > 1 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <p className="text-muted">
-            Página {page} de {query.data.pages}
-          </p>
-          <NumberedPagination
-            page={page}
-            pageCount={query.data.pages}
-            onPageChange={setPage}
-          />
-        </div>
+      {query.data && query.data.pages > 0 ? (
+        <Pagination
+          label="Paginação das ocorrências"
+          page={page}
+          totalPages={query.data.pages}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+        />
       ) : null}
     </section>
   );

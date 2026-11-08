@@ -7,6 +7,7 @@ import {
   formatUpdatedAt,
 } from "./operation-format";
 import Button from "@/shared/ui/Button";
+import Pagination from "@/shared/ui/Pagination";
 import OperationSeries from "./OperationSeries";
 
 export default function OperationDetail({
@@ -19,6 +20,7 @@ export default function OperationDetail({
   onRetry,
   onBack,
   onPaginate,
+  onPageSizeChange,
 }: {
   feederId: string;
   period: OperationPeriod;
@@ -29,6 +31,7 @@ export default function OperationDetail({
   onRetry: () => void;
   onBack: () => void;
   onPaginate: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
 }) {
   const point = data?.data.summary;
   const pagination = data?.pagination;
@@ -233,31 +236,14 @@ export default function OperationDetail({
               </p>
             )}
             {pagination ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                <p className="text-muted">
-                  {pagination.total === 0
-                    ? "0 registros"
-                    : `Página ${pagination.page} de ${pagination.total_pages} · ${pagination.total} registros`}
-                </p>
-                <div className="flex max-w-full flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    className="max-w-full whitespace-normal"
-                    disabled={pagination.page <= 1}
-                    onClick={() => onPaginate(pagination.page - 1)}
-                  >
-                    Página anterior
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="max-w-full whitespace-normal"
-                    disabled={pagination.page >= pagination.total_pages}
-                    onClick={() => onPaginate(pagination.page + 1)}
-                  >
-                    Próxima página de ocorrências
-                  </Button>
-                </div>
-              </div>
+              <Pagination
+                label="Paginação das ocorrências"
+                page={pagination.page}
+                totalPages={pagination.total_pages}
+                pageSize={pagination.page_size}
+                onPageChange={onPaginate}
+                onPageSizeChange={onPageSizeChange}
+              />
             ) : null}
           </section>
           <p className="rounded-xl bg-[var(--status-warning-bg)] p-4 text-sm text-[var(--status-warning-text)]">

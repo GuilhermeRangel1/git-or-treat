@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import { useState } from "react";
 import Button from "@/shared/ui/Button";
 import { Link } from "react-router-dom";
 import type { OperationMetric } from "./contract";
@@ -11,7 +12,7 @@ import { formatNumber } from "./operation-format";
 import OperationSeries from "./OperationSeries";
 import GoldOperationFoundations from "./GoldOperationFoundations";
 import GoldOccurrences from "./GoldOccurrences";
-import NumberedPagination from "./NumberedPagination";
+import Pagination from "@/shared/ui/Pagination";
 
 const cardLabelClass = "text-xs font-medium uppercase tracking-wide text-muted";
 
@@ -75,7 +76,7 @@ export default function GoldOperationView({
 }) {
   const s = summary?.data.summary;
   const selected = detail?.data.summary;
-  const pageSize = 20;
+  const [pageSize, setPageSize] = useState(20);
   const rankingItems = ranking?.data.items ?? [];
   const pageCount = Math.max(1, Math.ceil(rankingItems.length / pageSize));
   const currentRankingPage = Math.min(rankingPage, pageCount);
@@ -435,24 +436,17 @@ export default function GoldOperationView({
                           </tbody>
                         </table>
                       </div>
-                      <nav
-                        aria-label="Paginação do ranking"
-                        className="flex flex-wrap items-center justify-between gap-3"
-                      >
-                        <p className="text-sm text-muted">
-                          Mostrando {(currentRankingPage - 1) * pageSize + 1}–
-                          {Math.min(
-                            currentRankingPage * pageSize,
-                            ranking.data.items.length,
-                          )}{" "}
-                          de {ranking.data.items.length}
-                        </p>
-                        <NumberedPagination
-                          page={currentRankingPage}
-                          pageCount={pageCount}
-                          onPageChange={onRankingPage}
-                        />
-                      </nav>
+                      <Pagination
+                        label="Paginação do ranking"
+                        page={currentRankingPage}
+                        totalPages={pageCount}
+                        onPageChange={onRankingPage}
+                        pageSize={pageSize}
+                        onPageSizeChange={(size) => {
+                          setPageSize(size);
+                          onRankingPage(1);
+                        }}
+                      />
                     </>
                   ) : null}
                   {ranking.data.excluded.length > 0 ? (

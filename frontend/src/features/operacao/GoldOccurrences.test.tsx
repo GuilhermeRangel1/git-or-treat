@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -80,7 +80,6 @@ it("pagina as ocorrências por número e mantém a página atual visível enquan
   );
 
   expect(await screen.findByText("EV-1")).toBeVisible();
-  expect(screen.getByText("Página 1 de 3")).toBeVisible();
   expect(screen.getByRole("button", { name: "Página 1" })).toHaveAttribute(
     "aria-current",
     "page",
@@ -94,10 +93,17 @@ it("pagina as ocorrências por número e mantém a página atual visível enquan
 
   release();
   expect(await screen.findByText("EV-2")).toBeVisible();
-  expect(screen.getByText("Página 2 de 3")).toBeVisible();
   expect(screen.getByRole("button", { name: "Página 2" })).toHaveAttribute(
     "aria-current",
     "page",
   );
   expect(apiClient).toHaveBeenCalledTimes(2);
+  await user.selectOptions(screen.getByLabelText("Por página"), "50");
+  await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(3));
+  const request = new URL(
+    String(apiClient.mock.calls[2][0]),
+    "http://localhost",
+  );
+  expect(request.searchParams.get("page_size")).toBe("50");
+  expect(request.searchParams.get("page")).toBe("1");
 });
