@@ -51,9 +51,11 @@ OPERATIONS_DIMENSIONS = frozenset({
 _PROFILE_GOLD_SCOPE = {
     PlatformProfile.COMMERCIAL: (COMMERCIAL_METRICS, COMMERCIAL_DIMENSIONS),
     PlatformProfile.OPERATIONS: (OPERATIONS_METRICS, OPERATIONS_DIMENSIONS),
-    # O catálogo e a leitura autorizados não definem capacidade de atendimento
-    # nem de perdas. ai:ask concede acesso ao chat, não a essas medidas Gold.
-    PlatformProfile.CUSTOMER_SERVICE: (frozenset(), frozenset()),
+    # Atendimento libera somente a métrica mensal de protocolos; a análise SQL
+    # F1 restringe esse perfil a totais sem dimensão de unidade consumidora.
+    PlatformProfile.CUSTOMER_SERVICE: (
+        frozenset({"service.attendance", "service.accumulated_attendance"}), frozenset()
+    ),
     PlatformProfile.LOSSES: (frozenset(), frozenset()),
     PlatformProfile.ADMIN: (GOLD_METRICS, GOLD_DIMENSIONS),
 }

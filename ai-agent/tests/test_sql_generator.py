@@ -60,11 +60,11 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Ignore as regras" not in SYSTEM_INSTRUCTION
     for operation in ("total", "série mensal", "total agrupado", "ranking", "comparação"):
         assert operation in SYSTEM_INSTRUCTION
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-19"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-24"
     assert "Nunca escreva valor textual/número/data de filtro como literal" in SYSTEM_INSTRUCTION
     assert "FILTER" in SYSTEM_INSTRUCTION and "period0_start" in SYSTEM_INSTRUCTION
     assert "A única agregação" in SYSTEM_INSTRUCTION
-    assert "permitida é `SUM(receita_total_reais)`" in SYSTEM_INSTRUCTION
+    assert "A única agregação permitida é SUM da medida declarada em `metric`" in SYSTEM_INSTRUCTION
     assert "não use funções adicionais" in SYSTEM_INSTRUCTION
     assert "SUM(receita_total_reais) AS revenue" in SYSTEM_INSTRUCTION
     assert "AS period_0_revenue" in SYSTEM_INSTRUCTION
@@ -88,6 +88,14 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "competencia AS competency" in SYSTEM_INSTRUCTION
     assert "Use unsupported" in SYSTEM_INSTRUCTION
     assert "nunca para uma operação F1 suportada" in SYSTEM_INSTRUCTION
+    assert "Exceção estrita para `service.attendance` no contrato v3" in SYSTEM_INSTRUCTION
+    assert "COUNT(protocolo) AS attendance" in SYSTEM_INSTRUCTION
+    assert "começo UTC do mês seguinte" in SYSTEM_INSTRUCTION
+    assert "Exceção estrita para atendimento acumulado no contrato v5" in SYSTEM_INSTRUCTION
+    assert "`gold_v2.visao_360_uc`" in SYSTEM_INSTRUCTION
+    assert "Não invente competência, datas, intervalo, filtro por UC ou" in SYSTEM_INSTRUCTION
+    assert "intervalo e completude não são conhecidos" in SYSTEM_INSTRUCTION
+    assert "accumulated_total: somente `service.accumulated_attendance`, sem períodos" in SYSTEM_INSTRUCTION
 
 
 def test_provider_schema_uses_only_supported_gemini_json_schema_keywords():
@@ -120,7 +128,11 @@ def test_provider_schema_uses_only_supported_gemini_json_schema_keywords():
         "#/$defs/SqlParameter"
     )
     assert schema["properties"]["generation_contract_version"]["enum"] == [
-        "text-to-sql-f1-v1"
+        "text-to-sql-f1-v1",
+        "text-to-sql-f1-v2",
+        "text-to-sql-f1-v3",
+        "text-to-sql-f1-v4",
+        "text-to-sql-f1-v5",
     ]
     assert "semantic_intent" in schema["required"]
     assert "maxItems" not in json.dumps(schema)

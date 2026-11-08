@@ -12,10 +12,16 @@ from app.schemas.sql_evidence import SqlEvidence
 _DIMENSIONS = {
     "competency": "Competência",
     "municipality": "Município",
+    "neighborhood": "Bairro",
     "consumption_class": "Classe de consumo",
+    "feeder": "Alimentador",
 }
 _MEASURES = {
     "revenue_total": "Faturamento",
+    "energy_total": "Consumo medido",
+    "attendance_total": "Protocolos abertos",
+    "dec_value": "DEC",
+    "fec_value": "FEC",
     "period_0_total": "Faturamento no período 1",
     "period_1_total": "Faturamento no período 2",
     "period_0_minus_period_1": "Diferença (período 1 − período 2)",
@@ -23,7 +29,9 @@ _MEASURES = {
 }
 _FILTER_DIMENSIONS = {
     "geography.municipality": "Município",
+    "geography.neighborhood": "Bairro",
     "customer.consumption_class": "Classe de consumo",
+    "network.feeder": "Alimentador",
 }
 _F1_LIMITATIONS = (
     "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
@@ -51,6 +59,8 @@ def _decimal_pt_br(value: str) -> str:
 
 def _period(evidence: SqlEvidence) -> str:
     windows = evidence.interpretation.periods
+    if evidence.interpretation.operation == "accumulated_total":
+        return "Histórico acumulado"
     labels = tuple(f"{item.start:%Y-%m}" for item in windows)
     ends = tuple(f"{item.end:%Y-%m}" for item in windows)
     return " vs. ".join(
@@ -85,11 +95,13 @@ def _universe(evidence: SqlEvidence) -> tuple[str, ...]:
     labels = {
         "competency": "Competências",
         "municipality": "Municípios",
+        "neighborhood": "Bairros",
         "consumption_class": "Classes de consumo",
     }
     ids = {
         "competency": "time.competency",
         "municipality": "geography.municipality",
+        "neighborhood": "geography.neighborhood",
         "consumption_class": "customer.consumption_class",
     }
     return tuple(
@@ -104,32 +116,85 @@ def _universe(evidence: SqlEvidence) -> tuple[str, ...]:
 
 
 def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
-    window = evidence.interpretation.periods[0]
     operation = evidence.interpretation.operation
-    scope = (
+    window = evidence.interpretation.periods[0] if evidence.interpretation.periods else None
+    scope = " no histórico acumulado" if operation == "accumulated_total" else (
         f" nos períodos {_period(evidence)}"
         if operation == "comparison"
         else f" no período {_period_phrase(window.start, window.end)}"
     )
     if filters:
         scope += " (" + "; ".join(filters) + ")"
+    metric_label = (
+        "protocolos de atendimento" if evidence.metric_id in {
+            "service.attendance", "service.accumulated_attendance",
+        }
+        else "DEC" if evidence.metric_id == "network.equivalent_interruption_duration"
+        else "FEC" if evidence.metric_id == "network.equivalent_interruption_frequency"
+        else "consumo medido" if evidence.metric_id == "energy.consumption" else "faturamento"
+    )
+    measure_unit = (
+        "protocolos" if evidence.metric_id in {
+            "service.attendance", "service.accumulated_attendance",
+        }
+        else "horas por UC" if evidence.metric_id == "network.equivalent_interruption_duration"
+        else "interrupções por UC" if evidence.metric_id == "network.equivalent_interruption_frequency"
+        else "kWh" if evidence.metric_id == "energy.consumption" else "R$"
+    )
+
+    def formatted(value: str) -> str:
+        number = _decimal_pt_br(value)
+        return (f"{number} {measure_unit}" if measure_unit in {
+            "kWh", "protocolos", "horas por UC", "interrupções por UC",
+        }
+                else f"R$ {number}")
+
     if evidence.status == "empty":
-        return f"Não há linhas de faturamento para o recorte consultado{scope}."
+        return f"Não há linhas de {metric_label} para o recorte consultado{scope}."
     if evidence.status == "all_measures_null":
-        return f"O recorte foi consultado{scope}, mas a fonte não trouxe valores de faturamento."
+        return f"O recorte foi consultado{scope}, mas a fonte não trouxe valores de {metric_label}."
+
+    if operation == "accumulated_total":
+        column = next(
+            name for name, meaning in evidence.measure_semantics.items()
+            if meaning == "attendance_accumulated_total"
+        )
+        value = evidence.rows[0][next(
+            index for index, item in enumerate(evidence.columns) if item.name == column
+        )]
+        if value is None:
+            return "O total do histórico acumulado está indisponível."
+        return (f"No histórico publicado, foram registrados {formatted(value)}. "
+                "A fonte não informa o intervalo nem certifica a completude histórica.")
 
     if operation == "total":
         column = next(
             item
             for item, meaning in evidence.measure_semantics.items()
-            if meaning == "revenue_total"
+            if meaning in {"revenue_total", "energy_total", "attendance_total"}
         )
         value = evidence.rows[0][
             next(i for i, item in enumerate(evidence.columns) if item.name == column)
         ]
         if value is None:
-            return f"O faturamento está sem valor disponível{scope}."
-        return f"O faturamento total{scope} foi R$ {_decimal_pt_br(value)}."
+            return f"O valor de {metric_label} está indisponível{scope}."
+        if evidence.metric_id == "billing.revenue":
+            return f"O faturamento total{scope} foi {formatted(value)}."
+        if evidence.metric_id == "service.attendance":
+            return f"Foram abertos {formatted(value)}{scope}."
+        return f"O consumo medido total{scope} foi {formatted(value)}."
+
+    if operation == "grain_read":
+        meaning = ("dec_value" if evidence.metric_id == "network.equivalent_interruption_duration"
+                   else "fec_value")
+        column = next(name for name, item_meaning in evidence.measure_semantics.items()
+                      if item_meaning == meaning)
+        value = evidence.rows[0][next(
+            index for index, item in enumerate(evidence.columns) if item.name == column
+        )]
+        if value is None:
+            return f"O valor de {metric_label} está indisponível{scope}."
+        return f"{metric_label}{scope}: {formatted(value)}."
 
     if operation == "comparison":
         if evidence.interpretation.group_by:
@@ -137,14 +202,14 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
                 _DIMENSIONS[item] for item in evidence.interpretation.group_by
             )
             if evidence.interpretation.ranking_direction is None:
-                return (f"A comparação de faturamento por {grouping}{scope} "
+                return (f"A comparação de {metric_label} por {grouping}{scope} "
                         "está detalhada na tabela.")
             if evidence.interpretation.ranking_direction == "desc":
                 ranked_change = "maiores diferenças"
             else:
                 ranked_change = "menores diferenças"
             return (
-                f"A tabela lista as {ranked_change} de faturamento "
+                f"A tabela lista as {ranked_change} de {metric_label} "
                 f"(primeiro período − segundo período), por {grouping}{scope}."
             )
         values: dict[str, str | None] = {}
@@ -163,10 +228,13 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         second_period = _period_phrase(windows[1].start, windows[1].end)
         filter_scope = f" para {'; '.join(filters)}" if filters else ""
         answer = (
-            f"O faturamento foi R$ {_decimal_pt_br(first)} de {first_period} e "
-            f"R$ {_decimal_pt_br(second)} de {second_period}. A diferença "
-            f"(primeiro período − segundo período) foi R$ "
-            f"{_decimal_pt_br(difference)}{filter_scope}."
+            f"O faturamento foi {formatted(first)} de {first_period} e "
+            f"{formatted(second)} de {second_period}. A diferença "
+            f"(primeiro período − segundo período) foi {formatted(difference)}{filter_scope}."
+            if evidence.metric_id == "billing.revenue"
+            else f"O consumo medido foi {formatted(first)} de {first_period} e "
+            f"{formatted(second)} de {second_period}. A diferença "
+            f"(primeiro período − segundo período) foi {formatted(difference)}{filter_scope}."
         )
         if "period_0_growth_percent" not in evidence.measure_semantics.values():
             return answer
@@ -212,18 +280,41 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         first = evidence.rows[0]
         if first[dimension_index] is None or first[measure_index] is None:
             return (
-                f"O ranking de faturamento por {grouping}{scope} está na tabela, "
+                f"O ranking de {metric_label} por {grouping}{scope} está na tabela, "
                 "mas o primeiro grupo não tem identificação ou valor disponível."
             )
         extremum = "maior" if direction == "maiores" else "menor"
         return (
-            f"O {extremum} faturamento do recorte foi de {first[dimension_index]}: "
-            f"R$ {_decimal_pt_br(first[measure_index])}{scope}. "
+            f"O {extremum} {metric_label} do recorte foi de {first[dimension_index]}: "
+                f"{formatted(first[measure_index])}{scope}. "
             f"A tabela lista os {direction} grupos por {grouping}."
         )
     if operation == "monthly_series":
-        return f"A série mensal de faturamento{scope} está na tabela."
-    return f"O faturamento por {grouping}{scope} está detalhado na tabela."
+        return f"A série mensal de {metric_label}{scope} está na tabela."
+    if evidence.metric_id == "billing.revenue":
+        return f"O faturamento por {grouping}{scope} está detalhado na tabela."
+    return f"O consumo medido por {grouping}{scope} está detalhado na tabela."
+
+
+def _metric_measure_label(evidence: SqlEvidence, meaning: str) -> str:
+    if evidence.metric_id == "service.accumulated_attendance":
+        return "Chamados no histórico"
+    if evidence.metric_id == "service.attendance":
+        return "Protocolos abertos"
+    if evidence.metric_id == "billing.revenue":
+        return _MEASURES[meaning]
+    if evidence.metric_id in {
+        "network.equivalent_interruption_duration",
+        "network.equivalent_interruption_frequency",
+    }:
+        return _MEASURES[meaning]
+    return {
+        "energy_total": "Consumo medido",
+        "period_0_total": "Consumo no período 1",
+        "period_1_total": "Consumo no período 2",
+        "period_0_minus_period_1": "Diferença de consumo (período 1 − período 2)",
+        "period_0_growth_percent": "Variação percentual do consumo",
+    }[meaning]
 
 
 def present_sql_evidence(evidence: SqlEvidence) -> SqlAnalysisPresentation:
@@ -232,7 +323,7 @@ def present_sql_evidence(evidence: SqlEvidence) -> SqlAnalysisPresentation:
         SqlPresentationColumn(
             key=column.name,
             label=(
-                _MEASURES[evidence.measure_semantics[column.name]]
+                _metric_measure_label(evidence, evidence.measure_semantics[column.name])
                 if column.role == "measure"
                 else _DIMENSIONS[evidence.dimension_semantics[column.name]]
             ),
@@ -260,19 +351,43 @@ def present_sql_evidence(evidence: SqlEvidence) -> SqlAnalysisPresentation:
         "empty": "empty",
         "all_measures_null": "all_measures_null",
     }[evidence.status]
+    answer = _answer(evidence, filters)
+    limitations = (
+        ("Valores observados; cobertura do alimentador não certificada.",)
+        if evidence.coverage_quality == "observed_uncertified"
+        else ("Consumo medido não é energia faturada.",)
+        if evidence.metric_id == "energy.consumption"
+        else _F1_LIMITATIONS if evidence.metric_id == "billing.revenue" else ()
+    )
+    if evidence.metric_id == "service.accumulated_attendance":
+        limitations = (
+            "Histórico publicado sem intervalo conhecido ou certificação de completude histórica.",
+        )
+    if evidence.coverage_quality == "observed_uncertified":
+        answer += " Valores observados; cobertura do alimentador não certificada."
     return SqlAnalysisPresentation(
         contract_version=(
             "text-to-sql-f1-presentation-v2"
-            if evidence.evidence_contract_version == "text-to-sql-f1-evidence-v2"
+            if evidence.interpretation.operation == "comparison"
+            and "period_0_growth_percent" in evidence.measure_semantics.values()
+            else "text-to-sql-f1-presentation-v3"
+            if evidence.metric_id == "service.attendance"
+            else "text-to-sql-f1-presentation-v5"
+            if evidence.metric_id == "service.accumulated_attendance"
+            else "text-to-sql-f1-presentation-v4"
+            if evidence.metric_id in {
+                "network.equivalent_interruption_duration",
+                "network.equivalent_interruption_frequency",
+            }
             else "text-to-sql-f1-presentation-v1"
         ),
         state=state,
         operation=evidence.interpretation.operation,
-        answer=_answer(evidence, filters),
+        answer=answer,
         period=period,
         filters=filters,
         universe=_universe(evidence),
-        limitations=_F1_LIMITATIONS,
+        limitations=limitations,
         columns=columns,
         rows=rows,
         evidence_digest=evidence.evidence_digest,

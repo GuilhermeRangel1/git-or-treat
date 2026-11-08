@@ -20,8 +20,14 @@ class SqlPresentationColumn(BaseModel):
     semantic_id: Literal[
         "competency",
         "municipality",
+        "neighborhood",
         "consumption_class",
         "revenue_total",
+        "energy_total",
+        "attendance_total",
+        "attendance_accumulated_total",
+        "dec_value",
+        "fec_value",
         "period_0_total",
         "period_1_total",
         "period_0_minus_period_1",
@@ -44,10 +50,13 @@ class SqlAnalysisPresentation(BaseModel):
 
     contract_version: Literal[
         "text-to-sql-f1-presentation-v1", "text-to-sql-f1-presentation-v2",
+        "text-to-sql-f1-presentation-v3", "text-to-sql-f1-presentation-v4",
+        "text-to-sql-f1-presentation-v5",
     ]
     state: Literal["ready", "empty", "all_measures_null"]
     operation: Literal[
-        "total", "monthly_series", "grouped_total", "ranking", "comparison"
+        "total", "monthly_series", "grouped_total", "ranking", "comparison",
+        "grain_read", "accumulated_total"
     ]
     answer: PresentationText
     period: str = Field(min_length=1, max_length=100)

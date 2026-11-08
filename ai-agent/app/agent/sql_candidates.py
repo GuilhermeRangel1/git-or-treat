@@ -62,12 +62,17 @@ class SqlCandidateService:
                 raise
             if (
                 not isinstance(result, SqlGenerationCandidate)
+                or result.generation_contract_version != payload.generation_contract_version
                 or result.context_version != payload.context_version
             ):
                 raise ModelProviderInvalidResponse("Contrato ou contexto de candidato divergente.")
             await trace.emit_async(EventStage.MODEL, EventCode.READY, EventOutcome.SUCCESS)
             await trace.emit_async(EventStage.RESPONSE, EventCode.COMPLETED, EventOutcome.SUCCESS)
-            return SqlGenerationResponse(correlation_id=correlation_id, candidate=result)
+            return SqlGenerationResponse(
+                generation_contract_version=payload.generation_contract_version,
+                correlation_id=correlation_id,
+                candidate=result,
+            )
 
         return await self.controller.run(
             action,

@@ -5,11 +5,11 @@ from threading import Event
 from types import SimpleNamespace
 
 import pytest
-
 from app.services.genai_client import GenAITimeout
 from app.services.genai_sql_admission import SqlAdmissionDenied
 from app.services.genai_sql_executor import execute_sql_admission
 from app.services.genai_sql_result import SqlResultLimitExceeded
+
 from tests.test_genai_sql_admission import Environment
 from tests.test_genai_sql_result import Cursor
 from tests.test_genai_sql_semantics import query
@@ -51,7 +51,8 @@ def environment(request):
     env.snapshot_closed = False
 
     @contextmanager
-    def snapshot(engine, *, validate_f1_catalog=False, dimension_ids=frozenset()):
+    def snapshot(engine, *, validate_f1_catalog=False, dimension_ids=frozenset(),
+                 metric_ids=frozenset(), source_capability_ids=None):
         assert engine is env.analytic_engine
         assert validate_f1_catalog is True
         assert dimension_ids == env.scope.allowed_dimension_ids

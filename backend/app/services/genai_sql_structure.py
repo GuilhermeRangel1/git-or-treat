@@ -6,7 +6,7 @@ vínculo da autorização antes de poder entrar em um executor.
 
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlglot import exp, parse
@@ -22,7 +22,7 @@ _ARGS = {
     exp.From: {"this"}, exp.Table: {"this", "db", "catalog", "alias"},
     exp.TableAlias: {"this", "columns"}, exp.Identifier: {"this", "quoted"},
     exp.Alias: {"this", "alias"}, exp.Column: {"this", "table", "db", "catalog"},
-    exp.Sum: {"this"}, exp.Filter: {"this", "expression"},
+    exp.Sum: {"this"}, exp.Count: {"this", "expressions", "big_int"}, exp.Filter: {"this", "expression"},
     exp.Sub: {"this", "expression"}, exp.Where: {"this"},
     exp.Group: {"expressions"}, exp.Order: {"expressions"},
     exp.Ordered: {"this", "desc", "nulls_first"}, exp.Limit: {"expression"},
@@ -35,7 +35,6 @@ _ARGS = {
     exp.Between: {"this", "low", "high"},
 }
 _COMPARISONS = frozenset({exp.EQ, exp.NEQ, exp.LT, exp.LTE, exp.GT, exp.GTE})
-_MEASURE = "receita_total_reais"
 
 
 class SqlStructureRejected(ValueError):
@@ -47,7 +46,7 @@ class SqlStructureReview:
     """Inspeção intermediária imutável; não é artefato de execução aprovado."""
 
     canonical_sql: str
-    parameter_items: tuple[tuple[str, str | int | float | bool | date | Decimal], ...]
+    parameter_items: tuple[tuple[str, str | int | float | bool | date | datetime | Decimal], ...]
     source_columns: frozenset[str]
     output_names: tuple[str, ...]
 
@@ -57,36 +56,40 @@ def _require(condition: bool, message: str) -> None:
         raise SqlStructureRejected(message)
 
 
-def _predicate(node: exp.Expression) -> bool:
+def _predicate(node: exp.Expression, measure_column: str) -> bool:
     if type(node) is exp.Paren:
-        return _predicate(node.this)
+        return _predicate(node.this, measure_column)
     if type(node) in (exp.And, exp.Or):
-        return _predicate(node.this) and _predicate(node.expression)
+        return (_predicate(node.this, measure_column)
+                and _predicate(node.expression, measure_column))
     if type(node) in _COMPARISONS:
-        return (type(node.this) is exp.Column and node.this.name != _MEASURE
+        return (type(node.this) is exp.Column and node.this.name != measure_column
                 and type(node.expression) is exp.Placeholder)
     if type(node) is exp.In:
-        return (type(node.this) is exp.Column and node.this.name != _MEASURE
+        return (type(node.this) is exp.Column and node.this.name != measure_column
                 and bool(node.expressions)
                 and all(type(item) is exp.Placeholder for item in node.expressions))
     if type(node) is exp.Between:
-        return (type(node.this) is exp.Column and node.this.name != _MEASURE
+        return (type(node.this) is exp.Column and node.this.name != measure_column
                 and type(node.args.get("low")) is exp.Placeholder
                 and type(node.args.get("high")) is exp.Placeholder)
     return False
 
 
-def _measure(node: exp.Expression) -> bool:
+def _measure(node: exp.Expression, measure_column: str) -> bool:
     if type(node) is exp.Paren:
-        return _measure(node.this)
+        return _measure(node.this, measure_column)
     if type(node) is exp.Sum:
-        return type(node.this) is exp.Column and node.this.name == _MEASURE
+        return type(node.this) is exp.Column and node.this.name == measure_column
+    if type(node) is exp.Count:
+        return type(node.this) is exp.Column and node.this.name == measure_column
     if type(node) is exp.Filter:
-        return (type(node.this) is exp.Sum and _measure(node.this)
+        return (type(node.this) is exp.Sum and _measure(node.this, measure_column)
                 and type(node.expression) is exp.Where
-                and _predicate(node.expression.this))
+                and _predicate(node.expression.this, measure_column))
     if type(node) is exp.Sub:
-        return _measure(node.this) and _measure(node.expression)
+        return (_measure(node.this, measure_column)
+                and _measure(node.expression, measure_column))
     return False
 
 
@@ -107,6 +110,12 @@ def review_sql_structure(
              "Estado sem consulta candidata.")
     _require(candidate.context_version == context.context_version, "Contexto divergente.")
     source = json.loads(context.contents)["source"]
+    measure_column = json.loads(context.contents)["metric"]["measure_column"]
+    metric_id = json.loads(context.contents)["metric"]["id"]
+    key_grain_read = metric_id in {
+        "network.equivalent_interruption_duration",
+        "network.equivalent_interruption_frequency",
+    }
     allowed_columns = frozenset(source["columns"])
     try:
         statements = parse(candidate.sql, read="postgres", error_level=ErrorLevel.RAISE,
@@ -144,24 +153,32 @@ def review_sql_structure(
              "Aliases divergem do contrato de resultado.")
     group = tree.args.get("group")
     groups = group.expressions if group is not None else []
-    _require(all(type(item) is exp.Column and item.name != _MEASURE for item in groups),
+    _require(all(type(item) is exp.Column and item.name != measure_column for item in groups),
              "Agrupamento fora da F1.")
     group_names = {item.name for item in groups}
     projected_dimensions = set()
     for item, declared in zip(outputs, candidate.result_columns, strict=True):
         if type(item.this) is exp.Column:
-            _require(item.this.name in group_names and declared.role == "dimension",
-                     "Dimensão exige agrupamento e papel compatíveis.")
-            projected_dimensions.add(item.this.name)
+            if key_grain_read and item.this.name == measure_column:
+                _require(declared.role == "measure",
+                         "Leitura DEC/FEC exige a medida física sem agregação.")
+                # PostgreSQL folds unquoted DEC/FEC to lowercase. The catalog
+                # preserves these physical names in uppercase, so quote this
+                # exact approved measure during canonicalization.
+                item.this.this.set("quoted", True)
+            else:
+                _require(item.this.name in group_names and declared.role == "dimension",
+                         "Dimensão exige agrupamento e papel compatíveis.")
+                projected_dimensions.add(item.this.name)
         else:
-            _require(_measure(item.this) and declared.role == "measure",
+            _require(_measure(item.this, measure_column) and declared.role == "measure",
                      "Medida fora da agregação F1.")
         _require(item.alias not in allowed_columns
                  or type(item.this) is exp.Column and item.alias == item.this.name,
                  "Alias ambíguo com coluna física.")
     _require(group_names == projected_dimensions, "Agrupamento difere das dimensões exibidas.")
     where = tree.args.get("where")
-    _require(where is None or _predicate(where.this), "Predicado fora da F1.")
+    _require(where is None or _predicate(where.this, measure_column), "Predicado fora da F1.")
     order = tree.args.get("order")
     order_alias_nodes = set()
     if order is not None:
@@ -192,8 +209,15 @@ def review_sql_structure(
              "Placeholder fora do contrato nomeado.")
     references = frozenset(node.name for node in placeholders)
     parameters = prepare_sql_parameters(candidate.parameters, referenced_names=references)
-    _require(all(type(value) is str for value in parameters.values()),
-             "Filtros textuais F1 exigem parâmetros string.")
+    metric_id = json.loads(context.contents)["metric"]["id"]
+    if metric_id == "service.attendance":
+        _require(all(type(value) is datetime for value in parameters.values()),
+                 "Limites de atendimento exigem parâmetros UTC tipados.")
+        _require(all(value.utcoffset().total_seconds() == 0 for value in parameters.values()),
+                 "Limites de atendimento devem estar em UTC.")
+    else:
+        _require(all(type(value) is str for value in parameters.values()),
+                 "Filtros textuais F1 exigem parâmetros string.")
     try:
         canonical = tree.sql(dialect="postgres", unsupported_level=ErrorLevel.RAISE)
         round_trip = parse(canonical, read="postgres", error_level=ErrorLevel.RAISE,

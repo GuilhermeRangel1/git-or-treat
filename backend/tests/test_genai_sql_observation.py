@@ -4,7 +4,6 @@ import logging
 
 import httpx
 import pytest
-
 from app.services.genai_client import (
     GenAIQuestionClient,
     GenAIServiceUnavailable,
@@ -14,6 +13,7 @@ from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
     build_sql_generation_context,
+    is_periodized_accumulated_attendance_question,
 )
 from app.services.genai_sql_observation import (
     log_sql_context_ready,
@@ -21,7 +21,8 @@ from app.services.genai_sql_observation import (
     observe_sql_generation,
 )
 from app.services.genai_sql_structure import SqlStructureRejected
-from tests.test_genai_sql_semantics import query
+
+from tests.test_genai_sql_semantics import consumption_request, query
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
 sql_request = fixture_sql_request
@@ -131,6 +132,47 @@ def test_provider_failure_is_not_a_clarification(sql_request):
         run(sql_request, http_status=503)
 
 
+@pytest.mark.parametrize("question", [
+    "Quantos chamados acumulados em janeiro de 2026?",
+    "Qual o histórico acumulado de atendimento em 2026?",
+    "Quantos protocolos acumulados nos últimos 12 meses?",
+    "Qual o total acumulado desde janeiro?",
+])
+def test_accumulated_attendance_question_detects_explicit_time_window(question):
+    assert is_periodized_accumulated_attendance_question(question)
+
+
+def test_accumulated_attendance_with_period_is_refused_without_calling_agent(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = "Quantos chamados no histórico acumulado em janeiro de 2026?"
+    payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_attendance"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.accumulated_attendance", "kind": "none",
+    }]
+    request = type(sql_request).model_validate(payload)
+
+    async def action():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda _: pytest.fail("pergunta periodizada não deve chamar o agente")
+        )) as http:
+            client = GenAIQuestionClient(
+                http_client=http, base_url="http://genai",
+                service_token="synthetic-service-token-0000000000",
+            )
+            return await observe_sql_generation(
+                request, client=client, deadline=GenAIRequestDeadline.start(10),
+                correlation_id="b" * 32,
+            )
+
+    result = asyncio.run(action())
+    assert result.model_calls == 0
+    assert result.review is None
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
+
+
 def test_expired_global_deadline_prevents_provider_call(sql_request):
     with pytest.raises(GenAITimeout):
         run(sql_request, expired=True)
@@ -170,3 +212,23 @@ def test_explicit_external_subject_stops_before_the_generator(sql_request, quest
 def test_energy_revenue_still_reaches_the_generator(sql_request, question):
     request = sql_request.model_copy(update={"question": question})
     assert run(request).review is not None
+
+
+def test_mixed_consumption_and_revenue_is_refused_without_partial_sql(sql_request):
+    request = consumption_request(sql_request).model_copy(update={
+        "question": "Compare o consumo medido e o faturamento em junho de 2026.",
+    })
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Pergunta multi-métrica não pode chamar o gerador F1")
+
+    result = asyncio.run(observe_sql_generation(
+        request, client=UnexpectedGenerator(), deadline=GenAIRequestDeadline.start(60),
+        correlation_id="b" * 32,
+    ))
+    assert result.review is None
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.sql is None
+    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
+    assert result.model_calls == 0

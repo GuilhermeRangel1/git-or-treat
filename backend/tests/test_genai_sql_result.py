@@ -8,7 +8,7 @@ from app.services.genai_sql_result import (
 )
 from app.services.genai_sql_semantics import review_sql_semantics
 
-from tests.test_genai_sql_semantics import query, ranking
+from tests.test_genai_sql_semantics import attendance_candidate, consumption_query, query, ranking
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
 sql_request = fixture_sql_request
@@ -44,6 +44,28 @@ def test_preserves_decimal_zero_null_and_empty(sql_request, rows, status):
     assert result.status == status
     assert cursor.closed
     assert result.serialized_bytes <= 16384
+
+
+@pytest.mark.parametrize("value,expected", [(12.345, Decimal("12.34")),
+                                             (12.355, Decimal("12.36"))])
+def test_consumption_float_is_rounded_by_catalog_half_even(sql_request, value, expected):
+    candidate, request = consumption_query(sql_request)
+    review = review_sql_semantics(candidate, request)
+    cursor = Cursor([(value,)], columns=("consumption",))
+    result = materialize_sql_result(cursor, review)
+    assert result.rows == ((expected,),)
+    assert cursor.closed
+
+
+def test_attendance_count_integer_is_materialized_as_canonical_decimal(sql_request):
+    candidate, request = attendance_candidate(sql_request)
+    review = review_sql_semantics(candidate, request)
+    cursor = Cursor([(6433,)], columns=("attendance",))
+    result = materialize_sql_result(cursor, review)
+    assert result.rows == ((Decimal("6433"),),)
+    assert result.measure_semantics == (("attendance", "attendance_total"),)
+    assert result.status == "available"
+    assert cursor.closed
 
 
 @pytest.mark.parametrize("value", [1.2, 1, True, "1.2", Decimal("NaN"),

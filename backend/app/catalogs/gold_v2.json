@@ -189,6 +189,7 @@
       },
       "capability_id": "faturamento.receita",
       "required_capability_ids": [
+        "faturamento.receita",
         "consumo.mensal_uc"
       ],
       "accumulated_period_phrases": [],

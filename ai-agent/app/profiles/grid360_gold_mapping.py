@@ -613,7 +613,9 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
         ),
         MetricMapping(
             **_business_metric("energy.consumption"),
-            required_capability_ids=("consumo.mensal_uc",),
+            # F1 conserva a fonte agregada do fluxo antigo, mas a leitura em kWh
+            # também depende dos controles próprios da série mensal de consumo.
+            required_capability_ids=("faturamento.receita", "consumo.mensal_uc"),
             capability_id="faturamento.receita",
             aggregation=Aggregation.SUM,
             unit="kWh",

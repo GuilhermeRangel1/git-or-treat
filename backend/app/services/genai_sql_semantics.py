@@ -1,13 +1,16 @@
 """Conferência conservadora SQL/intenção F1; não é autorização de execução."""
 
+import json
 import re
-from dataclasses import dataclass
+import unicodedata
+from dataclasses import dataclass, replace
+from datetime import datetime, time, timedelta, timezone
 
 from sqlglot import exp, parse_one
 
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.schemas.sql_generation import SqlGenerationCandidate
-from app.services.genai_sql_context import F1_DIMENSIONS
+from app.services.genai_sql_context import F1_DIMENSIONS, build_sql_generation_context
 from app.services.genai_sql_structure import (
     SqlStructureRejected,
     SqlStructureReview,
@@ -15,7 +18,8 @@ from app.services.genai_sql_structure import (
 )
 
 _GROUPS = {"competency": "competencia", "municipality": "municipio",
-           "consumption_class": "classe_consumo"}
+           "neighborhood": "bairro", "consumption_class": "classe_consumo",
+           "feeder": "id_alimentador"}
 _MONTH = re.compile(r"[0-9]{4}-(0[1-9]|1[0-2])\Z")
 GROWTH_PERCENT_COLUMN = "period_0_growth_percent"
 _BACKEND_DERIVED_COLUMNS = frozenset({GROWTH_PERCENT_COLUMN})
@@ -26,6 +30,7 @@ class SqlSemanticReview(SqlStructureReview):
     """Linhagem inferida da AST; ainda depende de prontidão e autorização final."""
 
     measure_semantics: tuple[tuple[str, str], ...]
+    measure_value_type: str = "decimal"
 
 
 def _period_months(period):
@@ -181,9 +186,28 @@ def review_sql_semantics(
 ) -> SqlSemanticReview:
     reviewed = review_sql_structure(candidate, request)
     intent = candidate.interpretation
-    _require(all(item.unit == "R$" for item in candidate.result_columns
+    context = json.loads(build_sql_generation_context(request).contents)
+    metric = context["metric"]
+    _require(intent.metric_id == metric["id"],
+             "Métrica da interpretação diverge da pergunta e do contexto autorizado.")
+    _require(intent.aggregation == metric["aggregation"],
+             "Agregação da interpretação diverge da definição Gold autorizada.")
+    _require(all(item.unit == metric["unit"] for item in candidate.result_columns
                  if item.role == "measure"),
-             "SQL F1 só retorna valores monetários; percentuais são derivados no Backend.")
+             "Unidade SQL diverge da métrica; percentuais são derivados no Backend.")
+    neighborhood_filters = [item for item in intent.filters
+                            if item.dimension_id == "geography.neighborhood"]
+    if neighborhood_filters:
+        values = next((item["values"] for item in context["dimension_values"]
+                       if item["dimension_id"] == "geography.neighborhood"), [])
+        normalize = lambda value: "".join(
+            char for char in unicodedata.normalize("NFD", value.casefold())
+            if not unicodedata.combining(char)
+        )
+        authorized = {normalize(value) for value in values}
+        _require(all(normalize(value) in authorized for item in neighborhood_filters
+                     for value in item.values),
+                 "Bairro solicitado não está no vocabulário Gold autorizado.")
     _require(not (_BACKEND_DERIVED_COLUMNS & {item.name for item in candidate.result_columns}),
              "Alias reservado para medida derivada pelo Backend.")
     _require((intent.operation != "monthly_series" or "competency" in intent.group_by)
@@ -191,10 +215,116 @@ def review_sql_semantics(
              "Operação exige dimensões de agrupamento compatíveis.")
     tree = parse_one(reviewed.canonical_sql, read="postgres", error_message_context=0,
                      max_nodes=512)
-    coverage = next(item for item in request.temporal_coverage if item.metric_id == "billing.revenue")
+    if intent.metric_id == "service.accumulated_attendance":
+        _require(intent.operation == "accumulated_total"
+                 and intent.aggregation == "sum" and not intent.periods
+                 and not intent.filters and not intent.group_by
+                 and intent.ranking_direction is None and intent.ranking_limit is None,
+                 "Atendimento acumulado aceita somente o histórico total sem período.")
+        _require(len(candidate.result_columns) == 1
+                 and candidate.result_columns[0].role == "measure"
+                 and candidate.result_columns[0].value_type == "integer"
+                 and candidate.result_columns[0].unit == "protocolos",
+                 "Atendimento acumulado exige total inteiro em protocolos.")
+        output = tree.expressions[0]
+        _require(type(output.this) is exp.Sum
+                 and type(output.this.this) is exp.Column
+                 and output.this.this.name == metric["measure_column"]
+                 and tree.args.get("where") is None
+                 and tree.args.get("group") is None
+                 and tree.args.get("order") is None
+                 and tree.args.get("limit") is None,
+                 "Atendimento acumulado deve somar o histórico sem filtros ou períodos.")
+        return replace(
+            _semantic_review(reviewed, [(output.alias, "attendance_accumulated_total")]),
+            measure_value_type="integer_sum",
+        )
+    coverage = next(item for item in request.temporal_coverage
+                    if item.metric_id == intent.metric_id)
     available = frozenset(_month(value) for value in coverage.competencies)
+    if intent.metric_id in {
+        "network.equivalent_interruption_duration",
+        "network.equivalent_interruption_frequency",
+    }:
+        feeder_filters = [item for item in intent.filters
+                          if item.dimension_id == "network.feeder"]
+        _require(intent.operation == "grain_read"
+                 and intent.aggregation == "key_grain_read"
+                 and len(intent.periods) == 1
+                 and intent.periods[0].start == intent.periods[0].end.replace(day=1)
+                 and len(_period_months(intent.periods[0])) == 1
+                 and len(feeder_filters) == 1
+                 and feeder_filters[0].operator == "eq"
+                 and len(feeder_filters[0].values) == 1
+                 and not intent.group_by
+                 and intent.ranking_direction is None
+                 and intent.ranking_limit is None,
+                 "DEC/FEC admite somente leitura por alimentador em uma competência.")
+        month = _period_months(intent.periods[0])
+        _require(month <= available, "Competência sem cobertura mensal disponível.")
+        expected = {
+            "competencia": month,
+            "id_alimentador": frozenset(feeder_filters[0].values),
+        }
+        where = tree.args.get("where")
+        _require(where is not None
+                 and _selection(where.this, dict(reviewed.parameter_items)) == expected,
+                 "DEC/FEC exige competência e alimentador únicos no SQL.")
+        _require(not tree.args.get("group") and not tree.args.get("order")
+                 and not tree.args.get("limit")
+                 and len(tree.expressions) == 1
+                 and type(tree.expressions[0].this) is exp.Column
+                 and tree.expressions[0].this.name == metric["measure_column"],
+                 "DEC/FEC deve ler o valor físico sem agregar ou truncar.")
+        expected_meaning = (
+            "dec_value" if intent.metric_id == "network.equivalent_interruption_duration"
+            else "fec_value"
+        )
+        return replace(
+            _semantic_review(reviewed, [(tree.expressions[0].alias, expected_meaning)]),
+            measure_value_type="double",
+        )
+    if intent.metric_id == "service.attendance":
+        _require(intent.aggregation == "count_non_null" and intent.operation == "total"
+                 and not intent.group_by and not intent.filters and len(intent.periods) == 1,
+                 "Atendimento SQL F1 libera somente a contagem mensal total.")
+        _require(all(item.value_type == "integer" and item.unit == "protocolos"
+                     for item in candidate.result_columns if item.role == "measure"),
+                 "Atendimento exige medida inteira em protocolos.")
+        months = _period_months(intent.periods[0])
+        _require(months <= available, "Período sem cobertura mensal completa.")
+        expected_start = datetime.combine(intent.periods[0].start, time.min, tzinfo=timezone.utc)
+        expected_end = datetime.combine(intent.periods[0].end + timedelta(days=1), time.min,
+                                        tzinfo=timezone.utc)
+        parameters = dict(reviewed.parameter_items)
+        where = tree.args.get("where")
+        _require(where is not None and type(where.this) is exp.And,
+                 "Contagem de atendimento exige limites mensais UTC explícitos.")
+        predicates = (where.this.this, where.this.expression)
+        actual = {}
+        for predicate in predicates:
+            _require(type(predicate) in (exp.GTE, exp.LT)
+                     and type(predicate.this) is exp.Column
+                     and predicate.this.name == "data_abertura"
+                     and type(predicate.expression) is exp.Placeholder,
+                     "Recorte de atendimento deve limitar data_abertura em UTC.")
+            actual[type(predicate)] = parameters[predicate.expression.name]
+        _require(actual == {exp.GTE: expected_start, exp.LT: expected_end},
+                 "Limites SQL divergem do mês solicitado em UTC.")
+        _require(not tree.args.get("group") and not tree.args.get("order")
+                 and not tree.args.get("limit"),
+                 "Contagem mensal total de atendimento não admite agrupamento ou limite.")
+        _require(all(type(output.this) is exp.Count
+                     and type(output.this.this) is exp.Column
+                     and output.this.this.name == "protocolo"
+                     for output in tree.expressions),
+                 "Atendimento deve contar protocolos não nulos.")
+        semantics = [(item.name, "attendance_total") for item in candidate.result_columns
+                     if item.role == "measure"]
+        return replace(_semantic_review(reviewed, semantics), measure_value_type="integer")
     if intent.operation == "comparison":
-        return _review_comparison(tree, candidate, reviewed, available)
+        result = _review_comparison(tree, candidate, reviewed, available)
+        return replace(result, measure_value_type=metric["measure_type"])
     _require(not any(tree.find_all(exp.Filter, exp.Sub)),
              "Medida condicional fora do subconjunto verificável desta operação.")
     months = _period_months(intent.periods[0])
@@ -223,5 +353,8 @@ def review_sql_semantics(
                  "Ordenação ou limite SQL divergem do ranking solicitado.")
     else:
         _require(limit is None, "Consulta sem ranking não pode truncar o resultado.")
-    return _semantic_review(reviewed, [(item.name, "revenue_total")
-                                      for item in candidate.result_columns if item.role == "measure"])
+    total_meaning = "energy_total" if intent.metric_id == "energy.consumption" else "revenue_total"
+    result = _semantic_review(reviewed, [(item.name, total_meaning)
+                                         for item in candidate.result_columns
+                                         if item.role == "measure"])
+    return replace(result, measure_value_type=metric["measure_type"])

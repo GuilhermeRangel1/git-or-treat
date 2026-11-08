@@ -15,10 +15,17 @@ SAMPLES = json.loads((ROOT / "docs/contracts/examples/text-to-sql-f1-evidence-v1
     encoding="utf-8"))
 
 
+def _serialized_legacy_payload(payload):
+    """v5 adds an explicit quality default while accepting v1-v4 wire vectors."""
+    normalized = dict(payload)
+    normalized.setdefault("coverage_quality", "certified")
+    return normalized
+
+
 @pytest.mark.parametrize("payload", SAMPLES["valid"])
 def test_accepts_exact_evidence_and_roundtrips(payload):
     evidence = SqlEvidence.model_validate(payload)
-    assert evidence.model_dump(mode="json") == payload
+    assert evidence.model_dump(mode="json") == _serialized_legacy_payload(payload)
 
 
 @pytest.mark.parametrize("case", SAMPLES["invalid"], ids=lambda case: case["id"])
@@ -47,5 +54,7 @@ print(json.dumps({'schema':SqlEvidence.model_json_schema(),'valid':valid,'reject
         timeout=30, check=True)
     backend = json.loads(result.stdout)
     assert backend["schema"] == SqlEvidence.model_json_schema()
-    assert backend["valid"] == SAMPLES["valid"]
+    assert backend["valid"] == [
+        _serialized_legacy_payload(payload) for payload in SAMPLES["valid"]
+    ]
     assert backend["rejected"] == [case["id"] for case in SAMPLES["invalid"]]

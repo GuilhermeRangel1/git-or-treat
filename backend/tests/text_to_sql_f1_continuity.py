@@ -46,16 +46,15 @@ def request_for_case(case):
             "profile_id": "v-energy-grid-360-gold",
             "source_id": "gold.local",
             "allowed_operations": ["read"],
-            "allowed_metric_ids": ["billing.revenue"],
+            "allowed_metric_ids": ["billing.revenue", "energy.consumption"],
             "allowed_dimension_ids": [
                 "geography.municipality", "customer.consumption_class",
             ],
         },
-        "temporal_coverage": [{
-            "metric_id": "billing.revenue",
-            "kind": "monthly",
-            "competencies": MONTHS,
-        }],
+        "temporal_coverage": [
+            {"metric_id": metric_id, "kind": "monthly", "competencies": MONTHS}
+            for metric_id in ("billing.revenue", "energy.consumption")
+        ],
         "dimension_value_coverage": [
             {"dimension_id": "geography.municipality", "values": MUNICIPALITIES},
             {"dimension_id": "customer.consumption_class", "values": CLASSES},

@@ -392,11 +392,32 @@ class EvidenceGuard:
             or catalog.physical_schema != "gold_v2"
             or metric is None
             or checked.source_id != "gold.local"
-            or checked.source_table != "gold_v2.diagnostico_receita"
+            or checked.source_table != (
+                "gold_v2.atendimentos_uc"
+                if checked.metric_id == "service.attendance"
+                else "gold_v2.visao_360_uc"
+                if checked.metric_id == "service.accumulated_attendance"
+                else "gold_v2.indicadores_dec_fec"
+                if checked.metric_id in {
+                    "network.equivalent_interruption_duration",
+                    "network.equivalent_interruption_frequency",
+                }
+                else checked.source_table
+                if checked.metric_id == "billing.revenue"
+                and checked.source_table == "gold_v2.consumo_receita_bairro"
+                else "gold_v2.diagnostico_receita"
+            )
             or checked.batch_ref != expected_batch_ref
             or checked.context_version != expected_context_version
             or checked.metric_id not in allowed_metric_ids
-            or metric.unit != "R$"
+            or metric.unit != (
+                "protocolos" if checked.metric_id in {
+                    "service.attendance", "service.accumulated_attendance",
+                }
+                else "horas por UC" if checked.metric_id == "network.equivalent_interruption_duration"
+                else "interrupções por UC" if checked.metric_id == "network.equivalent_interruption_frequency"
+                else "kWh" if checked.metric_id == "energy.consumption" else "R$"
+            )
             or checked.mapping_version != catalog.mapping_version
             or checked.dictionary_version != catalog.dictionary_version
         ):
@@ -404,7 +425,9 @@ class EvidenceGuard:
 
         dimension_ids = {
             "municipality": "geography.municipality",
+            "neighborhood": "geography.neighborhood",
             "consumption_class": "customer.consumption_class",
+            "feeder": "network.feeder",
         }
         used_dimensions = {
             dimension_ids[item] for item in checked.interpretation.group_by

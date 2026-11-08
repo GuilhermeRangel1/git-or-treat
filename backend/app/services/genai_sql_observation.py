@@ -26,11 +26,26 @@ from app.services.genai_sql_admission import (
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
     build_sql_generation_context,
+    is_explicit_multi_metric_question,
+    is_periodized_accumulated_attendance_question,
 )
+
+
 from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_semantics
 from app.services.genai_sql_telemetry import record_sql_stage, sql_stage
 
 logger = logging.getLogger(__name__)
+
+
+def _contract_version(metric_id: str) -> str:
+    return {
+        "billing.revenue": "text-to-sql-f1-v1",
+        "energy.consumption": "text-to-sql-f1-v2",
+        "service.attendance": "text-to-sql-f1-v3",
+        "service.accumulated_attendance": "text-to-sql-f1-v5",
+        "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
+        "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
+    }[metric_id]
 
 def log_sql_context_ready(context, correlation_id: str) -> None:
     """Registra composição e versões do contexto, nunca conteúdo ou valores."""
@@ -123,6 +138,29 @@ async def observe_sql_generation(
     )
     log_sql_context_ready(context, correlation_id)
     question = request.question.casefold()
+    if (context.metric_ids == ("service.accumulated_attendance",)
+            and is_periodized_accumulated_attendance_question(request.question)):
+        record_sql_stage(
+            correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
+            outcome="unsupported", reason="accumulated_period_unavailable",
+            context_version=context.context_version,
+        )
+        return SqlGenerationObservation(
+            SqlGenerationCandidate(
+                generation_contract_version=_contract_version(context.metric_ids[0]),
+                status="unsupported",
+                context_version=context.context_version,
+                unsupported_reason={
+                    "code": "operation_outside_f1",
+                    "message": (
+                        "A Gold publica o total acumulado de protocolos sem informar "
+                        "o intervalo histórico; não é possível responder por mês ou ano."
+                    ),
+                },
+            ),
+            None,
+            model_calls=0,
+        )
     if is_explicitly_outside_energy_domain(request.question):
         record_sql_stage(
             correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
@@ -130,12 +168,34 @@ async def observe_sql_generation(
         )
         return SqlGenerationObservation(
             SqlGenerationCandidate(
-                generation_contract_version="text-to-sql-f1-v1",
+                generation_contract_version=_contract_version(context.metric_ids[0]),
                 status="unsupported",
                 context_version=context.context_version,
                 unsupported_reason={
                     "code": "metric_outside_f1",
                     "message": OUT_OF_DOMAIN_MESSAGE,
+                },
+            ),
+            None,
+            model_calls=0,
+        )
+    if is_explicit_multi_metric_question(request.question):
+        record_sql_stage(
+            correlation_id=correlation_id, stage="semantic_review", elapsed_ms=0,
+            outcome="unsupported", reason="multiple_metrics_outside_f1",
+            context_version=context.context_version,
+        )
+        return SqlGenerationObservation(
+            SqlGenerationCandidate(
+                generation_contract_version=_contract_version(context.metric_ids[0]),
+                status="unsupported",
+                context_version=context.context_version,
+                unsupported_reason={
+                    "code": "operation_outside_f1",
+                    "message": (
+                        "Esta pergunta combina consumo medido e faturamento; "
+                        "a análise conjunta ainda não está disponível."
+                    ),
                 },
             ),
             None,
@@ -151,7 +211,7 @@ async def observe_sql_generation(
         )
         return SqlGenerationObservation(
             SqlGenerationCandidate(
-                generation_contract_version="text-to-sql-f1-v1",
+                generation_contract_version=_contract_version(context.metric_ids[0]),
                 status="needs_clarification",
                 context_version=context.context_version,
                 clarification={
@@ -163,6 +223,7 @@ async def observe_sql_generation(
             model_calls=0,
         )
     payload = SqlGenerationRequest(
+        generation_contract_version=_contract_version(context.metric_ids[0]),
         context_version=context.context_version, contents=context.contents,
         remaining_timeout_ms=deadline.remaining_timeout_ms(stage_seconds),
     )

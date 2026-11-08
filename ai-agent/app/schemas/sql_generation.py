@@ -6,7 +6,7 @@ Não importa planner, HTTP, provedor nem conexão de banco.
 
 import json
 from calendar import monthrange
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from math import isfinite
 from typing import Annotated, Literal, Self
@@ -28,7 +28,8 @@ ShortText = Annotated[str, StringConstraints(strict=True, strip_whitespace=True,
 ParameterName = Annotated[str, StringConstraints(strict=True,
                                                 pattern=r"^[a-z][a-z0-9_]{0,62}$")]
 Scalar = StrictStr | StrictInt | StrictFloat | StrictBool
-Dimension = Literal["geography.municipality", "customer.consumption_class"]
+Dimension = Literal["geography.municipality", "geography.neighborhood",
+                    "customer.consumption_class", "network.feeder"]
 
 
 class ClosedModel(BaseModel):
@@ -36,7 +37,7 @@ class ClosedModel(BaseModel):
 
 
 class SqlParameter(ClosedModel):
-    type: Literal["string", "integer", "number", "boolean", "date", "decimal"]
+    type: Literal["string", "integer", "number", "boolean", "date", "timestamp", "decimal"]
     value: Scalar
 
     @model_validator(mode="after")
@@ -48,6 +49,7 @@ class SqlParameter(ClosedModel):
             "number": type(value) in (int, float),
             "boolean": type(value) is bool,
             "date": type(value) is str,
+            "timestamp": type(value) is str,
             "decimal": type(value) is str,
         }[self.type]
         if not valid or isinstance(value, str) and len(value) > 1000:
@@ -58,6 +60,14 @@ class SqlParameter(ClosedModel):
             parsed = date.fromisoformat(value)
             if parsed.isoformat() != value:
                 raise ValueError("data deve usar YYYY-MM-DD")
+        if self.type == "timestamp":
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("timestamp inválido") from exc
+            if (parsed.tzinfo is None or parsed.utcoffset() is None
+                    or parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z") != value):
+                raise ValueError("timestamp deve ser UTC canônico com sufixo Z")
         if self.type == "decimal":
             try:
                 number = Decimal(value)
@@ -127,28 +137,37 @@ class SqlSemanticIntent(ClosedModel):
 
 
 class SqlInterpretation(ClosedModel):
-    metric_id: Literal["billing.revenue"]
-    operation: Literal["total", "monthly_series", "grouped_total", "ranking", "comparison"]
-    aggregation: Literal["sum"]
-    periods: tuple[SqlPeriod, ...] = Field(min_length=1, max_length=2)
+    metric_id: Literal[
+        "billing.revenue", "energy.consumption", "service.attendance",
+        "service.accumulated_attendance",
+        "network.equivalent_interruption_duration",
+        "network.equivalent_interruption_frequency",
+    ]
+    operation: Literal["total", "monthly_series", "grouped_total", "ranking",
+                       "comparison", "grain_read", "accumulated_total"]
+    aggregation: Literal["sum", "count_non_null", "key_grain_read"]
+    periods: tuple[SqlPeriod, ...] = Field(max_length=2)
     filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=2)
-    group_by: tuple[Literal["competency", "municipality", "consumption_class"], ...] = Field(
-        default=(), max_length=3
+    group_by: tuple[Literal["competency", "municipality", "neighborhood",
+                           "consumption_class", "feeder"], ...] = Field(
+        default=(), max_length=4
     )
     ranking_direction: Literal["asc", "desc"] | None = None
     ranking_limit: Annotated[int, Field(strict=True, ge=1, le=100)] | None = None
 
     @model_validator(mode="after")
     def check_operation(self) -> Self:
-        if len(self.periods) != (2 if self.operation == "comparison" else 1):
+        expected_periods = (2 if self.operation == "comparison" else
+                            0 if self.operation == "accumulated_total" else 1)
+        if len(self.periods) != expected_periods:
             raise ValueError("comparação exige duas janelas; demais operações uma")
         ranked = self.ranking_direction is not None and self.ranking_limit is not None
         if self.operation == "ranking":
             if not ranked or not self.group_by:
                 raise ValueError("ranking exige direção, limite e agrupamento")
-        elif self.ranking_direction is not None or self.ranking_limit is not None:
-            if self.operation != "comparison" or not ranked or not self.group_by:
-                raise ValueError("ranking de comparação exige agrupamento, direção e limite")
+        elif ((self.ranking_direction is not None or self.ranking_limit is not None)
+              and (self.operation != "comparison" or not ranked or not self.group_by)):
+            raise ValueError("ranking de comparação exige agrupamento, direção e limite")
         if len(set(self.group_by)) != len(self.group_by):
             raise ValueError("agrupamento duplicado")
         if len({item.dimension_id for item in self.filters}) != len(self.filters):
@@ -159,20 +178,47 @@ class SqlInterpretation(ClosedModel):
             raise ValueError("total agrupado exige agrupamento")
         if self.operation == "monthly_series" and "competency" not in self.group_by:
             raise ValueError("série mensal exige competência")
+        if self.operation == "accumulated_total" and (
+            self.metric_id != "service.accumulated_attendance"
+            or self.aggregation != "sum" or self.filters or self.group_by
+            or self.ranking_direction is not None or self.ranking_limit is not None
+        ):
+            raise ValueError("histórico acumulado exige total sem período ou recortes")
+        if self.operation == "grain_read":
+            feeder_filters = [item for item in self.filters
+                              if item.dimension_id == "network.feeder"]
+            if (self.metric_id not in {
+                    "network.equivalent_interruption_duration",
+                    "network.equivalent_interruption_frequency",
+                } or self.aggregation != "key_grain_read" or self.group_by
+                    or len(self.periods) != 1 or len(feeder_filters) != 1
+                    or feeder_filters[0].operator != "eq"
+                    or self.ranking_direction is not None or self.ranking_limit is not None):
+                raise ValueError("leitura DEC/FEC exige grão e alimentador fixos")
+        elif (self.aggregation == "key_grain_read" or "feeder" in self.group_by
+              or self.metric_id in {
+                  "network.equivalent_interruption_duration",
+                  "network.equivalent_interruption_frequency",
+              }):
+            raise ValueError("DEC/FEC não admite agregação nem agrupamento adicional")
         return self
 
 
 class SqlResultColumn(ClosedModel):
     name: ParameterName
     role: Literal["measure", "dimension"]
-    value_type: Literal["decimal", "string"]
-    unit: Literal["R$", "%"] | None = None
+    value_type: Literal["decimal", "integer", "string"]
+    unit: Literal["R$", "kWh", "protocolos", "horas por UC", "interrupções por UC", "%"] | None = None
 
     @model_validator(mode="after")
     def check_role(self) -> Self:
         if self.role == "measure":
-            if self.value_type != "decimal" or self.unit not in {"R$", "%"}:
-                raise ValueError("medida F1 exige decimal e unidade monetária ou percentual")
+            if (self.unit == "protocolos" and self.value_type != "integer"
+                    or self.unit != "protocolos" and
+                    (self.value_type != "decimal" or self.unit not in {
+                        "R$", "kWh", "horas por UC", "interrupções por UC", "%",
+                    })):
+                raise ValueError("medida F1 exige tipo e unidade autorizados")
         elif self.value_type != "string" or self.unit is not None:
             raise ValueError("dimensão F1 exige string sem unidade monetária")
         return self
@@ -192,7 +238,7 @@ class SqlUnsupported(ClosedModel):
 
 
 class SqlGenerationCandidate(ClosedModel):
-    generation_contract_version: Literal["text-to-sql-f1-v1"]
+    generation_contract_version: Literal["text-to-sql-f1-v1", "text-to-sql-f1-v2", "text-to-sql-f1-v3", "text-to-sql-f1-v4", "text-to-sql-f1-v5"]
     status: Literal["sql_candidate", "needs_clarification", "unsupported"]
     context_version: Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{64}$")]
     sql: Annotated[str, StringConstraints(strict=True, strip_whitespace=True,
@@ -216,6 +262,21 @@ class SqlGenerationCandidate(ClosedModel):
                 column.role == "measure" for column in self.result_columns
             ):
                 raise ValueError("resultado exige aliases únicos e medida")
+            if (self.generation_contract_version == "text-to-sql-f1-v1"
+                    and self.interpretation.metric_id != "billing.revenue"):
+                raise ValueError("F1 v1 só admite faturamento")
+            if (self.generation_contract_version == "text-to-sql-f1-v3"
+                    and self.interpretation.metric_id != "service.attendance"):
+                raise ValueError("F1 v3 só admite atendimento mensal")
+            if (self.generation_contract_version == "text-to-sql-f1-v4"
+                    and self.interpretation.metric_id not in {
+                        "network.equivalent_interruption_duration",
+                        "network.equivalent_interruption_frequency",
+                    }):
+                raise ValueError("F1 v4 só admite leitura de DEC/FEC")
+            if (self.generation_contract_version == "text-to-sql-f1-v5"
+                    and self.interpretation.metric_id != "service.accumulated_attendance"):
+                raise ValueError("F1 v5 só admite atendimento acumulado")
         else:
             if (self.sql is not None or self.parameters
                     or self.interpretation or self.result_columns):
@@ -229,7 +290,9 @@ class SqlGenerationCandidate(ClosedModel):
 
 
 class SqlGenerationRequest(ClosedModel):
-    generation_contract_version: Literal["text-to-sql-f1-v1"] = "text-to-sql-f1-v1"
+    generation_contract_version: Literal["text-to-sql-f1-v1", "text-to-sql-f1-v2", "text-to-sql-f1-v3", "text-to-sql-f1-v4", "text-to-sql-f1-v5"] = (
+        "text-to-sql-f1-v1"
+    )
     context_version: Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{64}$")]
     contents: Annotated[str, StringConstraints(strict=True, min_length=1, max_length=65536)]
     remaining_timeout_ms: Annotated[int, Field(strict=True, ge=1, le=60000)]
@@ -251,6 +314,14 @@ class SqlGenerationRequest(ClosedModel):
 
 
 class SqlGenerationResponse(ClosedModel):
-    generation_contract_version: Literal["text-to-sql-f1-v1"] = "text-to-sql-f1-v1"
+    generation_contract_version: Literal["text-to-sql-f1-v1", "text-to-sql-f1-v2", "text-to-sql-f1-v3", "text-to-sql-f1-v4", "text-to-sql-f1-v5"] = (
+        "text-to-sql-f1-v1"
+    )
     correlation_id: Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{32}$")]
     candidate: SqlGenerationCandidate
+
+    @model_validator(mode="after")
+    def check_contract_version(self) -> Self:
+        if self.candidate.generation_contract_version != self.generation_contract_version:
+            raise ValueError("versão do envelope e candidato divergem")
+        return self

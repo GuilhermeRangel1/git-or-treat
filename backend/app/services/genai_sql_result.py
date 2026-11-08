@@ -4,7 +4,8 @@ import hashlib
 import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
+from math import isfinite
 from typing import Literal, Protocol
 
 from app.services.genai_sql_semantics import SqlSemanticReview
@@ -36,10 +37,31 @@ class SqlMaterializedResult:
     serialized_bytes: int
 
 
-def _value(value: object, *, measure: bool):
+def _value(value: object, *, measure: bool, measure_value_type: str):
     if value is None:
         return None
     if measure:
+        if measure_value_type == "integer":
+            if type(value) is not int or value < 0 or value > 10**100:
+                raise SqlResultRejected("Contagem SQL exige inteiro não negativo dentro do limite F1.")
+            return Decimal(value)
+        if measure_value_type == "integer_sum":
+            if (type(value) is not Decimal or not value.is_finite()
+                    or value < 0 or value != value.to_integral_value()
+                    or value > Decimal(10**100)):
+                raise SqlResultRejected("Total acumulado exige inteiro não negativo dentro do limite F1.")
+            return value
+        # PostgreSQL devolve SUM(double precision) como float. A representação
+        # decimal curta do driver é preservada; NaN/Inf continuam recusados.
+        if type(value) is float and measure_value_type == "double":
+            if not isfinite(value):
+                raise SqlResultRejected("Medida SQL exige Decimal finito dentro do limite F1.")
+            try:
+                value = Decimal(str(value)).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_EVEN,
+                )
+            except InvalidOperation:
+                raise SqlResultRejected("Medida SQL excede a precisão Gold autorizada.") from None
         if (type(value) is not Decimal or not value.is_finite()
                 or abs(value.adjusted()) > 100 or abs(value.as_tuple().exponent) > 100):
             raise SqlResultRejected("Medida SQL exige Decimal finito dentro do limite F1.")
@@ -96,7 +118,10 @@ def materialize_sql_result(
             raw = batch[0]
             if isinstance(raw, Mapping) or len(raw) != len(columns):
                 raise SqlResultRejected("Linha SQL diverge das colunas declaradas.")
-            row = tuple(_value(value, measure=name in measures)
+            row = tuple(_value(
+                value, measure=name in measures,
+                measure_value_type=review.measure_value_type,
+            )
                         for name, value in zip(columns, raw, strict=True))
             size += len(_encoded(row)) + bool(rows)
             if size > MAX_SQL_RESULT_BYTES:

@@ -57,6 +57,7 @@ def _evidence(
         "source_id": "gold.local",
         "source_table": "gold_v2.diagnostico_receita",
         "metric_id": "billing.revenue",
+        "coverage_quality": "certified",
         "batch_ref": (
             "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:"
             "12345678-1234-4123-8123-123456789abc"
@@ -113,9 +114,9 @@ def _evidence(
         json.dumps(result, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     provisional = SqlEvidence.model_construct(**payload, evidence_digest="0" * 64)
-    payload["evidence_digest"] = sql_evidence_digest(
-        provisional.model_dump(mode="json", exclude={"evidence_digest"})
-    )
+    digest_payload = provisional.model_dump(mode="json", exclude={"evidence_digest"})
+    digest_payload.pop("coverage_quality", None)
+    payload["evidence_digest"] = sql_evidence_digest(digest_payload)
     return SqlEvidence.model_validate(payload)
 
 
@@ -132,6 +133,15 @@ def test_grouped_table_is_identical_to_evidence_and_answer_uses_exact_decimal():
     assert presentation.limitations == (
         "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
     )
+
+
+def test_neighborhood_dimension_is_presented_as_bairro():
+    evidence = _evidence(rows=[["Boa Vista", "12.50"]], status="available",
+                         grouped=True, dimension="neighborhood")
+    presentation = present_sql_evidence(evidence)
+
+    assert presentation.columns[0].label == "Bairro"
+    assert "por Bairro" in presentation.answer
 
 
 def test_comparison_presents_backend_derived_growth_and_zero_baseline():
@@ -166,6 +176,102 @@ def test_total_answer_prints_exact_money_and_period():
     assert presentation.answer == (
         "O faturamento total no período janeiro a dezembro de 2025 foi R$ 950,00."
     )
+
+
+def test_attendance_evidence_presents_monthly_protocol_count():
+    interpretation = SqlInterpretation.model_validate({
+        "metric_id": "service.attendance", "operation": "total",
+        "aggregation": "count_non_null",
+        "periods": [{"start": "2026-06-01", "end": "2026-06-30"}],
+        "filters": [], "group_by": [], "ranking_direction": None,
+        "ranking_limit": None,
+    })
+    columns = (SqlResultColumn(
+        name="attendance", role="measure", value_type="integer", unit="protocolos",
+    ),)
+    payload = {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v4",
+        "source_id": "gold.local", "source_table": "gold_v2.atendimentos_uc",
+        "metric_id": "service.attendance",
+        "coverage_quality": "certified",
+        "batch_ref": "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "a" * 64, "admission_digest": "b" * 64,
+        "execution_digest": "c" * 64, "result_digest": "0" * 64,
+        "mapping_version": "gold-catalog-v2", "dictionary_version": "gold-dictionary-v2",
+        "interpretation": interpretation, "columns": columns,
+        "measure_semantics": {"attendance": "attendance_total"},
+        "dimension_semantics": {}, "rows": (("6433",),), "status": "available",
+    }
+    provisional = SqlEvidence.model_construct(**payload, evidence_digest="0" * 64)
+    result_digest_payload = {
+        "columns": ["attendance"],
+        "measure_semantics": [["attendance", "attendance_total"]],
+        "rows": (("6433",),), "status": "available",
+    }
+    payload["result_digest"] = hashlib.sha256(json.dumps(
+        result_digest_payload, ensure_ascii=False, separators=(",", ":"),
+    ).encode()).hexdigest()
+    provisional = SqlEvidence.model_construct(**payload, evidence_digest="0" * 64)
+    digest_payload = provisional.model_dump(mode="json", exclude={"evidence_digest"})
+    digest_payload.pop("coverage_quality", None)
+    evidence_digest = sql_evidence_digest(digest_payload)
+    evidence = SqlEvidence.model_validate({**payload, "evidence_digest": evidence_digest})
+    presentation = present_sql_evidence(evidence)
+    assert presentation.contract_version == "text-to-sql-f1-presentation-v3"
+    assert presentation.answer == (
+        "Foram abertos 6.433 protocolos no período junho de 2026."
+    )
+    assert presentation.columns[0].unit == "protocolos"
+    assert presentation.limitations == ()
+
+
+@pytest.mark.parametrize(("metric_id", "meaning", "unit", "expected"), [
+    ("network.equivalent_interruption_duration", "dec_value", "horas por UC",
+     "DEC no período junho de 2026 (Alimentador: ALIM-01): 1,25 horas por UC. "
+     "Valores observados; cobertura do alimentador não certificada."),
+    ("network.equivalent_interruption_frequency", "fec_value", "interrupções por UC",
+     "FEC no período junho de 2026 (Alimentador: ALIM-01): 0,75 interrupções por UC. "
+     "Valores observados; cobertura do alimentador não certificada."),
+])
+def test_continuity_presents_one_grain_value_and_uncertified_coverage_warning(
+    metric_id, meaning, unit, expected,
+):
+    interpretation = SqlInterpretation.model_validate({
+        "metric_id": metric_id, "operation": "grain_read", "aggregation": "key_grain_read",
+        "periods": [{"start": "2026-06-01", "end": "2026-06-30"}],
+        "filters": [{"dimension_id": "network.feeder", "operator": "eq",
+                     "values": ["ALIM-01"]}],
+        "group_by": [], "ranking_direction": None, "ranking_limit": None,
+    })
+    columns = (SqlResultColumn(name="value", role="measure", value_type="decimal", unit=unit),)
+    payload = {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v5",
+        "source_id": "gold.local", "source_table": "gold_v2.indicadores_dec_fec",
+        "metric_id": metric_id, "coverage_quality": "observed_uncertified",
+        "batch_ref": "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "a" * 64, "admission_digest": "b" * 64,
+        "execution_digest": "c" * 64, "result_digest": "0" * 64,
+        "mapping_version": "gold-catalog-v2", "dictionary_version": "gold-dictionary-v2",
+        "interpretation": interpretation, "columns": columns,
+        "measure_semantics": {"value": meaning}, "dimension_semantics": {},
+        "rows": (("1.25" if meaning == "dec_value" else "0.75",),), "status": "available",
+    }
+    result = {
+        "columns": ["value"], "measure_semantics": [["value", meaning]],
+        "rows": payload["rows"], "status": "available",
+    }
+    payload["result_digest"] = hashlib.sha256(
+        json.dumps(result, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    provisional = SqlEvidence.model_construct(**payload, evidence_digest="0" * 64)
+    evidence_digest = sql_evidence_digest(
+        provisional.model_dump(mode="json", exclude={"evidence_digest"})
+    )
+    evidence = SqlEvidence.model_validate({**payload, "evidence_digest": evidence_digest})
+    presentation = present_sql_evidence(evidence)
+    assert presentation.contract_version == "text-to-sql-f1-presentation-v4"
+    assert presentation.answer == expected
+    assert presentation.limitations == ("Valores observados; cobertura do alimentador não certificada.",)
 
 
 def test_single_month_answer_uses_natural_portuguese_period():
