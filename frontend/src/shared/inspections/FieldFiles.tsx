@@ -43,6 +43,7 @@ export default function FieldFiles({
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [hasLineErrors, setHasLineErrors] = useState(false);
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState("all");
   const [options, setOptions] = useState<Record<string, string[]>>({});
@@ -224,6 +225,7 @@ export default function FieldFiles({
   }
   async function upload(file: File | undefined) {
     if (!file) return;
+    setHasLineErrors(false);
     if (file.size > 1_000_000) {
       setMessage("O arquivo deve ter até 1 MB.");
       return;
@@ -266,6 +268,7 @@ export default function FieldFiles({
           throw new Error("Resposta de importação inválida.");
         return `Linha ${error.line}: ${error.message}`;
       });
+      setHasLineErrors(errors.length > 0);
       setMessage(
         `${result.imported} resultado(s) registrado(s). ${result.imported} ordem(ns) concluída(s). ${errors.join(" ")}`,
       );
@@ -277,131 +280,173 @@ export default function FieldFiles({
       setBusy(false);
     }
   }
+  const fileInput = (
+    <input
+      ref={uploadRef}
+      className="sr-only"
+      tabIndex={-1}
+      aria-describedby="field-file-help"
+      aria-label="Importar resultados de campo"
+      type="file"
+      accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      disabled={busy}
+      onChange={(event) => {
+        void upload(event.target.files?.[0]);
+        event.target.value = "";
+      }}
+    />
+  );
+  const selectFileButton = (
+    <Button
+      variant="primary"
+      disabled={busy}
+      leftIcon={<Upload size={16} aria-hidden="true" />}
+      onClick={() => uploadRef.current?.click()}
+    >
+      Selecionar planilha
+    </Button>
+  );
+  function openTemplate() {
+    setMessage("");
+    setHasLineErrors(false);
+    setTemplateOpen(true);
+  }
   return (
     <section
       aria-label="Arquivos de campo"
-      className="overflow-hidden rounded-xl border border-border bg-surface"
+      className={
+        mode === "results"
+          ? "contents"
+          : "overflow-hidden rounded-xl border border-border bg-surface"
+      }
     >
-      <header className="border-b border-border px-5 py-4 sm:px-6">
-        <h2 className="font-heading text-lg font-semibold text-content">
-          {mode === "results"
-            ? "Resultados de campo"
-            : mode === "export"
-              ? "Enviar a fila para a equipe"
-              : "Arquivos de campo"}
-        </h2>
-        <p className="mt-1 text-sm leading-6 text-muted">
-          {mode === "results"
-            ? "Envie a planilha preenchida para registrar os resultados e concluir as ordens."
-            : "Prepare a fila de inspeção para enviar à equipe de campo."}
-        </p>
-      </header>
-      <div
-        className={
-          mode === "all"
-            ? "grid divide-y divide-border lg:grid-cols-[0.85fr_1.15fr] lg:divide-x lg:divide-y-0"
-            : "grid"
-        }
-      >
-        {mode !== "results" ? (
-          <div className="flex flex-col items-start gap-4 p-5 sm:p-6">
-            <span className="flex size-10 items-center justify-center rounded-lg border border-border bg-canvas text-muted">
-              <ArrowUpRight size={20} aria-hidden="true" />
-            </span>
-            <div>
-              <h3 className="text-sm font-semibold text-content">
-                Enviar a fila para a equipe
-              </h3>
-              <p className="mt-2 max-w-md text-sm leading-6 text-muted">
-                Exporte todas as UCs ou escolha um recorte por categoria,
-                município, bairro e classe.
-              </p>
-            </div>
+      {mode === "results" ? (
+        <div className="flex flex-col items-end gap-1.5 max-md:w-full max-md:items-start md:pt-1">
+          <div className="flex flex-wrap gap-3 max-md:w-full">
             <Button
-              variant="outline"
-              className="mt-auto w-full sm:w-auto"
-              disabled={busy}
-              ref={trigger}
-              leftIcon={<Download size={16} aria-hidden="true" />}
-              onClick={() => void openExport()}
-            >
-              Exportar fila
-            </Button>
-          </div>
-        ) : null}
-        {mode !== "export" ? (
-          <div className="space-y-4 p-5 sm:p-6">
-            <div className="flex items-start gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-canvas text-muted">
-                <FileSpreadsheet size={20} aria-hidden="true" />
-              </span>
-              <div>
-                <h3 className="text-sm font-semibold text-content">
-                  Registrar resultados de campo
-                </h3>
-                <p className="mt-1 text-sm leading-6 text-muted">
-                  Baixe o modelo, preencha a coluna resultado e envie a planilha
-                  de volta.
-                </p>
-              </div>
-            </div>
-            <div className="rounded-lg border border-dashed border-control bg-canvas p-4 sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-content">
-                    Planilha preenchida
-                  </p>
-                  <p
-                    id="field-file-help"
-                    className="mt-1 text-xs leading-5 text-muted"
-                  >
-                    XLSX ou CSV · até 1 MB · 500 ordens
-                  </p>
-                </div>
-                <Button
-                  variant="primary"
-                  disabled={busy}
-                  leftIcon={<Upload size={16} aria-hidden="true" />}
-                  onClick={() => uploadRef.current?.click()}
-                >
-                  Selecionar planilha
-                </Button>
-              </div>
-              <input
-                ref={uploadRef}
-                className="sr-only"
-                tabIndex={-1}
-                aria-describedby="field-file-help"
-                aria-label="Importar resultados de campo"
-                type="file"
-                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                disabled={busy}
-                onChange={(event) => {
-                  void upload(event.target.files?.[0]);
-                  event.target.value = "";
-                }}
-              />
-            </div>
-            <Button
-              variant="ghost"
-              className="w-full sm:w-auto sm:px-0"
+              variant="secondary"
+              size="sm"
+              className="min-h-11 whitespace-nowrap text-sm! max-md:grow md:min-h-9"
               disabled={busy}
               leftIcon={<Download size={16} aria-hidden="true" />}
               ref={templateTrigger}
-              onClick={() => {
-                setMessage("");
-                setTemplateOpen(true);
-              }}
+              onClick={openTemplate}
             >
-              Baixar modelo de resultados
+              Baixar modelo
             </Button>
-            <p className="text-xs leading-5 text-muted">
-              Cada linha válida é registrada. Se houver erros, corrija as linhas
-              indicadas e reenvie.
-            </p>
+            <Button
+              variant="primary"
+              size="sm"
+              className="min-h-11 whitespace-nowrap text-sm! max-md:grow md:min-h-9"
+              disabled={busy}
+              aria-describedby="field-file-help"
+              leftIcon={<Upload size={16} aria-hidden="true" />}
+              onClick={() => uploadRef.current?.click()}
+            >
+              Importar resultados
+            </Button>
           </div>
-        ) : null}
-      </div>
+          <p id="field-file-help" className="text-xs text-muted md:text-right">
+            Baixe o modelo, preencha a coluna resultado e importe de volta. XLSX
+            ou CSV, até 1 MB, 500 ordens.
+          </p>
+          {fileInput}
+        </div>
+      ) : (
+        <>
+          <header className="border-b border-border px-5 py-4 sm:px-6">
+            <h2 className="font-heading text-lg font-semibold text-content">
+              {mode === "export"
+                ? "Enviar a fila para a equipe"
+                : "Arquivos de campo"}
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Prepare a fila de inspeção para enviar à equipe de campo.
+            </p>
+          </header>
+          <div
+            className={
+              mode === "all"
+                ? "grid divide-y divide-border lg:grid-cols-[0.85fr_1.15fr] lg:divide-x lg:divide-y-0"
+                : "grid"
+            }
+          >
+            <div className="flex flex-col items-start gap-4 p-5 sm:p-6">
+              <span className="flex size-10 items-center justify-center rounded-lg border border-border bg-canvas text-muted">
+                <ArrowUpRight size={20} aria-hidden="true" />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-content">
+                  Enviar a fila para a equipe
+                </h3>
+                <p className="mt-2 max-w-md text-sm leading-6 text-muted">
+                  Exporte todas as UCs ou escolha um recorte por categoria,
+                  município, bairro e classe.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="mt-auto w-full sm:w-auto"
+                disabled={busy}
+                ref={trigger}
+                leftIcon={<Download size={16} aria-hidden="true" />}
+                onClick={() => void openExport()}
+              >
+                Exportar fila
+              </Button>
+            </div>
+            {mode === "all" ? (
+              <div className="space-y-4 p-5 sm:p-6">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-canvas text-muted">
+                    <FileSpreadsheet size={20} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-content">
+                      Registrar resultados de campo
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-muted">
+                      Baixe o modelo, preencha a coluna resultado e envie a
+                      planilha de volta.
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-dashed border-control bg-canvas p-4 sm:p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-content">
+                        Planilha preenchida
+                      </p>
+                      <p
+                        id="field-file-help"
+                        className="mt-1 text-xs leading-5 text-muted"
+                      >
+                        XLSX ou CSV · até 1 MB · 500 ordens
+                      </p>
+                    </div>
+                    {selectFileButton}
+                  </div>
+                  {fileInput}
+                </div>
+                <Button
+                  variant="ghost"
+                  className="w-full sm:w-auto sm:px-0"
+                  disabled={busy}
+                  leftIcon={<Download size={16} aria-hidden="true" />}
+                  ref={templateTrigger}
+                  onClick={openTemplate}
+                >
+                  Baixar modelo de resultados
+                </Button>
+                <p className="text-xs leading-5 text-muted">
+                  Cada linha válida é registrada. Se houver erros, corrija as
+                  linhas indicadas e reenvie.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </>
+      )}
       <Modal
         open={templateOpen}
         onClose={() => setTemplateOpen(false)}
@@ -601,9 +646,19 @@ export default function FieldFiles({
       {!open && !templateOpen && (busy || message) ? (
         <p
           role="status"
-          className="border-t border-border bg-canvas px-5 py-4 text-sm leading-6 break-words whitespace-pre-wrap sm:px-6"
+          className={
+            mode === "results"
+              ? "min-w-0 basis-full rounded-xl border border-border bg-surface px-5 py-4 text-sm leading-6 break-words whitespace-pre-wrap sm:px-6"
+              : "border-t border-border bg-canvas px-5 py-4 text-sm leading-6 break-words whitespace-pre-wrap sm:px-6"
+          }
         >
           {busy ? "Processando arquivo…" : message}
+          {mode === "results" && !busy && hasLineErrors ? (
+            <span className="mt-1 block text-xs leading-5 text-muted">
+              Cada linha válida é registrada. Se houver erros, corrija as linhas
+              indicadas e reenvie.
+            </span>
+          ) : null}
         </p>
       ) : null}
     </section>
