@@ -23,7 +23,6 @@ from app.services.genai_sql_observation import (
     log_sql_context_unavailable,
     observe_sql_generation,
 )
-from app.services.genai_sql_structure import SqlStructureRejected
 from tests.test_genai_sql_semantics import consumption_request, query
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
@@ -56,6 +55,7 @@ def run(
                 "status": status,
                 "generation_contract_version": "text-to-sql-f1-v1",
                 "context_version": body["context_version"],
+                "scope_assessment": {"status": "in_domain"},
                 "clarification": {
                     "question": "Qual período?",
                     "missing_fields": ["period"],
@@ -166,7 +166,7 @@ def test_wrong_recuts_are_not_promoted_to_review(sql_request):
         candidate["parameters"]["city"]["value"] = "Olinda"
         return candidate
 
-    with pytest.raises(SqlStructureRejected):
+    with pytest.raises(GenAIResponseInvalid):
         run(sql_request, mutation=mutate)
 
 
@@ -381,3 +381,69 @@ def test_periodized_accumulated_satisfaction_is_refused_before_model_call(sql_re
     assert result.candidate.status == "unsupported"
     assert result.candidate.unsupported_reason.code == "operation_outside_f1"
     assert result.model_calls == 0
+
+
+def _request_with_months(sql_request, question, months):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = question
+    payload["temporal_coverage"] = [
+        {"metric_id": "billing.revenue", "kind": "monthly", "competencies": list(months)}
+    ]
+    return type(sql_request).model_validate(payload)
+
+
+class _NoGenerator:
+    async def generate_sql_candidate(self, *args, **kwargs):
+        pytest.fail("Cobertura insuficiente do ano fechado não pode chamar o gerador")
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual a receita total de Recife em 2026 fechado?",
+        "Qual a receita total de Recife no ano inteiro de 2026?",
+        "Qual a receita total de Recife de janeiro a dezembro de 2026?",
+    ],
+)
+def test_closed_year_without_twelve_months_asks_for_coverage_before_the_model(
+    sql_request, question
+):
+    request = _request_with_months(
+        sql_request, question, [f"2026-{month:02d}" for month in range(1, 7)]
+    )
+    result = asyncio.run(
+        observe_sql_generation(
+            request,
+            client=_NoGenerator(),
+            deadline=GenAIRequestDeadline.start(60),
+            correlation_id="b" * 32,
+        )
+    )
+    candidate = result.candidate
+    assert result.review is None and result.model_calls == 0
+    assert candidate.status == "needs_clarification" and candidate.sql is None
+    assert candidate.clarification.reason_code == "insufficient_coverage"
+    assert candidate.clarification.missing_fields == ("period",)
+    assert "julho a dezembro de 2026" in candidate.clarification.question
+    [option] = candidate.clarification.options
+    assert option.label == "Janeiro a junho de 2026"
+    assert "janeiro a junho de 2026" in option.question
+
+
+def test_plain_year_and_explicit_partial_range_still_reach_the_generator(sql_request):
+    months = [f"2026-{month:02d}" for month in range(1, 7)]
+    for question in (
+        "Qual foi a receita de Recife em 2026?",
+        "Qual foi a receita de Recife de janeiro a junho de 2026?",
+    ):
+        request = _request_with_months(sql_request, question, months)
+        assert run(request).review is not None
+
+
+def test_model_sql_with_parameters_outside_the_envelope_is_a_typed_invalid_response(sql_request):
+    def undeclared_parameter(candidate):
+        candidate["parameters"] = {}
+        return candidate
+
+    with pytest.raises(GenAIResponseInvalid):
+        run(sql_request, mutation=undeclared_parameter)

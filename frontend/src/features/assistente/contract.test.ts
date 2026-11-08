@@ -869,3 +869,112 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
     });
   });
 });
+
+describe("motivo e opções de recusas e esclarecimentos", () => {
+  const base = {
+    correlation_id: "0123456789abcdef0123456789abcdef",
+    audit_reference: "b".repeat(32),
+    evidence: null,
+    presentation: null,
+  };
+  const clarification = (extra: Record<string, unknown> = {}) => ({
+    ...base,
+    status: "needs_clarification",
+    clarification: {
+      question: "Junho de qual ano?",
+      missing_fields: ["period"],
+      ...extra,
+    },
+    unsupported_reason: null,
+  });
+  const refusal = (extra: Record<string, unknown> = {}) => ({
+    ...base,
+    status: "unsupported",
+    clarification: null,
+    unsupported_reason: {
+      code: "metric_outside_f1",
+      message: "Não tenho dados financeiros de eventos esportivos.",
+      ...extra,
+    },
+  });
+
+  it("preserva motivo, campos pendentes e opções do esclarecimento", () => {
+    const decoded = decodeSqlAnalysisResponse(
+      clarification({
+        reason_code: "missing_context",
+        options: [
+          { label: "2025", question: "Qual a receita em junho de 2025?" },
+          { label: "2026", question: "Qual a receita em junho de 2026?" },
+        ],
+      }),
+    );
+    expect(decoded.feedback).toEqual({
+      kind: "clarification",
+      reason: "missing_context",
+      missingFields: ["period"],
+      options: [
+        { label: "2025", question: "Qual a receita em junho de 2025?" },
+        { label: "2026", question: "Qual a receita em junho de 2026?" },
+      ],
+    });
+    expect(decoded.evidence).toEqual([]);
+    expect(decoded.sql_presentation).toBeUndefined();
+  });
+
+  it("mantém legível o histórico antigo sem motivo nem opções", () => {
+    expect(decodeSqlAnalysisResponse(clarification()).feedback).toEqual({
+      kind: "clarification",
+      reason: null,
+      missingFields: ["period"],
+      options: [],
+    });
+    expect(decodeSqlAnalysisResponse(refusal()).feedback).toEqual({
+      kind: "refusal",
+      reason: null,
+      missingFields: [],
+      options: [],
+    });
+  });
+
+  it("preserva o motivo tipado da recusa sem inferi-lo do texto", () => {
+    for (const reason of [
+      "out_of_domain",
+      "unsupported_capability",
+      "insufficient_coverage",
+      "security_restriction",
+    ]) {
+      expect(
+        decodeSqlAnalysisResponse(refusal({ reason_code: reason })).feedback
+          ?.reason,
+      ).toBe(reason);
+    }
+  });
+
+  it.each([
+    ["motivo desconhecido no esclarecimento", clarification({ reason_code: "because" })],
+    ["motivo de recusa em esclarecimento", clarification({ reason_code: "out_of_domain" })],
+    ["motivo desconhecido na recusa", refusal({ reason_code: "because" })],
+    ["motivo de esclarecimento em recusa", refusal({ reason_code: "ambiguous_subject" })],
+    ["opções em recusa", refusal({ options: [{ label: "a", question: "b" }] })],
+    ["campo pendente desconhecido", clarification({ missing_fields: ["sql"] })],
+    ["campo pendente ausente", clarification({ missing_fields: [] })],
+    [
+      "opção com campo extra",
+      clarification({ options: [{ label: "a", question: "b", sql: "SELECT 1" }] }),
+    ],
+    ["opção sem pergunta", clarification({ options: [{ label: "a" }] })],
+    [
+      "mais de cinco opções",
+      clarification({
+        options: Array.from({ length: 6 }, (_, index) => ({
+          label: `Opção ${index}`,
+          question: `Pergunta ${index}`,
+        })),
+      }),
+    ],
+  ])("rejeita %s", (_name, payload) => {
+    expect(() => decodeSqlAnalysisResponse(payload)).toThrow(
+      "Resposta Text-to-SQL inválida.",
+    );
+  });
+});

@@ -18,6 +18,12 @@ from app.services.genai_domain_policy import (
     is_explicitly_outside_energy_domain,
 )
 from app.services.genai_publication import GoldPublicationContext
+from app.services.genai_question_feedback import (
+    ScopeDecisionRejected,
+    enforce_scope_decision,
+    full_year_coverage_gap,
+    incomplete_year_candidate,
+)
 from app.services.genai_sql_admission import (
     SqlAdmission,
     SqlAdmissionDenied,
@@ -29,6 +35,7 @@ from app.services.genai_sql_context import (
     is_explicit_multi_metric_question,
     is_periodized_accumulated_attendance_question,
 )
+from app.services.genai_sql_parameters import SqlParameterMismatch
 from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_semantics
 from app.services.genai_sql_structure import SqlStructureRejected
 from app.services.genai_sql_telemetry import record_sql_stage, sql_stage
@@ -156,8 +163,10 @@ async def observe_sql_generation(
                     generation_contract_version=context.generation_contract_version,
                 status="unsupported",
                 context_version=context.context_version,
+                scope_assessment={"status": "in_domain"},
                 unsupported_reason={
                     "code": "operation_outside_f1",
+                    "reason_code": "unsupported_capability",
                     "message": (
                         "A Gold publica o total acumulado de protocolos sem informar "
                         "o intervalo histórico; não é possível responder por mês ou ano."
@@ -184,8 +193,10 @@ async def observe_sql_generation(
                     generation_contract_version=context.generation_contract_version,
                 status="unsupported",
                 context_version=context.context_version,
+                scope_assessment={"status": "out_of_domain"},
                 unsupported_reason={
                     "code": "metric_outside_f1",
+                    "reason_code": "out_of_domain",
                     "message": OUT_OF_DOMAIN_MESSAGE,
                 },
             ),
@@ -206,8 +217,10 @@ async def observe_sql_generation(
                     generation_contract_version=context.generation_contract_version,
                 status="unsupported",
                 context_version=context.context_version,
+                scope_assessment={"status": "in_domain"},
                 unsupported_reason={
                     "code": "operation_outside_f1",
+                    "reason_code": "unsupported_capability",
                     "message": (
                         "Esta pergunta combina consumo medido e faturamento; "
                         "a análise conjunta ainda não está disponível."
@@ -234,10 +247,44 @@ async def observe_sql_generation(
                     generation_contract_version=context.generation_contract_version,
                 status="needs_clarification",
                 context_version=context.context_version,
+                scope_assessment={"status": "uncertain"},
                 clarification={
                     "question": "Você quer saber a receita de energia? Para qual período?",
                     "missing_fields": ["metric", "period"],
+                    "reason_code": "ambiguous_subject",
                 },
+            ),
+            None,
+            model_calls=0,
+        )
+    coverage = next(
+        (
+            item
+            for item in request.temporal_coverage
+            if item.metric_id == context.metric_ids[0] and item.kind == "monthly"
+        ),
+        None,
+    )
+    year_gap = (
+        full_year_coverage_gap(request.question, coverage.competencies)
+        if coverage is not None
+        else None
+    )
+    if year_gap is not None:
+        # "Fechado" pede o ano completo: sem os doze meses publicados não há consulta.
+        record_sql_stage(
+            correlation_id=correlation_id,
+            stage="semantic_review",
+            elapsed_ms=0,
+            outcome="clarification",
+            reason="insufficient_coverage",
+            context_version=context.context_version,
+        )
+        return SqlGenerationObservation(
+            incomplete_year_candidate(
+                year_gap,
+                generation_contract_version=context.generation_contract_version,
+                context_version=context.context_version,
             ),
             None,
             model_calls=0,
@@ -257,7 +304,19 @@ async def observe_sql_generation(
                 payload, correlation_id=correlation_id
             ),
         )
-    candidate = response.candidate
+    try:
+        # Decisão de assunto ausente ou contraditória nunca chega à revisão nem à admissão.
+        candidate = enforce_scope_decision(response.candidate)
+    except ScopeDecisionRejected:
+        record_sql_stage(
+            correlation_id=correlation_id,
+            stage="semantic_review",
+            elapsed_ms=0,
+            outcome="error",
+            reason="scope_decision_rejected",
+            context_version=context.context_version,
+        )
+        raise GenAIResponseInvalid from None
     if candidate.status != "sql_candidate":
         deadline.remaining_seconds(stage_seconds)
         record_sql_stage(
@@ -267,6 +326,11 @@ async def observe_sql_generation(
             outcome="clarification"
             if candidate.status == "needs_clarification"
             else "unsupported",
+            reason=(
+                candidate.clarification.reason_code
+                if candidate.status == "needs_clarification"
+                else candidate.unsupported_reason.reason_code
+            ),
             context_version=context.context_version,
         )
         return SqlGenerationObservation(candidate, None)
@@ -275,7 +339,7 @@ async def observe_sql_generation(
     ):
         try:
             reviewed = review_sql_semantics(candidate, request)
-        except SqlStructureRejected:
+        except (SqlStructureRejected, SqlParameterMismatch):
             # An invalid model proposal is a controlled provider-response failure,
             # not an unhandled Backend exception. Keep the public error generic.
             raise GenAIResponseInvalid from None

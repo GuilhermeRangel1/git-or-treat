@@ -157,7 +157,7 @@ async def _run_f1_sql_analysis_impl(
     if not settings.GENAI_SQL_EXECUTION_ENABLED or settings.ANALYTICS_SOURCE != "gold":
         raise HTTPException(503, "Análise SQL indisponível.")
     if gold_resources is None or gold_resources[0] is None:
-        raise HTTPException(503, "Leitura Gold indisponível.")
+        raise HTTPException(503, "Leitura dos dados indisponível.")
     engine, resolve_scope = gold_resources
 
     def resolve_f1_scope():
@@ -204,16 +204,16 @@ async def _run_f1_sql_analysis_impl(
                     status_code=409,
                     code="invalid_context",
                     retryable=False,
-                    message="Os dados disponíveis mudaram. Atualize os dados Gold antes de perguntar.",
+                    message="Os dados disponíveis mudaram. Atualize a página antes de perguntar.",
                 )
             fields = publication.planning_fields(engine, scope)
     except GoldPublicationChanged:
         raise HTTPException(
-            409, "A publicação Gold mudou. Refaça a pergunta."
+            409, "A publicação dos dados mudou. Refaça a pergunta."
         ) from None
     except (GoldPublicationUnavailable, GoldCoverageUnavailable, SQLAlchemyError):
         raise HTTPException(
-            503, "A análise Gold está temporariamente indisponível."
+            503, "A análise dos dados está temporariamente indisponível."
         ) from None
     sql_context = list(trusted_context or [])
     secret = (
@@ -532,7 +532,7 @@ async def _run_f1_sql_analysis_impl(
     except SqlAdmissionDenied:
         await record_failure("source", "unavailable", "error", model_calls=1)
         raise HTTPException(
-            503, "A análise Gold está temporariamente indisponível."
+            503, "A análise dos dados está temporariamente indisponível."
         ) from None
     except (CompoundStagingUnavailable, CompoundEvidenceUnavailable):
         await record_failure("source", "unavailable", "error")
@@ -542,7 +542,7 @@ async def _run_f1_sql_analysis_impl(
     except (SqlContextUnavailable, GoldCatalogIncompatible):
         await record_failure("source", "unavailable", "error", model_calls=0)
         raise HTTPException(
-            503, "A capacidade Gold não está disponível para este recorte."
+            503, "Essa análise não está disponível para este recorte."
         ) from None
     except GoldExecutionDenied:
         await record_failure("policy", "denied", "refused")
@@ -552,12 +552,12 @@ async def _run_f1_sql_analysis_impl(
     except GoldPublicationChanged:
         await record_failure("source", "invalid", "error")
         raise HTTPException(
-            409, "A publicação Gold mudou. Refaça a pergunta."
+            409, "A publicação dos dados mudou. Refaça a pergunta."
         ) from None
     except (GoldPublicationUnavailable, GoldCoverageUnavailable, SQLAlchemyError):
         await record_failure("source", "unavailable", "error")
         raise HTTPException(
-            503, "A análise Gold está temporariamente indisponível."
+            503, "A análise dos dados está temporariamente indisponível."
         ) from None
     except GenAIServiceUnavailable:
         await record_failure("response", "unavailable", "error")
@@ -942,7 +942,7 @@ async def ask_genai_question(
             status_code=409,
             code="invalid_context",
             retryable=True,
-            message="A publicação Gold mudou. Refaça a pergunta.",
+            message="A publicação dos dados mudou. Refaça a pergunta.",
         )
     except GoldPublicationUnavailable:
         return _question_error(

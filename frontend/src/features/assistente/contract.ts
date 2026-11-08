@@ -97,8 +97,43 @@ export type AIAnalysisContext = {
   filters: Record<string, string | number | boolean>;
 };
 
+export const CLARIFICATION_REASONS = [
+  "ambiguous_subject",
+  "missing_context",
+  "insufficient_coverage",
+] as const;
+export const REFUSAL_REASONS = [
+  "out_of_domain",
+  "unsupported_capability",
+  "insufficient_coverage",
+  "security_restriction",
+] as const;
+const MISSING_FIELDS = [
+  "metric",
+  "period",
+  "dimension",
+  "filter",
+  "comparison_baseline",
+  "context",
+] as const;
+
+export type FeedbackReason =
+  | (typeof CLARIFICATION_REASONS)[number]
+  | (typeof REFUSAL_REASONS)[number];
+
+export type ClarificationOption = { label: string; question: string };
+
+/** Motivo tipado de uma recusa ou esclarecimento; nunca inferido do texto exibido. */
+export type QuestionFeedback = {
+  kind: "clarification" | "refusal";
+  reason: FeedbackReason | null;
+  missingFields: string[];
+  options: ClarificationOption[];
+};
+
 export type AIQuestionResponse = {
   contract_version: "v1";
+  feedback?: QuestionFeedback;
   correlation_id?: string | null;
   audit_reference?: string | null;
   error?: AIQuestionError | null;
@@ -686,6 +721,61 @@ function decodeSqlAnalysisPresentation(
   };
 }
 
+/**
+ * Valida motivo, campos pendentes e opções de uma recusa ou esclarecimento.
+ * Motivo ausente (histórico antigo) continua legível; valor desconhecido ou de
+ * outro tipo de estado invalida a resposta em vez de ser reinterpretado.
+ */
+function decodeQuestionFeedback(
+  kind: QuestionFeedback["kind"],
+  source: Record<string, unknown>,
+): QuestionFeedback | null {
+  const allowed: readonly string[] =
+    kind === "clarification" ? CLARIFICATION_REASONS : REFUSAL_REASONS;
+  const rawReason = source.reason_code;
+  if (rawReason != null && !allowed.includes(String(rawReason))) return null;
+
+  let missingFields: string[] = [];
+  const options: ClarificationOption[] = [];
+  if (kind === "clarification") {
+    const fields = source.missing_fields;
+    if (
+      !Array.isArray(fields) ||
+      fields.length < 1 ||
+      fields.length > 6 ||
+      fields.some(
+        (field) => !(MISSING_FIELDS as readonly string[]).includes(String(field)),
+      )
+    ) {
+      return null;
+    }
+    missingFields = fields as string[];
+    const rawOptions = source.options ?? [];
+    if (!Array.isArray(rawOptions) || rawOptions.length > 5) return null;
+    for (const option of rawOptions) {
+      if (
+        !isRecord(option) ||
+        Object.keys(option).some(
+          (key) => key !== "label" && key !== "question",
+        ) ||
+        !isText(option.label, 1000) ||
+        !isText(option.question, 1000)
+      ) {
+        return null;
+      }
+      options.push({ label: option.label, question: option.question });
+    }
+  } else if (source.options != null) {
+    return null;
+  }
+  return {
+    kind,
+    reason: rawReason == null ? null : (rawReason as FeedbackReason),
+    missingFields,
+    options,
+  };
+}
+
 export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
   const fail = (): never => {
     throw new Error("Resposta Text-to-SQL inválida.");
@@ -998,6 +1088,8 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
         value.unsupported_reason !== null)
     )
       return fail();
+    const feedback = decodeQuestionFeedback("clarification", value.clarification);
+    if (!feedback) return fail();
     return {
       ...decodeAIQuestionResponse({
         contract_version: "v1",
@@ -1010,6 +1102,7 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
         continuation_token: continuationToken,
       }),
       sql_analysis_mode: true,
+      feedback,
     };
   }
   if (value.status === "unsupported") {
@@ -1028,6 +1121,8 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
       (value.clarification !== undefined && value.clarification !== null)
     )
       return fail();
+    const feedback = decodeQuestionFeedback("refusal", value.unsupported_reason);
+    if (!feedback) return fail();
     return {
       ...decodeAIQuestionResponse({
         contract_version: "v1",
@@ -1041,6 +1136,7 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
         continuation_token: continuationToken,
       }),
       sql_analysis_mode: true,
+      feedback,
     };
   }
   return fail();
