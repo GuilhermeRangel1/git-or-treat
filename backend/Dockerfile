@@ -15,10 +15,7 @@ COPY docs/contracts/examples/gold-publication-v1.json /docs/contracts/examples/g
 COPY docs/contracts/examples/genai-plan-fingerprints-v1.json /docs/contracts/examples/genai-plan-fingerprints-v1.json
 COPY docs/contracts/examples/genai-internal-contract-v1.json /docs/contracts/examples/genai-internal-contract-v1.json
 COPY docs/contracts/examples/text-to-sql-f1-v1.json /docs/contracts/examples/text-to-sql-f1-v1.json
-<<<<<<< HEAD
 COPY docs/contracts/examples/text-to-sql-f1-http-v1.json /docs/contracts/examples/text-to-sql-f1-http-v1.json
-=======
->>>>>>> ce78c544 (feat(genai): instrumenta operação e alertas da F1)
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
