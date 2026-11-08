@@ -443,11 +443,20 @@ function AssistantResult({
           <div className="border-b border-divider px-4 py-3">
             <h3 className="font-semibold text-content">Consumo e decomposição da receita</h3>
             <p className="mt-1 text-sm text-muted">
-              Jul/2024–jun/2025 vs. jul/2025–jun/2026 · Gold ativa: {formatSqlPublication(response.sql_compound_analysis.active_gold_batch)}
+              Jul/2024–jun/2025 vs. jul/2025–jun/2026
             </p>
-            <p className="mt-1 text-sm text-muted">
-              Decomposição lida de staging local · método {response.sql_compound_analysis.method}
-            </p>
+            <details className="mt-2 text-xs text-muted">
+              <summary className="min-h-9 cursor-pointer py-2 font-medium text-content focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+                Origem e método da análise
+              </summary>
+              <div className="space-y-1 break-words pb-2">
+                <p>Gold ativa: {formatSqlPublication(response.sql_compound_analysis.active_gold_batch)}</p>
+                <p>Decomposição lida de staging local.</p>
+                <p>Método técnico: {response.sql_compound_analysis.method}</p>
+                <p>Evidência: {response.sql_compound_analysis.evidence_digest}</p>
+                <p>Manifesto: {response.sql_compound_analysis.staging_manifest_digest}</p>
+              </div>
+            </details>
           </div>
           <div
             tabIndex={0}
@@ -490,9 +499,6 @@ function AssistantResult({
           <ul className="space-y-1 border-t border-divider px-4 py-3 text-sm text-muted">
             {response.sql_compound_analysis.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
           </ul>
-          <p className="border-t border-divider px-4 py-2 text-xs text-muted">
-            Evidência composta {response.sql_compound_analysis.evidence_digest.slice(0, 16)}… · manifesto {response.sql_compound_analysis.staging_manifest_digest.slice(0, 16)}…
-          </p>
         </section>
       )}
       {answered &&
@@ -525,13 +531,23 @@ function AssistantResult({
                     (item) => item.source === "documentation.indicators",
                   )
                 ? "Documentação interna"
-                : "Fonte de dados interna"}
+                : "Fonte: dados internos da Grid 360"}
           </p>
           {response.sql_analysis_mode && response.analysis_context && (
-            <p className="break-words">
-              Fonte: Diagnóstico de receita ·{" "}
-              {formatSqlPublication(response.analysis_context.batch_reference)}
-            </p>
+            <details className="text-xs text-muted">
+              <summary className="min-h-9 cursor-pointer py-2 font-medium text-content focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+                Detalhes da fonte
+              </summary>
+              <div className="space-y-1 break-words pb-2">
+                <p>Fonte técnica: Diagnóstico de receita</p>
+                <p>{formatSqlPublication(response.analysis_context.batch_reference)}</p>
+                {response.audit_reference && (
+                  <p className="break-all">
+                    Registro de auditoria: {response.audit_reference}
+                  </p>
+                )}
+              </div>
+            </details>
           )}
           {response.evidence
             .filter(
@@ -544,11 +560,6 @@ function AssistantResult({
               </p>
             ))}
         </div>
-      )}
-      {response.sql_analysis_mode && response.audit_reference && (
-        <p className="break-all text-xs text-muted">
-          Registro de auditoria confirmado · {response.audit_reference}
-        </p>
       )}
       <AnalysisContext response={response} />
       {response.limitations.length > 0 && (

@@ -487,7 +487,9 @@ describe("Assistente Grid 360", () => {
     expect(
       screen.queryByText(`Referência para conferência: ${reference}`),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Fonte de dados interna")).toBeVisible();
+    expect(
+      screen.getByText("Fonte: dados internos da Grid 360"),
+    ).toBeVisible();
     expect(screen.getByText(": Mai/2026")).toBeVisible();
     expect(screen.queryByText(/Referência para conferência/)).toBeNull();
     expect(screen.queryByText(/Lote consultado/)).toBeNull();
