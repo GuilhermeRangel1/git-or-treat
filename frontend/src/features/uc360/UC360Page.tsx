@@ -1,4 +1,3 @@
-import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
@@ -146,13 +145,9 @@ export default function UC360Page() {
             <ArrowLeft size={16} aria-hidden="true" />
             Voltar à busca
           </Link>
-          <IndicatorHelp screen="uc360" />
         </nav>
       ) : (
         <>
-          <div className="flex justify-end">
-            <IndicatorHelp screen="uc360" />
-          </div>
           <UC360SearchPanel
             query={state.q}
             municipio={state.municipio}

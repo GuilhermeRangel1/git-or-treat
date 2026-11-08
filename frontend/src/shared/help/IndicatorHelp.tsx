@@ -24,7 +24,7 @@ export default function IndicatorHelp({ screen }: { screen: HelpScreen }) {
         type="button"
         variant="ghost"
         size="sm"
-        className="h-auto min-h-11 py-2 text-sm"
+        className="h-auto min-h-11 py-2 text-sm!"
         onClick={() => {
           setQuery("");
           setOpen(true);
@@ -118,10 +118,6 @@ export default function IndicatorHelp({ screen }: { screen: HelpScreen }) {
               </details>
             ))}
           </div>
-          <p className="text-xs leading-5 text-muted">
-            As definições são consultadas diretamente nesta ajuda, mesmo quando
-            o serviço de IA está indisponível.
-          </p>
         </div>
       </Modal>
     </>

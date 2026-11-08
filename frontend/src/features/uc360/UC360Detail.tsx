@@ -8,6 +8,7 @@ import UC360Interpretation from "./UC360Interpretation";
 import { UC360SupportMetrics } from "./UC360Metrics";
 import UC360PeriodForm from "./UC360PeriodForm";
 import { currentMeterMessage } from "./uc360-format";
+import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import type { UCHistorySection } from "./uc360-state";
 
 type Props = {
@@ -111,7 +112,7 @@ function ConsumptionAnswer({
         Consumo em comparação ao ano anterior
       </h2>
       {available && delta !== null ? (
-        <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-3">
+        <div className="mt-3 flex flex-wrap items-start gap-x-8 gap-y-3">
           <div>
             <p className={`font-heading text-xl font-semibold ${tone}`}>
               {delta > 0
@@ -127,14 +128,22 @@ function ConsumptionAnswer({
               em relação ao mesmo mês do ano anterior
             </p>
           </div>
-          <p className="text-sm text-content">
-            {latest.competencia.slice(5)}/{latest.competencia.slice(0, 4)}:{" "}
-            <strong>{format.format(currentValue)} kWh</strong>
-            <br />
-            <span className="text-muted">
-              Mesmo mês do ano anterior: {format.format(priorValue)} kWh
-            </span>
-          </p>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm lg:mt-7">
+            <div>
+              <dt className="text-muted">
+                {latest.competencia.slice(5)}/{latest.competencia.slice(0, 4)}
+              </dt>
+              <dd className="mt-1 font-semibold text-content">
+                {format.format(currentValue)} kWh
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted">Mesmo mês do ano anterior</dt>
+              <dd className="mt-1 font-semibold text-content">
+                {format.format(priorValue)} kWh
+              </dd>
+            </div>
+          </dl>
         </div>
       ) : (
         <p className="mt-2 text-sm text-muted">
@@ -180,18 +189,24 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
             Demonstração · dados sintéticos
           </p>
         )}
-        {selected &&
-          metadata?.source.kind === "gold_csv" &&
-          (selected.profile.customer_identification_status ?? "unavailable") !==
-            "available" && (
-            <p className="text-sm text-muted">
-              {selected.profile.customer_identification_status === "absent"
-                ? "Titular sem nome informado na origem."
-                : selected.profile.customer_identification_status === "conflict"
-                  ? "A origem aponta conflito na identificação do titular."
-                  : "Cadastro restrito indisponível para esta UC."}
-            </p>
-          )}
+        <div className="flex flex-wrap items-center justify-between gap-x-4">
+          {selected &&
+            metadata?.source.kind === "gold_csv" &&
+            (selected.profile.customer_identification_status ??
+              "unavailable") !== "available" && (
+              <p className="text-sm text-muted">
+                {selected.profile.customer_identification_status === "absent"
+                  ? "Titular sem nome informado na origem."
+                  : selected.profile.customer_identification_status ===
+                      "conflict"
+                    ? "A origem aponta conflito na identificação do titular."
+                    : "Cadastro restrito indisponível para esta UC."}
+              </p>
+            )}
+          <div className="ml-auto">
+            <IndicatorHelp screen="uc360" />
+          </div>
+        </div>
       </header>
       {!unit.filters.invalid && (
         <>
@@ -248,18 +263,19 @@ export default function UC360Detail({ unit, disclosureRef, actions }: Props) {
                   history={unit.history.data}
                   pending={unit.history.pending}
                   error={unit.history.error}
-                  historyPage={unit.filters.historyPage}
                   onRetry={actions.onHistoryRetry}
                   onSelectSection={actions.onHistorySection}
                   onPageChange={actions.onHistoryPage}
                 />
                 <div className="grid gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
-                  <p className="text-sm text-content">
-                    {currentMeterMessage(
-                      selected.current_meter.item,
-                      selected.current_meter.status,
-                    )}
-                  </p>
+                  {unit.filters.section === "meters" && (
+                    <p className="text-sm text-content">
+                      {currentMeterMessage(
+                        selected.current_meter.item,
+                        selected.current_meter.status,
+                      )}
+                    </p>
+                  )}
                   {unit.filters.section === "distributed_generation" && (
                     <UC360SupportMetrics data={selected} />
                   )}

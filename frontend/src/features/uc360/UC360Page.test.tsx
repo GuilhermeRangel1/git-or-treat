@@ -520,12 +520,12 @@ describe("UC 360 search flow", () => {
 
     renderPage("/uc-360?uc=UC-1004");
 
+    fireEvent.click(await screen.findByRole("button", { name: "Medidores" }));
     expect(
       await screen.findByText(
         "O cadastro consultado não informa um medidor atual para esta UC.",
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Medidores" }));
     expect((await screen.findAllByText("MED-004")).length).toBeGreaterThan(0);
     expect(screen.getByText(/Dados disponíveis · 1 registro/)).toBeTruthy();
     expect(

@@ -465,6 +465,26 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 08/11/2026 — WEB-03 — simplificação dos estados nas tabelas
+
+- A coluna Situação do histórico de consumo foi retirada. Estados parciais ou indisponíveis continuam identificados junto às competências afetadas; a coluna Dados do resumo e outras situações de negócio permanecem nas respectivas tabelas. Sem mudança de contrato ou estado do requisito.
+- Verificações: `npm test -- --run src/features/uc360` (38 testes), `npm run build`, `npm run lint`, `npm run check:boundaries` e `npm run format:check` passaram; lint com dois avisos preexistentes. Sem nova inspeção visual ou jornada com API real.
+
+### 08/11/2026 — WEB-03 — alinhamento da comparação anual
+
+- Os períodos da comparação anual foram deslocados para a altura do texto explicativo em telas largas, sem alterar cálculos, dados ou estado do requisito. Arquivo: `frontend/src/features/uc360/UC360Detail.tsx`.
+- Verificação: formatação do arquivo e `git diff --check`; sem nova inspeção visual no navegador ou jornada com API real.
+
+### 08/11/2026 — WEB-03 — refinamentos da UC 360
+
+- A comparação mantém valores sem fundo colorido; a ajuda acompanha o subtítulo da busca e o cadastro no detalhe, e remove texto redundante. A busca e o histórico usam paginação numérica; o aviso sobre medidor aparece na seção de medidores e preserva a incerteza de vigência. Alterações de apresentação, sem mudança de contrato ou de estado do requisito.
+- Verificações: `npm test -- --run src/features/uc360 src/shared/help` (43 testes), `npm run build`, `npm run lint`, `npm run check:boundaries` e `npm run format:check` passaram; lint com dois avisos preexistentes. Sem inspeção visual no navegador ou jornada com API real.
+
+### 08/11/2026 — WEB-03 — apresentação da comparação e do histórico
+
+- Os valores da comparação anual usam rótulos e destaque consistentes; o histórico apresenta os registros antes dos avisos, preservando o estado e as limitações da fonte. Alteração visual em `UC360Detail.tsx` e `UC360History.tsx`, sem mudança de dados ou do estado do requisito.
+- Verificações: `npm test -- --run src/features/uc360` (37 testes), `npm run build`, `npm run lint`, `npm run check:boundaries` e `npm run format:check` passaram; lint com dois avisos preexistentes. Não houve inspeção visual no navegador nem validação com API real nesta alteração.
+
 ### 06/11/2026 — WEB-03 — organização da UC 360 para atendimento
 
 - Estado preservado: WEB-03 `Concluído`; alteração de apresentação, sem mudança de dados ou contrato.

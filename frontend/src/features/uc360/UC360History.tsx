@@ -3,6 +3,7 @@ import { AlertCircle, ArrowUpRight, X } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
 import type { UCHistory, UCHistoryItem, UCStatus } from "./contract";
 import { signedValueTone } from "@/shared/ui/signedValue";
+import UCPagination from "./UCPagination";
 import type { UCHistorySection } from "./uc360-state";
 import {
   formatUCCompetence,
@@ -215,7 +216,6 @@ export function HistoryPanel({
   history,
   pending,
   error,
-  historyPage,
   onRetry,
   onSelectSection,
   onPageChange,
@@ -224,7 +224,6 @@ export function HistoryPanel({
   history?: UCHistory;
   pending: boolean;
   error: unknown;
-  historyPage: number;
   onRetry: () => void;
   onSelectSection: (section: UCHistorySection) => void;
   onPageChange: (page: number) => void;
@@ -233,6 +232,7 @@ export function HistoryPanel({
     ? historyColumns[section].filter((key) => {
         const goldV2 =
           history?.metadata.source.version.startsWith("gold-csv-v2:");
+        if (section === "consumption" && key === "status") return false;
         if (
           section === "invoices" &&
           goldV2 &&
@@ -293,23 +293,6 @@ export function HistoryPanel({
               </>
             )}
           </p>
-          {history.metadata.limitations.some(
-            (note) => !/atualização indica a importação local/i.test(note),
-          ) && (
-            <ul
-              className="grid gap-1 text-sm text-muted"
-              aria-label="Avisos sobre os dados"
-            >
-              {history.metadata.limitations
-                .filter(
-                  (note) =>
-                    !/atualização indica a importação local/i.test(note),
-                )
-                .map((limitation) => (
-                  <li key={limitation}>{humanizeLimitation(limitation)}</li>
-                ))}
-            </ul>
-          )}
           {history.data.items.length > 0 && section ? (
             <>
               <div className="hidden overflow-x-auto rounded-lg border border-control md:block">
@@ -343,6 +326,16 @@ export function HistoryPanel({
                             key={key}
                           >
                             {historyValue(key, row[key])}
+                            {section === "consumption" &&
+                              key === "competencia" &&
+                              typeof row.status === "string" &&
+                              ["partial", "unavailable", "empty"].includes(
+                                row.status,
+                              ) && (
+                                <span className="block text-xs text-muted">
+                                  {statusLabel(row.status as UCStatus)}
+                                </span>
+                              )}
                           </td>
                         ))}
                       </tr>
@@ -369,6 +362,16 @@ export function HistoryPanel({
                             className={`[overflow-wrap:anywhere] ${typeof row[key] === "number" ? signedValueTone(row[key] as number, false) : "text-content"}`}
                           >
                             {historyValue(key, row[key])}
+                            {section === "consumption" &&
+                              key === "competencia" &&
+                              typeof row.status === "string" &&
+                              ["partial", "unavailable", "empty"].includes(
+                                row.status,
+                              ) && (
+                                <span className="block text-xs text-muted">
+                                  {statusLabel(row.status as UCStatus)}
+                                </span>
+                              )}
                           </dd>
                         </div>
                       ))}
@@ -383,28 +386,29 @@ export function HistoryPanel({
             </p>
           )}
           {history.pagination.total_pages > 1 && (
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                disabled={historyPage <= 1}
-                onClick={() => onPageChange(historyPage - 1)}
-                className="min-h-10 rounded border border-control px-3 disabled:opacity-50"
-              >
-                Anterior
-              </button>
-              <span className="text-sm text-muted">
-                Página {history.pagination.page} de{" "}
-                {history.pagination.total_pages}
-              </span>
-              <button
-                type="button"
-                disabled={historyPage >= history.pagination.total_pages}
-                onClick={() => onPageChange(historyPage + 1)}
-                className="min-h-10 rounded border border-control px-3 disabled:opacity-50"
-              >
-                Próxima
-              </button>
-            </div>
+            <UCPagination
+              label="Paginação do histórico"
+              page={history.pagination.page}
+              totalPages={history.pagination.total_pages}
+              onPageChange={onPageChange}
+            />
+          )}
+          {history.metadata.limitations.some(
+            (note) => !/atualização indica a importação local/i.test(note),
+          ) && (
+            <ul
+              className="grid gap-1 text-sm text-muted"
+              aria-label="Avisos sobre os dados"
+            >
+              {history.metadata.limitations
+                .filter(
+                  (note) =>
+                    !/atualização indica a importação local/i.test(note),
+                )
+                .map((limitation) => (
+                  <li key={limitation}>{humanizeLimitation(limitation)}</li>
+                ))}
+            </ul>
           )}
         </>
       )}

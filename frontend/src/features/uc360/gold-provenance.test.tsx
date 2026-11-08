@@ -226,8 +226,8 @@ it("mantém informações úteis da UC sem expor identificadores técnicos", () 
   );
   expect(screen.getAllByText(/3,5 kWp/).length).toBeGreaterThan(0);
   expect(
-    screen.getByText(/Possível vínculo com o medidor M-FAKE/),
-  ).toBeVisible();
+    screen.queryByText(/Possível vínculo com o medidor M-FAKE/),
+  ).not.toBeInTheDocument();
   expect(screen.queryByText("GOLD-ARTIFICIAL:hash")).not.toBeInTheDocument();
   expect(
     screen.queryByText(/Gold CSV · importação local/),
