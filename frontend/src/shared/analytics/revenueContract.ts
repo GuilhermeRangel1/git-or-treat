@@ -1,3 +1,54 @@
+export type RevenueWindow = {
+  status: RevenueStatus;
+  windows: string[];
+  method: string | null;
+  components: Record<string, number | null>;
+  total_change_brl: number | null;
+  residual_brl: number | null;
+  group_count: number;
+  incomplete_groups: number;
+  limitations: string[];
+  initial_amount_brl?: number | null;
+  final_amount_brl?: number | null;
+  change_percent?: number | null;
+  component_percentage_points?: Record<string, number>;
+};
+export type RevenueWindowItem = {
+  key: string;
+  label: string;
+  filters: RevenueFilters;
+  decomposition: RevenueWindow;
+};
+export type RevenueDiagnosis = {
+  status: RevenueStatus;
+  volume_offset_percent: number | null;
+  population: {
+    initial_billed_uc_count: number;
+    final_billed_uc_count: number;
+    change_percent: number | null;
+  } | null;
+  concentration: {
+    dimension: "municipio" | "bairro" | "classe_consumo";
+    labels: string[];
+    share_negative_volume_percent: number;
+  } | null;
+  gd: {
+    status: RevenueStatus;
+    cohorts: {
+      group:
+        | "prior"
+        | "connected_between"
+        | "connected_during"
+        | "no_record"
+        | "unknown";
+      uc_count: number;
+      measured_energy_change_percent: number | null;
+    }[];
+    share_negative_volume_percent: number | null;
+    limitations: string[];
+  };
+  limitations: string[];
+};
 export type RevenueStatus = "available" | "empty" | "partial" | "unavailable";
 
 export type RevenueFilters = {
@@ -43,6 +94,7 @@ export type RevenueMetricCoverage = {
 
 export type RevenueEnvelope = {
   data: {
+    diagnosis?: RevenueDiagnosis | null;
     currency_unit: "BRL";
     energy_unit: "kWh";
     total_billed_amount: number | null;
@@ -68,17 +120,8 @@ export type RevenueEnvelope = {
       status: RevenueStatus;
       limitations: string[];
     };
-    window_decomposition: {
-      status: RevenueStatus;
-      windows: string[];
-      method: string | null;
-      components: Record<string, number | null>;
-      total_change_brl: number | null;
-      residual_brl: number | null;
-      group_count: number;
-      incomplete_groups: number;
-      limitations: string[];
-    } | null;
+    window_decomposition: RevenueWindow | null;
+    window_breakdown?: RevenueWindowItem[];
     coverage: {
       requested_months: string[];
       billed_amount: RevenueMetricCoverage;
@@ -307,53 +350,6 @@ export function decodeRevenueEnvelope(input: unknown): RevenueEnvelope {
   const root = object(input, "resposta");
   const data = object(root.data, "data");
   const metadata = object(root.metadata, "metadata");
-  const windowInput =
-    data.window_decomposition == null
-      ? null
-      : object(data.window_decomposition, "data.window_decomposition");
-  const windowComponents = windowInput
-    ? object(windowInput.components, "data.window_decomposition.components")
-    : {};
-  if (windowInput) {
-    const count = number(
-      windowInput.group_count,
-      "data.window_decomposition.group_count",
-    );
-    const incomplete = number(
-      windowInput.incomplete_groups,
-      "data.window_decomposition.incomplete_groups",
-    );
-    const windows = strings(
-      windowInput.windows,
-      "data.window_decomposition.windows",
-    );
-    const available =
-      windowInput.status === "available" || windowInput.status === "partial";
-    const required = [
-      "volume",
-      "preco",
-      "interacao",
-      "entradas",
-      "saidas",
-      "sem_leitura",
-      "outros",
-    ];
-    if (
-      !Number.isInteger(count) ||
-      count < 0 ||
-      !Number.isInteger(incomplete) ||
-      incomplete < 0 ||
-      incomplete > count ||
-      ![0, 4].includes(windows.length) ||
-      (available &&
-        (windows.length !== 4 ||
-          required.some((key) => !(key in windowComponents))))
-    ) {
-      throw new RevenueContractError(
-        "data.window_decomposition contém janelas, grupos ou componentes inválidos.",
-      );
-    }
-  }
   if (metadata.contract_version !== "1.1.0") {
     throw new RevenueContractError("metadata.contract_version deve ser 1.1.0.");
   }
@@ -507,57 +503,28 @@ export function decodeRevenueEnvelope(input: unknown): RevenueEnvelope {
         "data.observed_price_brl_per_kwh",
       ),
       series,
+      diagnosis: decodeRevenueDiagnosis(data.diagnosis),
       comparison: comparison(data.comparison, "data.comparison"),
-      window_decomposition: windowInput
-        ? {
-            status: status(
-              windowInput.status,
-              "data.window_decomposition.status",
-            ),
-            windows: strings(
-              windowInput.windows,
-              "data.window_decomposition.windows",
-            ).map((value, index) =>
-              month(value, `data.window_decomposition.windows[${index}]`),
-            ),
-            method:
-              windowInput.method === null
-                ? null
-                : string(
-                    windowInput.method,
-                    "data.window_decomposition.method",
-                  ),
-            components: Object.fromEntries(
-              Object.entries(windowComponents).map(([key, value]) => [
-                key,
-                nullableNumber(
-                  value,
-                  `data.window_decomposition.components.${key}`,
-                ),
-              ]),
-            ),
-            total_change_brl: nullableNumber(
-              windowInput.total_change_brl,
-              "data.window_decomposition.total_change_brl",
-            ),
-            residual_brl: nullableNumber(
-              windowInput.residual_brl,
-              "data.window_decomposition.residual_brl",
-            ),
-            group_count: number(
-              windowInput.group_count,
-              "data.window_decomposition.group_count",
-            ),
-            incomplete_groups: number(
-              windowInput.incomplete_groups,
-              "data.window_decomposition.incomplete_groups",
-            ),
-            limitations: strings(
-              windowInput.limitations,
-              "data.window_decomposition.limitations",
-            ),
-          }
-        : null,
+      window_decomposition: decodeRevenueWindow(data.window_decomposition),
+      window_breakdown: (() => {
+        if (data.window_breakdown == null) return [];
+        if (!Array.isArray(data.window_breakdown))
+          throw new RevenueContractError(
+            "window_breakdown deve ser uma lista.",
+          );
+        return data.window_breakdown.map((item) => {
+          const row = object(item, "window_breakdown.item");
+          const decomposition = decodeRevenueWindow(row.decomposition);
+          if (!decomposition)
+            throw new RevenueContractError("Decomposição do recorte ausente.");
+          return {
+            key: string(row.key, "window_breakdown.key"),
+            label: string(row.label, "window_breakdown.label"),
+            filters: filters(row.filters, "window_breakdown.filters"),
+            decomposition,
+          };
+        });
+      })(),
       price_volume: {
         method: "endpoint_price_volume",
         reference_version: priceVolume.reference_version as
@@ -666,5 +633,218 @@ export function decodeRevenueEnvelope(input: unknown): RevenueEnvelope {
       },
       limitations: strings(metadata.limitations, "metadata.limitations"),
     },
+  };
+}
+
+export function decodeRevenueWindow(input: unknown): RevenueWindow | null {
+  const windowInput =
+    input == null ? null : object(input, "data.window_decomposition");
+  const windowComponents = windowInput
+    ? object(windowInput.components, "data.window_decomposition.components")
+    : {};
+  if (windowInput) {
+    const count = number(
+      windowInput.group_count,
+      "data.window_decomposition.group_count",
+    );
+    const incomplete = number(
+      windowInput.incomplete_groups,
+      "data.window_decomposition.incomplete_groups",
+    );
+    const windows = strings(
+      windowInput.windows,
+      "data.window_decomposition.windows",
+    );
+    const available =
+      windowInput.status === "available" || windowInput.status === "partial";
+    const required = [
+      "volume",
+      "preco",
+      "interacao",
+      "entradas",
+      "saidas",
+      "sem_leitura",
+      "outros",
+    ];
+    if (
+      !Number.isInteger(count) ||
+      count < 0 ||
+      !Number.isInteger(incomplete) ||
+      incomplete < 0 ||
+      incomplete > count ||
+      ![0, 4].includes(windows.length) ||
+      (available &&
+        (windows.length !== 4 ||
+          required.some((key) => !(key in windowComponents))))
+    ) {
+      throw new RevenueContractError(
+        "data.window_decomposition contém janelas, grupos ou componentes inválidos.",
+      );
+    }
+  }
+  return windowInput
+    ? {
+        initial_amount_brl: nullableNumber(
+          windowInput.initial_amount_brl ?? null,
+          "window.initial_amount_brl",
+        ),
+        final_amount_brl: nullableNumber(
+          windowInput.final_amount_brl ?? null,
+          "window.final_amount_brl",
+        ),
+        change_percent: nullableNumber(
+          windowInput.change_percent ?? null,
+          "window.change_percent",
+        ),
+        component_percentage_points: Object.fromEntries(
+          Object.entries(
+            object(
+              windowInput.component_percentage_points ?? {},
+              "window.component_percentage_points",
+            ),
+          ).map(([key, value]) => [
+            key,
+            number(value, `window.component_percentage_points.${key}`),
+          ]),
+        ),
+        status: status(windowInput.status, "data.window_decomposition.status"),
+        windows: strings(
+          windowInput.windows,
+          "data.window_decomposition.windows",
+        ).map((value, index) =>
+          month(value, `data.window_decomposition.windows[${index}]`),
+        ),
+        method:
+          windowInput.method === null
+            ? null
+            : string(windowInput.method, "data.window_decomposition.method"),
+        components: Object.fromEntries(
+          Object.entries(windowComponents).map(([key, value]) => [
+            key,
+            nullableNumber(
+              value,
+              `data.window_decomposition.components.${key}`,
+            ),
+          ]),
+        ),
+        total_change_brl: nullableNumber(
+          windowInput.total_change_brl,
+          "data.window_decomposition.total_change_brl",
+        ),
+        residual_brl: nullableNumber(
+          windowInput.residual_brl,
+          "data.window_decomposition.residual_brl",
+        ),
+        group_count: number(
+          windowInput.group_count,
+          "data.window_decomposition.group_count",
+        ),
+        incomplete_groups: number(
+          windowInput.incomplete_groups,
+          "data.window_decomposition.incomplete_groups",
+        ),
+        limitations: strings(
+          windowInput.limitations,
+          "data.window_decomposition.limitations",
+        ),
+      }
+    : null;
+}
+
+export function decodeRevenueDiagnosis(
+  value: unknown,
+): RevenueDiagnosis | null {
+  if (value == null) return null;
+  const input = object(value, "diagnosis"),
+    gd = object(input.gd, "diagnosis.gd");
+  const count = (v: unknown) => {
+    const n = number(v, "diagnosis.count");
+    if (!Number.isInteger(n) || n < 0)
+      throw new RevenueContractError("Contagem inválida no diagnóstico.");
+    return n;
+  };
+  const share = (v: unknown) => {
+    const n = number(v, "diagnosis.share");
+    if (n < 0 || n > 100.000001)
+      throw new RevenueContractError("Participação inválida no diagnóstico.");
+    return n;
+  };
+  const population =
+    input.population == null
+      ? null
+      : object(input.population, "diagnosis.population");
+  const concentration =
+    input.concentration == null
+      ? null
+      : object(input.concentration, "diagnosis.concentration");
+  if (
+    concentration &&
+    !["municipio", "bairro", "classe_consumo"].includes(
+      String(concentration.dimension),
+    )
+  )
+    throw new RevenueContractError("Dimensão inválida no diagnóstico.");
+  if (!Array.isArray(gd.cohorts))
+    throw new RevenueContractError("Coortes inválidas no diagnóstico.");
+  return {
+    status: status(input.status, "diagnosis.status"),
+    volume_offset_percent: nullableNumber(
+      input.volume_offset_percent,
+      "diagnosis.volume_offset_percent",
+    ),
+    population: population
+      ? {
+          initial_billed_uc_count: count(population.initial_billed_uc_count),
+          final_billed_uc_count: count(population.final_billed_uc_count),
+          change_percent: nullableNumber(
+            population.change_percent,
+            "diagnosis.population.change_percent",
+          ),
+        }
+      : null,
+    concentration: concentration
+      ? {
+          dimension: concentration.dimension as
+            "municipio" | "bairro" | "classe_consumo",
+          labels: strings(
+            concentration.labels,
+            "diagnosis.concentration.labels",
+          ),
+          share_negative_volume_percent: share(
+            concentration.share_negative_volume_percent,
+          ),
+        }
+      : null,
+    gd: {
+      status: status(gd.status, "diagnosis.gd.status"),
+      share_negative_volume_percent:
+        gd.share_negative_volume_percent === null
+          ? null
+          : share(gd.share_negative_volume_percent),
+      limitations: strings(gd.limitations, "diagnosis.gd.limitations"),
+      cohorts: gd.cohorts.map((v) => {
+        const row = object(v, "diagnosis.gd.cohort");
+        if (
+          ![
+            "prior",
+            "connected_between",
+            "connected_during",
+            "no_record",
+            "unknown",
+          ].includes(String(row.group))
+        )
+          throw new RevenueContractError("Grupo de GD inválido.");
+        return {
+          group:
+            row.group as RevenueDiagnosis["gd"]["cohorts"][number]["group"],
+          uc_count: count(row.uc_count),
+          measured_energy_change_percent: nullableNumber(
+            row.measured_energy_change_percent,
+            "diagnosis.gd.change_percent",
+          ),
+        };
+      }),
+    },
+    limitations: strings(input.limitations, "diagnosis.limitations"),
   };
 }

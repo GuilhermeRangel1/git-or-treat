@@ -23,6 +23,9 @@ const chart = {
   height: 260,
 };
 
+/** Metade de um rótulo centralizado + o último rótulo inteiro, alinhado à direita, + folga. */
+const minLastMonthLabelDistance = 92;
+
 const axisCurrency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -205,8 +208,12 @@ export default function PanoramaSeriesChart({
         Math.max(2, Math.floor((chartWidth - chart.left) / 90)),
     ),
   );
+  const lastIndex = visibleData.length - 1;
   const monthTicks = visibleData.filter(
-    (_, index) => index % tickStep === 0 || index === visibleData.length - 1,
+    (_, index) =>
+      index === lastIndex ||
+      (index % tickStep === 0 &&
+        points[lastIndex].x - points[index].x >= minLastMonthLabelDistance),
   );
   const hasValues = points.some((point) => point.value !== null);
   const accessibleSummary = visibleData
