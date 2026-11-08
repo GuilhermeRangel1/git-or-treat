@@ -33,10 +33,13 @@ export type AIQuestionError = {
 export type SqlAnalysisPresentation = {
   contract_version:
     | "text-to-sql-f1-presentation-v1"
-    | "text-to-sql-f1-presentation-v2";
+    | "text-to-sql-f1-presentation-v2"
+    | "text-to-sql-f1-presentation-v3"
+    | "text-to-sql-f1-presentation-v4"
+    | "text-to-sql-f1-presentation-v5";
   state: "ready" | "empty" | "all_measures_null";
   operation:
-    "total" | "monthly_series" | "grouped_total" | "ranking" | "comparison";
+    "total" | "monthly_series" | "grouped_total" | "ranking" | "comparison" | "grain_read" | "accumulated_total";
   answer: string;
   period: string;
   filters: string[];
@@ -49,13 +52,19 @@ export type SqlAnalysisPresentation = {
     semantic_id:
       | "competency"
       | "municipality"
+      | "neighborhood"
       | "consumption_class"
       | "revenue_total"
+      | "energy_total"
+      | "attendance_total"
+      | "attendance_accumulated_total"
+      | "dec_value"
+      | "fec_value"
       | "period_0_total"
       | "period_1_total"
       | "period_0_minus_period_1"
       | "period_0_growth_percent";
-    unit: "R$" | "%" | null;
+    unit: "R$" | "kWh" | "protocolos" | "horas por UC" | "interrupções por UC" | "%" | null;
   }[];
   rows: { observation_id: string; cells: (string | null)[] }[];
   evidence_digest: string;
@@ -108,6 +117,7 @@ const CORRELATION_ID = /^[a-f0-9]{32}$/;
 const SQL_F1_LIMITATIONS = [
   "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
 ];
+const SQL_ENERGY_LIMITATIONS = ["Consumo medido não é energia faturada."];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -340,6 +350,23 @@ function decodeSqlAnalysisPresentation(
     throw new Error("Resposta Text-to-SQL inválida.");
   };
   if (!isRecord(value)) return fail();
+  const attendancePresentation = Array.isArray(value.columns) && value.columns.some(
+    (item) => isRecord(item) && ["attendance_total", "attendance_accumulated_total"].includes(String(item.semantic_id)),
+  );
+  const accumulatedAttendancePresentation = Array.isArray(value.columns) && value.columns.some(
+    (item) => isRecord(item) && item.semantic_id === "attendance_accumulated_total",
+  );
+  const continuityPresentation = Array.isArray(value.columns) && value.columns.some(
+    (item) => isRecord(item) && ["dec_value", "fec_value"].includes(String(item.semantic_id)),
+  );
+  const acceptedLimitations = [SQL_F1_LIMITATIONS, SQL_ENERGY_LIMITATIONS];
+  if (attendancePresentation) acceptedLimitations.push([]);
+  if (accumulatedAttendancePresentation) acceptedLimitations.push([
+    "Histórico publicado sem intervalo conhecido ou certificação de completude histórica.",
+  ]);
+  if (continuityPresentation) acceptedLimitations.push(
+    [], ["Valores observados; cobertura do alimentador não certificada."],
+  );
   const keys = [
     "contract_version",
     "state",
@@ -358,6 +385,9 @@ function decodeSqlAnalysisPresentation(
     ![
       "text-to-sql-f1-presentation-v1",
       "text-to-sql-f1-presentation-v2",
+      "text-to-sql-f1-presentation-v3",
+      "text-to-sql-f1-presentation-v4",
+      "text-to-sql-f1-presentation-v5",
     ].includes(String(value.contract_version)) ||
     !["ready", "empty", "all_measures_null"].includes(String(value.state)) ||
     ![
@@ -366,6 +396,8 @@ function decodeSqlAnalysisPresentation(
       "grouped_total",
       "ranking",
       "comparison",
+      "grain_read",
+      "accumulated_total",
     ].includes(String(value.operation)) ||
     !isText(value.answer, 4000) ||
     !isText(value.period, 100) ||
@@ -376,7 +408,9 @@ function decodeSqlAnalysisPresentation(
     value.universe.length > 3 ||
     !value.universe.every((item) => isText(item, 250)) ||
     !Array.isArray(value.limitations) ||
-    JSON.stringify(value.limitations) !== JSON.stringify(SQL_F1_LIMITATIONS) ||
+    !acceptedLimitations.map((item) => JSON.stringify(item)).includes(
+      JSON.stringify(value.limitations),
+    ) ||
     !/^[a-f0-9]{64}$/.test(String(value.evidence_digest)) ||
     !Array.isArray(value.columns) ||
     value.columns.length < 1 ||
@@ -397,18 +431,30 @@ function decodeSqlAnalysisPresentation(
       ![
         "competency",
         "municipality",
+        "neighborhood",
         "consumption_class",
         "revenue_total",
+        "energy_total",
+        "attendance_total",
+        "attendance_accumulated_total",
+        "dec_value",
+        "fec_value",
         "period_0_total",
         "period_1_total",
         "period_0_minus_period_1",
         "period_0_growth_percent",
       ].includes(String(item.semantic_id)) ||
-      (item.unit !== null && item.unit !== "R$" && item.unit !== "%") ||
+      (item.unit !== null && item.unit !== "R$" && item.unit !== "kWh" && item.unit !== "protocolos" && item.unit !== "horas por UC" && item.unit !== "interrupções por UC" && item.unit !== "%") ||
       (item.role === "measure") !== (item.unit !== null) ||
-      (item.role === "measure" &&
-        item.unit !==
-          (item.semantic_id === "period_0_growth_percent" ? "%" : "R$"))
+      (item.role === "measure" && (
+        (item.semantic_id === "period_0_growth_percent" && item.unit !== "%") ||
+        (item.semantic_id === "energy_total" && item.unit !== "kWh") ||
+        (item.semantic_id === "attendance_total" && item.unit !== "protocolos") ||
+        (item.semantic_id === "attendance_accumulated_total" && item.unit !== "protocolos") ||
+        (item.semantic_id === "dec_value" && item.unit !== "horas por UC") ||
+        (item.semantic_id === "fec_value" && item.unit !== "interrupções por UC") ||
+        (item.semantic_id === "revenue_total" && item.unit !== "R$")
+      ))
     )
       return fail();
     return item as SqlAnalysisPresentation["columns"][number];
@@ -418,7 +464,7 @@ function decodeSqlAnalysisPresentation(
     columns.some(
       (column) =>
         (column.role === "dimension") !==
-        ["competency", "municipality", "consumption_class"].includes(
+        ["competency", "municipality", "neighborhood", "consumption_class", "feeder"].includes(
           column.semantic_id,
         ),
     )
@@ -427,10 +473,22 @@ function decodeSqlAnalysisPresentation(
   const hasGrowth = columns.some(
     (column) => column.semantic_id === "period_0_growth_percent",
   );
-  if (
-    (value.contract_version === "text-to-sql-f1-presentation-v2") !== hasGrowth
-  )
+  if ((value.contract_version === "text-to-sql-f1-presentation-v2") !== hasGrowth ||
+      (value.contract_version === "text-to-sql-f1-presentation-v3" &&
+       !columns.some((column) => column.semantic_id === "attendance_total")) ||
+      (value.contract_version === "text-to-sql-f1-presentation-v4" &&
+       !columns.some((column) => ["dec_value", "fec_value"].includes(column.semantic_id))) ||
+      (value.contract_version === "text-to-sql-f1-presentation-v5" &&
+       !columns.some((column) => column.semantic_id === "attendance_accumulated_total")))
     return fail();
+  const energyResult = columns.some((column) => column.role === "measure" && column.unit === "kWh");
+  if (JSON.stringify(value.limitations) !== JSON.stringify(
+    continuityPresentation ? value.limitations :
+    energyResult ? SQL_ENERGY_LIMITATIONS :
+    accumulatedAttendancePresentation
+      ? ["Histórico publicado sem intervalo conhecido ou certificação de completude histórica."]
+      : attendancePresentation ? [] : SQL_F1_LIMITATIONS,
+  )) return fail();
   const rows = value.rows.map((item, index) => {
     if (
       !isRecord(item) ||
@@ -515,20 +573,69 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
       typeof evidence.evidence_digest !== "string" ||
       !/^[a-f0-9]{64}$/.test(evidence.evidence_digest) ||
       !Array.isArray(evidence.columns) ||
-      !Array.isArray(evidence.rows)
+      !Array.isArray(evidence.rows) ||
+      !(
+        evidence.source_table === (
+          ["network.equivalent_interruption_duration", "network.equivalent_interruption_frequency"].includes(String(evidence.metric_id))
+            ? "gold_v2.indicadores_dec_fec"
+            : evidence.metric_id === "service.attendance"
+              ? "gold_v2.atendimentos_uc"
+              : evidence.metric_id === "service.accumulated_attendance"
+                ? "gold_v2.visao_360_uc"
+              : "gold_v2.diagnostico_receita"
+        ) ||
+        (evidence.metric_id === "billing.revenue" &&
+          evidence.source_table === "gold_v2.consumo_receita_bairro")
+      )
     )
       return fail();
     const evidenceColumns = evidence.columns as unknown[];
     const evidenceRows = evidence.rows as unknown[];
+    const continuityMetric = [
+      "network.equivalent_interruption_duration",
+      "network.equivalent_interruption_frequency",
+    ].includes(String(evidence.metric_id));
     const presentation = decodeSqlAnalysisPresentation(value.presentation);
+    const hasGrowth = presentation.columns.some(
+      (column) => column.semantic_id === "period_0_growth_percent",
+    );
+    const expectedPresentationVersion =
+      evidence.evidence_contract_version === "text-to-sql-f1-evidence-v6"
+        ? "text-to-sql-f1-presentation-v5"
+        : evidence.evidence_contract_version === "text-to-sql-f1-evidence-v5"
+        ? "text-to-sql-f1-presentation-v4"
+        : evidence.evidence_contract_version === "text-to-sql-f1-evidence-v4"
+        ? "text-to-sql-f1-presentation-v3"
+        : evidence.evidence_contract_version === "text-to-sql-f1-evidence-v2" ||
+      (evidence.evidence_contract_version === "text-to-sql-f1-evidence-v3" && hasGrowth)
+        ? "text-to-sql-f1-presentation-v2"
+        : "text-to-sql-f1-presentation-v1";
     if (
       (evidence.evidence_contract_version != null &&
         ![
           "text-to-sql-f1-evidence-v1",
           "text-to-sql-f1-evidence-v2",
+          "text-to-sql-f1-evidence-v3",
+          "text-to-sql-f1-evidence-v4",
+          "text-to-sql-f1-evidence-v5",
+          "text-to-sql-f1-evidence-v6",
         ].includes(String(evidence.evidence_contract_version))) ||
-      (evidence.evidence_contract_version === "text-to-sql-f1-evidence-v2") !==
-        (presentation.contract_version === "text-to-sql-f1-presentation-v2") ||
+      (continuityMetric !== (evidence.evidence_contract_version === "text-to-sql-f1-evidence-v5")) ||
+      (continuityMetric
+        ? !["certified", "observed_uncertified"].includes(String(evidence.coverage_quality))
+        : evidence.coverage_quality !== "certified") ||
+      (evidence.coverage_quality === "observed_uncertified" && (() => {
+        const interpretation = evidence.interpretation;
+        const filterList = isRecord(interpretation) ? interpretation.filters : null;
+        const periods = isRecord(interpretation) ? interpretation.periods : null;
+        return !Array.isArray(filterList) || filterList.length !== 1 ||
+          !isRecord(filterList[0]) || filterList[0].dimension_id !== "network.feeder" ||
+          filterList[0].operator !== "eq" || !Array.isArray(filterList[0].values) ||
+          filterList[0].values.length !== 1 || !Array.isArray(periods) || periods.length !== 1 ||
+          !presentation.limitations.includes("Valores observados; cobertura do alimentador não certificada.");
+      })()) ||
+      presentation.contract_version !== expectedPresentationVersion ||
+      (evidence.metric_id !== "billing.revenue" && evidence.metric_id !== "energy.consumption" && evidence.metric_id !== "service.attendance" && evidence.metric_id !== "service.accumulated_attendance" && !continuityMetric) ||
       presentation.evidence_digest !== evidence.evidence_digest ||
       presentation.columns.length !== evidenceColumns.length ||
       presentation.rows.length !== evidenceRows.length ||
@@ -554,9 +661,29 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
     const rawVisualization = sqlAnalysisVisualization(presentation);
     const analysisContext: AIAnalysisContext = {
       batch_reference: evidence.batch_ref,
-      metric: "billing.revenue",
-      metric_label: "Faturamento",
-      unit: "R$",
+      metric: String(evidence.metric_id),
+      metric_label:
+        evidence.metric_id === "service.accumulated_attendance"
+          ? "Chamados no histórico acumulado"
+          : evidence.metric_id === "service.attendance"
+          ? "Protocolos de atendimento"
+          : evidence.metric_id === "network.equivalent_interruption_duration"
+            ? "DEC"
+            : evidence.metric_id === "network.equivalent_interruption_frequency"
+              ? "FEC"
+          : evidence.metric_id === "energy.consumption"
+            ? "Consumo medido"
+            : "Faturamento",
+      unit:
+        evidence.metric_id === "service.attendance" || evidence.metric_id === "service.accumulated_attendance"
+          ? "protocolos"
+          : evidence.metric_id === "network.equivalent_interruption_duration"
+            ? "horas por UC"
+            : evidence.metric_id === "network.equivalent_interruption_frequency"
+              ? "interrupções por UC"
+          : evidence.metric_id === "energy.consumption"
+            ? "kWh"
+            : "R$",
       period: presentation.period,
       filters: {},
     };
