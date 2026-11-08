@@ -115,7 +115,9 @@ def test_context_separates_recognition_registry_from_authorized_f1_schema():
     assert "consumo_total_kwh" not in context.contents
     assert "consumption" not in body["dimensions"]
     assert body["metric"]["aggregation"] == "sum"
-    assert body["rules"]["annual_requires_all_months"] is True
+    assert body["rules"]["annual_uses_all_available_months"] is True
+    assert body["rules"]["annual_requires_contiguous_coverage"] is True
+    assert body["rules"]["partial_year_requires_explicit_request"] is False
     assert body["schema_basis"].endswith("not_live_database")
     assert body["context_version"] == context.context_version
 

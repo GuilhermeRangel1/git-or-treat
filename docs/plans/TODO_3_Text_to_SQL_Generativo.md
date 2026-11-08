@@ -1305,3 +1305,9 @@ Usar a [especificação v1.1](especificacao-semantic-layer-vocabulario-temporal-
 - A configuração Compose passa a habilitar geração, execução e apresentação F1 por padrão. No modo local de apresentação, o bootstrap define a senha configurável das contas artificiais (padrão `senha123`) sem alterar perfil, permissões ou estado ativo.
 - A jornada local foi validada com 49 testes do Frontend aprovados, 7 testes focados de bootstrap/autenticação aprovados e verificação sintática do script de jornada. O rollback local com as três flags desligadas e a restauração da F1 também foram exercitados; a stack terminou saudável.
 - Essa configuração destina-se à apresentação local. Não representa rollout operacional, retirada do legado ou conclusão da avaliação integral TSQL-12.
+
+### 08/11/2026 — F1 — ano-calendário limitado à cobertura disponível
+
+- O contexto Backend e o prompt do gerador agora interpretam um ano sem meses explícitos como todas as competências contíguas desse ano presentes na cobertura autorizada. Exemplo: se 2026 tiver janeiro a junho, consulta exatamente janeiro a junho sem pedir confirmação e a apresentação determinística informa esse intervalo; não afirma que é o ano completo.
+- Intervalo explícito janeiro–dezembro continua exigindo os doze meses. Ano sem competências ou com lacuna interna pede esclarecimento, evitando agregar a janela como se meses ausentes fossem observados. A data do servidor não participa da resolução.
+- O prompt foi versionado como `text-to-sql-f1-32`. Alterações anteriores de interface e histórico privado foram preservadas. Testes não foram executados nesta etapa; a implementação permanece sem validação de runtime Gold/Gemini. Nenhum commit ou push foi feito.

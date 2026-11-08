@@ -553,8 +553,9 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         "rules": {
             "time_anchor": "latest_competency_in_authorized_coverage",
             "coverage_is_not_readiness": True,
-            "annual_requires_all_months": True,
-            "partial_year_requires_explicit_request": True,
+            "annual_uses_all_available_months": True,
+            "annual_requires_contiguous_coverage": True,
+            "partial_year_requires_explicit_request": False,
             "joins_allowed": False,
             "metric_is_billed_not_paid": metric_id == "billing.revenue",
             "metric_definition_must_be_preserved": True,

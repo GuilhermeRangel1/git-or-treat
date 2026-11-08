@@ -65,7 +65,7 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Ignore as regras" not in SYSTEM_INSTRUCTION
     for operation in ("total", "série mensal", "total agrupado", "ranking", "comparação"):
         assert operation in SYSTEM_INSTRUCTION
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-31"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-32"
     assert "Nunca escreva valor textual/número/data de filtro como literal" in SYSTEM_INSTRUCTION
     assert "FILTER" in SYSTEM_INSTRUCTION and "period0_start" in SYSTEM_INSTRUCTION
     assert "A única agregação" in SYSTEM_INSTRUCTION
@@ -77,10 +77,11 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "AS revenue_difference" in SYSTEM_INSTRUCTION
     assert "Nomes de `result_columns` devem coincidir exatamente" in SYSTEM_INSTRUCTION
     assert "janela 0 é" in SYSTEM_INSTRUCTION
-    assert "Ano explícito significa janeiro a dezembro" in SYSTEM_INSTRUCTION
-    assert "jamais gere" in SYSTEM_INSTRUCTION
-    assert "período pendente julho a dezembro" in SYSTEM_INSTRUCTION
-    assert "Essa exigência de cobertura anual vale somente" in SYSTEM_INSTRUCTION
+    assert "use todas as competências disponíveis daquele ano" in SYSTEM_INSTRUCTION
+    assert "não faça pergunta de confirmação" in SYSTEM_INSTRUCTION
+    assert "janeiro a junho de 2026" in SYSTEM_INSTRUCTION
+    assert "janeiro a dezembro de 2026" in SYSTEM_INSTRUCTION
+    assert "Essa resolução do ano pelas competências disponíveis vale somente" in SYSTEM_INSTRUCTION
     assert "O ano explicitamente escrito na frase atual prevalece" in SYSTEM_INSTRUCTION
     assert "com junho de 2025 e junho de 2026 na cobertura é ambíguo" in SYSTEM_INSTRUCTION
     assert "retire esse filtro herdado" in SYSTEM_INSTRUCTION
