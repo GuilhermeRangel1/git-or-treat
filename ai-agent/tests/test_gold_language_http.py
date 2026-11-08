@@ -67,6 +67,24 @@ def test_variation_between_two_explicit_months_still_plans_the_comparison():
     assert result["plan"]["comparison_periods"] == ["2025-02", "2025-03"]
 
 
+def test_measured_consumption_neighborhood_ranking_does_not_treat_metric_as_location():
+    result = _plan(
+        "Qual bairro de Lumenia teve a maior queda no consumo medido residencial entre "
+        "janeiro de 2001 e abril de 2001?",
+        dimension_values=[
+            {"dimension_id": "geography.municipality", "values": ["Lumenia"]},
+            {"dimension_id": "geography.neighborhood", "values": ["Quadra A", "Quadra B"]},
+            {"dimension_id": "customer.consumption_class", "values": ["RESIDENCIAL"]},
+        ],
+        competencies=["2001-01", "2001-04"],
+    )
+
+    assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == "energy.consumption"
+    assert result["plan"]["group_by_dimension_ids"] == ["geography.neighborhood"]
+    assert result["plan"]["comparison_periods"] == ["2001-01", "2001-04"]
+
+
 @pytest.mark.parametrize("question,expected", [
     ("Qual foi a receita faturada em Recife em jun/26?",
      "Qual foi a receita faturada em Recife em março de 2025?"),

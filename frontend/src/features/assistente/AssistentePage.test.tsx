@@ -112,20 +112,7 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
       evidence_digest: "a".repeat(64),
     },
   };
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValueOnce(
-      jsonResponse({
-        id: "8abf4322-17ab-4a75-98f1-29481ee9f456",
-        title: "Nova conversa",
-        revision: 1,
-        created_at: "2026-11-08T12:00:00Z",
-        updated_at: "2026-11-08T12:00:00Z",
-        expires_at: "2026-12-08T12:00:00Z",
-        message_count: 0,
-      }),
-    )
-    .mockResolvedValueOnce(jsonResponse(response));
+  const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(response));
   vi.stubGlobal("fetch", fetchMock);
   const user = userEvent.setup();
   renderPage();
@@ -157,22 +144,17 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
     screen.getByText(/Gold v2, publicação de 06\/11\/2026/),
   ).not.toBeVisible();
   await user.click(screen.getByText("Detalhes da fonte"));
-  expect(
-    screen.getByText(/Gold v2, publicação de 06\/11\/2026/),
-  ).toBeVisible();
+  expect(screen.getByText(/Gold v2, publicação de 06\/11\/2026/)).toBeVisible();
   expect(screen.getByText(/Registro de auditoria:/)).toBeVisible();
   expect(
     screen.getByRole("region", { name: "Faturamento por município" }),
   ).toBeVisible();
   const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-  expect(url).toBe(
-    "/api/v1/ai/conversations/8abf4322-17ab-4a75-98f1-29481ee9f456/questions",
-  );
+  expect(url).toBe("/api/v1/ai/sql-analyses");
   expect(JSON.parse(String(options.body))).toEqual({
-    request_id: expect.any(String),
+    contract_version: "v1",
     question: "Quanto foi o faturamento por município em 2025?",
-    strategy: "sql_f1",
-    refresh_context: false,
+    conversation_id: expect.any(String),
   });
 });
 
@@ -487,9 +469,7 @@ describe("Assistente Grid 360", () => {
     expect(
       screen.queryByText(`Referência para conferência: ${reference}`),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByText("Fonte: dados internos da Grid 360"),
-    ).toBeVisible();
+    expect(screen.getByText("Fonte: dados internos da Grid 360")).toBeVisible();
     expect(screen.getByText(": Mai/2026")).toBeVisible();
     expect(screen.queryByText(/Referência para conferência/)).toBeNull();
     expect(screen.queryByText(/Lote consultado/)).toBeNull();
@@ -1192,7 +1172,6 @@ it("apresenta gráfico de pontos autorizados e tabela junto à resposta", async 
   expect(screen.getByRole("button", { name: /CSV/ })).toBeVisible();
 });
 
-
 describe("recusas e esclarecimentos do Assistente F1", () => {
   const ids = {
     correlation_id: "0123456789abcdef0123456789abcdef",
@@ -1278,12 +1257,16 @@ describe("recusas e esclarecimentos do Assistente F1", () => {
       .mockResolvedValueOnce(
         jsonResponse(
           clarification({
-            options: [{ label: "2025", question: "Qual a receita em junho de 2025?" }],
+            options: [
+              { label: "2025", question: "Qual a receita em junho de 2025?" },
+            ],
           }),
         ),
       )
       .mockResolvedValueOnce(
-        jsonResponse(refusal("out_of_domain", "Não tenho dados de eventos esportivos.")),
+        jsonResponse(
+          refusal("out_of_domain", "Não tenho dados de eventos esportivos."),
+        ),
       );
     vi.stubGlobal("fetch", fetchMock);
     const user = await ask("Qual a receita em junho?");
@@ -1299,7 +1282,9 @@ describe("recusas e esclarecimentos do Assistente F1", () => {
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "2025" })).toBeDisabled();
     expect(
-      screen.getByRole("heading", { name: "Posso ajudar com dados de energia" }),
+      screen.getByRole("heading", {
+        name: "Posso ajudar com dados de energia",
+      }),
     ).toBeVisible();
   });
 
@@ -1311,7 +1296,10 @@ describe("recusas e esclarecimentos do Assistente F1", () => {
         .fn()
         .mockResolvedValueOnce(
           jsonResponse(
-            refusal("insufficient_coverage", "Faltam julho a dezembro de 2026."),
+            refusal(
+              "insufficient_coverage",
+              "Faltam julho a dezembro de 2026.",
+            ),
           ),
         )
         .mockResolvedValueOnce(

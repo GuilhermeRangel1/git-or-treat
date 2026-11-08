@@ -38,7 +38,8 @@ describe("contrato do histórico", () => {
           state: "completed",
           question: "E no ano anterior?",
           response: null,
-          batch_ref: "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+          batch_ref:
+            "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
           sql_response: {
             correlation_id: "a".repeat(32),
             audit_reference: "b".repeat(32),

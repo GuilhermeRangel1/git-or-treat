@@ -47,35 +47,39 @@ def record_provider_failure(
     validation_fields: tuple[str, ...] = (),
 ) -> None:
     """Só a causa classificada; nunca texto da exceção, pergunta, evidência ou chave."""
+    payload = {
+        "correlation_id": correlation.get(),
+        "provider": provider,
+        "model": model,
+        "kind": kind,
+        "status": status if type(status) is int else None,
+    }
+    optional = {
+        "reason": reason if reason in {
+            "invalid_json", "contract_validation", "incomplete_generation",
+            "context_version_mismatch", "invalid_response_shape",
+            "v13_interpretation_invalid",
+        } else None,
+        "validation_fields": sorted(set(validation_fields) & {
+            "envelope", "generation_contract_version", "status", "context_version",
+            "sql", "parameters", "interpretation", "result_columns",
+            "clarification", "unsupported_reason", "other",
+        }),
+        "prompt_version": prompt_version,
+        "elapsed_ms": _duration(elapsed_ms),
+        "context_bytes": _count(context_bytes),
+        "max_output_tokens": _count(max_output_tokens),
+        "temperature": _temperature(temperature),
+        "attempts": _count(attempts),
+    }
+    payload.update({
+        key: value for key, value in optional.items()
+        if value is not None and value != []
+    })
+    payload["dependencies"] = _runtime_dependencies()
     logger.warning(
         "genai_provider_failure %s",
-        json.dumps(
-            {
-                "correlation_id": correlation.get(),
-                "provider": provider,
-                "model": model,
-                "kind": kind,
-                "reason": reason if reason in {
-                    "invalid_json", "contract_validation", "incomplete_generation",
-                    "context_version_mismatch", "invalid_response_shape",
-                    "v13_interpretation_invalid",
-                } else None,
-                "validation_fields": sorted(set(validation_fields) & {
-                    "envelope", "generation_contract_version", "status", "context_version",
-                    "sql", "parameters", "interpretation", "result_columns",
-                    "clarification", "unsupported_reason", "other",
-                }),
-                "status": status if type(status) is int else None,
-                "prompt_version": prompt_version,
-                "elapsed_ms": _duration(elapsed_ms),
-                "context_bytes": _count(context_bytes),
-                "max_output_tokens": _count(max_output_tokens),
-                "temperature": _temperature(temperature),
-                "attempts": _count(attempts),
-                "dependencies": _runtime_dependencies(),
-            },
-            separators=(",", ":"),
-        ),
+        json.dumps(payload, separators=(",", ":")),
     )
 
 

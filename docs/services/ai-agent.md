@@ -581,7 +581,7 @@ Limites por bytes/entradas, coalescência dos insights, invalidação por contex
 
 ## Atualização de 08/11/2026 — assunto declarado, motivos e opções
 
-O prompt `text-to-sql-f1-34` exige `scope_assessment` em todo estado e `reason_code` em recusas e esclarecimentos; o schema enviado ao provedor torna `scope_assessment` obrigatório. “2026 fechado”, “ano inteiro” e “janeiro a dezembro” exigem o ano completo; “em 2026” continua usando as competências disponíveis. As mensagens ao usuário não podem citar F1, Gold, SQL ou nomes de campos. Contrato, regras e limites em [text-to-sql-f1.md](../contracts/text-to-sql-f1.md) e na [ADR-0026](../decisions/0026-assunto-declarado-e-motivos-de-recusa.md). Medição com Gemini real e avaliador: `ai-agent/tests/genai_feedback_live_eval.py` (uma tentativa por caso, sem Gold e sem dados enviados ao modelo).
+O prompt `text-to-sql-f1-35` exige `scope_assessment` em todo estado e `reason_code` em recusas e esclarecimentos; o schema enviado ao provedor torna `scope_assessment` obrigatório. “2026 fechado”, “ano inteiro” e “janeiro a dezembro” exigem o ano completo; “em 2026” continua usando as competências disponíveis. As mensagens ao usuário não podem citar F1, Gold, SQL ou nomes de campos. Contrato, regras e limites em [text-to-sql-f1.md](../contracts/text-to-sql-f1.md) e na [ADR-0026](../decisions/0026-assunto-declarado-e-motivos-de-recusa.md). Medição com Gemini real e avaliador: `ai-agent/tests/genai_feedback_live_eval.py` (uma tentativa por caso, sem Gold e sem dados enviados ao modelo).
 
 
 ### Ticket médio: schema do provedor (08/11/2026)

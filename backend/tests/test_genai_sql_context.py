@@ -276,6 +276,33 @@ def test_revenue_neighborhood_source_requires_profile_dimension_permission():
         build(payload)
 
 
+def test_measured_consumption_by_neighborhood_uses_aggregated_gold_source():
+    payload = request_payload()
+    payload["question"] = (
+        "Qual foi o consumo medido por bairro em Recife em junho de 2026?"
+    )
+    payload["access_scope"]["allowed_dimension_ids"].append(
+        "geography.neighborhood"
+    )
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.consumption",
+        "kind": "monthly",
+        "competencies": ["2026-06"],
+    }]
+    payload["dimension_value_coverage"].append({
+        "dimension_id": "geography.neighborhood",
+        "values": ["Boa Vista"],
+    })
+
+    context = build(payload)
+    body = json.loads(context.contents)
+    assert body["metric"]["id"] == "energy.consumption"
+    assert body["source"]["capability_id"] == "faturamento.receita_bairro"
+    assert body["source"]["table"] == "consumo_receita_bairro"
+    assert body["metric"]["measure_column"] == "consumo_total_kwh"
+    assert body["dimensions"]["geography.neighborhood"] == "bairro"
+
+
 def test_attendance_context_uses_monthly_protocol_source_without_uc_dimension():
     payload = request_payload()
     payload["question"] = (

@@ -107,6 +107,7 @@ def _make_candidate(case, context_version):
         "billing.effective_tariff": "text-to-sql-f1-v13",
         "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
         "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
+        "billing.effective_tariff": "text-to-sql-f1-v13",
     }.get(metric, "text-to-sql-f1-v1")
     common = {
         "generation_contract_version": generation_version,
@@ -464,6 +465,7 @@ def test_all_578_questions_use_new_context_and_f1_contract(case, synthetic_gold)
         "billing.effective_tariff": "text-to-sql-f1-v13",
         "network.equivalent_interruption_duration": "text-to-sql-f1-v4",
         "network.equivalent_interruption_frequency": "text-to-sql-f1-v4",
+        "billing.effective_tariff": "text-to-sql-f1-v13",
     }.get(metric, "text-to-sql-f1-v1")
     assert contents["generation_contract_version"] == expected_version
     assert contents["source"]["schema"] == "gold_v2"
@@ -478,8 +480,13 @@ def test_all_578_questions_use_new_context_and_f1_contract(case, synthetic_gold)
         "energy.gd_consumption_drop": "variacao_consumo_uc",
         "network.equivalent_interruption_duration": "indicadores_dec_fec",
         "network.equivalent_interruption_frequency": "indicadores_dec_fec",
-    }.get(metric, "consumo_receita_bairro" if metric == "billing.revenue"
-          and neighborhood_question else "diagnostico_receita")
+    }.get(
+        metric,
+        "consumo_receita_bairro"
+        if metric in {"billing.revenue", "energy.consumption"}
+        and neighborhood_question
+        else "diagnostico_receita",
+    )
     assert contents["source"]["table"] == expected_table
     assert set(context.column_names) == set(contents["source"]["columns"])
     assert set(contents["source"]["columns"]) == set(context.column_names)

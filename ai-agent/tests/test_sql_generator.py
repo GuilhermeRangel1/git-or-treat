@@ -100,7 +100,8 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "nunca para uma operação F1 suportada" in SYSTEM_INSTRUCTION
     assert "Retorne exatamente um objeto JSON no nível superior" in SYSTEM_INSTRUCTION
     assert (
-        "SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) AS average_consumption_per_uc"
+        "SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) "
+        "AS average_consumption_per_uc"
     ) in SYSTEM_INSTRUCTION
     assert 'declare `result_columns` com `name="average_consumption_per_uc"`' in SYSTEM_INSTRUCTION
     assert 'preencha `interpretation.operation="ratio_of_sums"`' in SYSTEM_INSTRUCTION
@@ -381,7 +382,7 @@ def test_prompt_treats_closed_year_as_full_year_but_plain_year_as_available_mont
     assert "“2026 fechado”, “ano inteiro” e “janeiro a dezembro”" in text
     assert "insufficient_coverage" in text
     # O ano simples continua resolvido pelas competências disponíveis.
-    assert "use todas as\ncompetências disponíveis daquele ano" in text
+    assert "use todas as competências disponíveis daquele ano" in " ".join(text.split())
     assert "(por exemplo, “em 2026”, “no ano de 2026” ou “2026 fechado”)" not in text
 
 

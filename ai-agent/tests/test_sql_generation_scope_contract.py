@@ -179,7 +179,6 @@ def test_shared_scope_examples_are_accepted_and_rejected_by_the_ai_agent_contrac
 
 def test_shared_scope_examples_match_the_backend_contract():
     import subprocess
-    import sys
 
     code = """
 import json, sys

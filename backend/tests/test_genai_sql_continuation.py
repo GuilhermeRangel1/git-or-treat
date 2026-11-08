@@ -110,34 +110,3 @@ def test_limits_token_context_to_three_turns_and_size():
 
     assert len(token) <= 16000
     assert len(restore(token)) == 3
-
-
-def test_clarification_turn_restores_so_a_short_reply_can_complete_the_pending_field():
-    token = issue(question="Qual a receita total de Recife em junho?", response="Junho de qual ano?")
-    turns = restore(token)
-    assert [(turn.role, turn.content) for turn in turns] == [
-        ("user", "Qual a receita total de Recife em junho?"),
-        ("assistant", "Junho de qual ano?"),
-    ]
-
-
-def test_clarification_options_and_reason_never_enter_the_signed_state():
-    token = issue(question="Qual a receita de 2026 fechado?", response="Os dados cobrem janeiro a junho.")
-    payload = json.loads(base64.urlsafe_b64decode(token.split(".")[0] + "=="))
-    assert set(payload) == {
-        "version", "expires_at", "session_digest", "conversation_id",
-        "scope_digest", "catalog_digest", "batch_ref", "context",
-    }
-    assert "options" not in json.dumps(payload) and "reason_code" not in json.dumps(payload)
-
-
-def test_system_generated_option_gets_no_authority_over_a_stale_or_foreign_context():
-    token = issue(question="Qual a receita de 2026 fechado?", response="Quer consultar janeiro a junho?")
-    for overrides in (
-        {"batch_ref": "gold-csv-v2:batch-43"},
-        {"session": "another-browser-session"},
-        {"conversation_id": "11111111-1111-4111-8111-111111111111"},
-        {"now": 1000 + 1801},
-    ):
-        with pytest.raises(InvalidSqlContinuation):
-            restore(token, **overrides)

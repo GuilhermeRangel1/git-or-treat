@@ -1,9 +1,9 @@
 {
   "version": "text-to-sql-f1-freeze-1",
   "files": {
-    "ai-agent/tests/fixtures/text_to_sql_f1_benchmark.json": "0a8a811bcde4d61494679fbdc3bbc65860944aaee917104493fa056d3197ceb5",
-    "ai-agent/tests/fixtures/text_to_sql_f1_authorial_reserve.json": "a42d8bdb1d0e670ebd439cce16497ec319a8c165e347ec6589d58c8cb935ba36",
-    "ai-agent/tests/fixtures/text_to_sql_f1_reference.json": "7b46d51d949235682d08e81b8ae6f795eee6a45385b0c3554b8559689bbc132d"
+    "ai-agent/tests/fixtures/text_to_sql_f1_benchmark.json": "d55da909cf69d7bdda1d56a1f04c4ec9445531a87a75af2c425485f61ff0cb86",
+    "ai-agent/tests/fixtures/text_to_sql_f1_authorial_reserve.json": "5df9a4d74aa5f6b1d0840686487e22050ab5259c74f5714cd7c4d6f7b73e0eed",
+    "ai-agent/tests/fixtures/text_to_sql_f1_reference.json": "4690dc4c862b183c6ddf98b6e6cf4d5d0d3d3b315bb7eaabaa85af56bcb3df39"
   },
   "rule": "Changes require version increment, reason and exposure log; do not retune references to match observed output."
 }

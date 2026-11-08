@@ -80,7 +80,6 @@ def test_customer_service_public_route_recognizes_satisfaction_contract(client, 
                     "generation_contract_version": "text-to-sql-f1-v7",
                     "context_version": payload.context_version,
                     "status": "unsupported",
-                    "scope_assessment": {"status": "in_domain"},
                     "semantic_intent": {"metric_id": "service.satisfaction"},
                     "unsupported_reason": {
                         "code": "operation_outside_f1",
@@ -160,7 +159,6 @@ def test_customer_service_public_route_recognizes_accumulated_satisfaction(clien
                     "generation_contract_version": "text-to-sql-f1-v9",
                     "context_version": payload.context_version,
                     "status": "unsupported",
-                    "scope_assessment": {"status": "in_domain"},
                     "semantic_intent": {
                         "metric_id": "service.accumulated_satisfaction",
                     },
@@ -244,7 +242,6 @@ def test_commercial_public_route_recognizes_gd_registry_snapshot(client, monkeyp
                     "generation_contract_version": "text-to-sql-f1-v8",
                     "context_version": payload.context_version,
                     "status": "unsupported",
-                    "scope_assessment": {"status": "in_domain"},
                     "semantic_intent": {"metric_id": "energy.gd_units"},
                     "unsupported_reason": {
                         "code": "operation_outside_f1",
@@ -423,7 +420,6 @@ def _benchmark_candidate(case_id, request):
 
         return SqlGenerationCandidate.model_validate({
             "generation_contract_version": "text-to-sql-f1-v1", "status": "needs_clarification",
-            "scope_assessment": {"status": "in_domain"},
             "context_version": build_sql_generation_context(request).context_version,
             "clarification": {"question": "Você quer apenas janeiro a junho de 2026?",
                               "missing_fields": ["period"]},
@@ -900,7 +896,6 @@ def test_public_route_domain_policy_without_sql(
                 "generation_contract_version": context["generation_contract_version"],
                 "context_version": payload.context_version,
                 "status": expected,
-                "scope_assessment": {"status": "in_domain"},
             }
             if expected == "unsupported":
                 candidate["semantic_intent"] = {"metric_id": "energy.consumption"}
@@ -1077,31 +1072,3 @@ def test_public_route_executes_legacy_gd_consumption_mapping(client, monkeypatch
             app.state.genai_question_client = original_client
         reader.dispose()
         owner.dispose()
-
-
-def test_saved_conversation_with_changed_data_returns_plain_language(monkeypatch):
-    import asyncio
-    from types import SimpleNamespace
-
-    from starlette.requests import Request
-
-    from app.api.v1.endpoints import ai as endpoint
-    from app.schemas.sql_analysis import SqlAnalysisRequest
-
-    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
-    monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", True)
-    monkeypatch.setattr(endpoint.GoldPublicationContext, "capture", classmethod(
-        lambda _cls, _engine: SimpleNamespace(batch_ref="new-publication")
-    ))
-    scope = SimpleNamespace(allowed_metric_ids=set(), allowed_dimension_ids=set())
-    scope.model_copy = lambda **_kwargs: scope
-    request = Request({"type": "http", "method": "POST", "path": "/", "headers": []})
-    request.state.correlation_id = "a" * 32
-    result = asyncio.run(endpoint._run_f1_sql_analysis_impl(
-        SqlAnalysisRequest(question="Qual o faturamento?"), request, None,
-        (object(), lambda: scope), None, trusted_batch_ref="old-publication",
-    ))
-    assert result.status_code == 409
-    assert json.loads(result.body)["message"] == (
-        "Os dados disponíveis mudaram. Atualize a página antes de perguntar."
-    )

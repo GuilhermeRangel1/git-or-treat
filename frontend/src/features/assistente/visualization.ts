@@ -255,9 +255,16 @@ export function sqlAnalysisVisualization(
     (column) => column.role === "dimension",
   );
   const measure = presentation.columns.find(
-    (column) => column.semantic_id === "revenue_total" || column.semantic_id === "energy_total",
+    (column) =>
+      column.semantic_id === "revenue_total" ||
+      column.semantic_id === "energy_total",
   );
-  if (!dimensions.length || !measure || (measure.unit !== "R$" && measure.unit !== "kWh")) return undefined;
+  if (
+    !dimensions.length ||
+    !measure ||
+    (measure.unit !== "R$" && measure.unit !== "kWh")
+  )
+    return undefined;
   const isEnergy = measure.unit === "kWh";
   if (kind === "line" && dimensions.length !== 1) return undefined;
   if (kind === "line") {
@@ -325,14 +332,13 @@ export function sqlAnalysisVisualization(
     contract_version: "v1",
     kind,
     metric: isEnergy ? "energy.consumption" : "billing.revenue",
-    title:
-      isEnergy
-        ? kind === "line"
-          ? "Consumo medido mensal"
-          : kind === "horizontal"
-            ? "Ranking de consumo medido"
-            : `Consumo medido por ${dimensions.map((item) => item.label.toLocaleLowerCase("pt-BR")).join(" e ")}`
-        : kind === "line"
+    title: isEnergy
+      ? kind === "line"
+        ? "Consumo medido mensal"
+        : kind === "horizontal"
+          ? "Ranking de consumo medido"
+          : `Consumo medido por ${dimensions.map((item) => item.label.toLocaleLowerCase("pt-BR")).join(" e ")}`
+      : kind === "line"
         ? "Faturamento mensal"
         : kind === "horizontal"
           ? "Ranking de faturamento"

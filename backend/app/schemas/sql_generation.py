@@ -506,6 +506,22 @@ GenerationContractVersion = Literal[
 ]
 
 
+GenerationContractVersion = Literal[
+    "text-to-sql-f1-v1",
+    "text-to-sql-f1-v2",
+    "text-to-sql-f1-v3",
+    "text-to-sql-f1-v4",
+    "text-to-sql-f1-v5",
+    "text-to-sql-f1-v7",
+    "text-to-sql-f1-v8",
+    "text-to-sql-f1-v9",
+    "text-to-sql-f1-v10",
+    "text-to-sql-f1-v11",
+    "text-to-sql-f1-v12",
+    "text-to-sql-f1-v13",
+]
+
+
 class SqlGenerationCandidate(ClosedModel):
     generation_contract_version: GenerationContractVersion
     status: Literal["sql_candidate", "needs_clarification", "unsupported"]
@@ -664,6 +680,7 @@ class SqlGenerationCandidate(ClosedModel):
         }:
             raise ValueError("assunto externo exige recusa externa sem consulta")
         return self
+
 
 
 class SqlGenerationRequest(ClosedModel):

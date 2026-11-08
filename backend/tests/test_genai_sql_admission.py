@@ -430,7 +430,6 @@ def test_out_of_scope_semantic_intent_is_observed_without_admission_or_sql(
                 "generation_contract_version": "text-to-sql-f1-v1",
                 "status": "unsupported",
                 "context_version": payload.context_version,
-                "scope_assessment": {"status": "in_domain"},
                 "unsupported_reason": {
                     "code": "metric_outside_f1",
                     "message": "Consumo medido ainda não está disponível na F1.",
