@@ -163,7 +163,7 @@ jobs:
       - name: Gerar resumo sintético de traces Text-to-SQL sanitizado
         run: >-
           python scripts/summarize_text_to_sql_trace.py
-          --logs tests/fixtures/text_to_sql_trace_synthetic.log
+          --logs tests/fixtures/text_to_sql_trace_synthetic.jsonl
           --prices config/text_to_sql_price_book_2026-11-07.json
           --as-of 2026-11-07
           > "$RUNNER_TEMP/text-to-sql-trace-summary.json"
