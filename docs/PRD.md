@@ -465,6 +465,11 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 08/11/2026 — WEB-01 — alinhamento da ajuda no Panorama
+
+- O acesso “Entenda os indicadores” acompanha a linha do subtítulo do Panorama, com quebra em telas estreitas. Alteração de apresentação em `frontend/src/features/panorama/PanoramaPage.tsx`, sem mudança de dados ou estado do requisito.
+- Verificações: `npm test -- --run src/features/panorama/PanoramaPage.test.tsx` (24 testes) e Prettier do arquivo passaram. Sem nova inspeção visual no navegador.
+
 ### 08/11/2026 — WEB-03 / WEB-04 / WEB-05 — paginação das jornadas
 
 - UC 360, Inspeções e Ordens usam navegação numérica à esquerda e seleção de quantidade por página à direita. A busca e o histórico da UC passam a enviar o tamanho escolhido à API; trocar a quantidade retorna à primeira página e preserva os filtros. Em Ordens, a quantidade não é repetida no resumo de filtros. Sem mudança de estado dos requisitos.
