@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/shared/api/client";
 import Button from "@/shared/ui/Button";
 import { decodeGoldMetadata } from "@/shared/analytics/goldContract";
 import { useGoldPublicationKey } from "@/shared/analytics/goldPublication";
+import NumberedPagination from "./NumberedPagination";
 
 type Item = {
   event_id: string;
@@ -75,6 +76,9 @@ export default function GoldOccurrences({
   const [page, setPage] = useState(1);
   const publication = useGoldPublicationKey();
   const query = useQuery({
+    // Mantém a página anterior na tela enquanto a próxima carrega, para a
+    // paginação não sumir a cada clique.
+    placeholderData: keepPreviousData,
     queryKey: [
       "operations",
       "occurrences",
@@ -198,22 +202,11 @@ export default function GoldOccurrences({
           <p className="text-muted">
             Página {page} de {query.data.pages}
           </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              Anterior
-            </Button>
-            <Button
-              variant="outline"
-              disabled={page >= query.data.pages}
-              onClick={() => setPage(page + 1)}
-            >
-              Próxima
-            </Button>
-          </div>
+          <NumberedPagination
+            page={page}
+            pageCount={query.data.pages}
+            onPageChange={setPage}
+          />
         </div>
       ) : null}
     </section>
