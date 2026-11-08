@@ -23,7 +23,6 @@ from app.services.genai_sql_observation import (
     log_sql_context_unavailable,
     observe_sql_generation,
 )
-from app.services.genai_sql_structure import SqlStructureRejected
 from tests.test_genai_sql_semantics import consumption_request, query
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
@@ -166,7 +165,7 @@ def test_wrong_recuts_are_not_promoted_to_review(sql_request):
         candidate["parameters"]["city"]["value"] = "Olinda"
         return candidate
 
-    with pytest.raises(SqlStructureRejected):
+    with pytest.raises(GenAIResponseInvalid):
         run(sql_request, mutation=mutate)
 
 

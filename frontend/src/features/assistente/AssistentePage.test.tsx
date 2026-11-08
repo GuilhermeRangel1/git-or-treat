@@ -112,20 +112,7 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
       evidence_digest: "a".repeat(64),
     },
   };
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValueOnce(
-      jsonResponse({
-        id: "8abf4322-17ab-4a75-98f1-29481ee9f456",
-        title: "Nova conversa",
-        revision: 1,
-        created_at: "2026-11-08T12:00:00Z",
-        updated_at: "2026-11-08T12:00:00Z",
-        expires_at: "2026-12-08T12:00:00Z",
-        message_count: 0,
-      }),
-    )
-    .mockResolvedValueOnce(jsonResponse(response));
+  const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(response));
   vi.stubGlobal("fetch", fetchMock);
   const user = userEvent.setup();
   renderPage();
@@ -163,14 +150,11 @@ it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resp
     screen.getByRole("region", { name: "Faturamento por município" }),
   ).toBeVisible();
   const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-  expect(url).toBe(
-    "/api/v1/ai/conversations/8abf4322-17ab-4a75-98f1-29481ee9f456/questions",
-  );
+  expect(url).toBe("/api/v1/ai/sql-analyses");
   expect(JSON.parse(String(options.body))).toEqual({
-    request_id: expect.any(String),
+    contract_version: "v1",
     question: "Quanto foi o faturamento por município em 2025?",
-    strategy: "sql_f1",
-    refresh_context: false,
+    conversation_id: expect.any(String),
   });
 });
 
