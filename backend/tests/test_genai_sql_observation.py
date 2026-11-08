@@ -7,6 +7,7 @@ import pytest
 
 from app.services.genai_client import (
     GenAIQuestionClient,
+    GenAIResponseInvalid,
     GenAIServiceUnavailable,
     GenAITimeout,
 )
@@ -89,6 +90,18 @@ def run(
 def test_generation_and_semantic_review_share_backend_context_and_budget(sql_request):
     result = run(sql_request)
     assert result.review.measure_semantics == (("revenue", "revenue_total"),)
+
+
+def test_rejected_model_sql_becomes_a_sanitized_invalid_response(sql_request):
+    def invalid_aggregation(candidate):
+        candidate["sql"] = (
+            "SELECT AVG(receita_total_reais) AS revenue "
+            "FROM gold_v2.diagnostico_receita"
+        )
+        return candidate
+
+    with pytest.raises(GenAIResponseInvalid):
+        run(sql_request, mutation=invalid_aggregation)
 
 
 def test_context_telemetry_contains_versions_and_shape_but_not_prompt_or_values(

@@ -65,7 +65,7 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Ignore as regras" not in SYSTEM_INSTRUCTION
     for operation in ("total", "série mensal", "total agrupado", "ranking", "comparação"):
         assert operation in SYSTEM_INSTRUCTION
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-29"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-31"
     assert "Nunca escreva valor textual/número/data de filtro como literal" in SYSTEM_INSTRUCTION
     assert "FILTER" in SYSTEM_INSTRUCTION and "period0_start" in SYSTEM_INSTRUCTION
     assert "A única agregação" in SYSTEM_INSTRUCTION
@@ -95,6 +95,14 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Use o valor cadastral" in SYSTEM_INSTRUCTION
     assert "Nunca remova um filtro GD explícito" in SYSTEM_INSTRUCTION
     assert "nunca para uma operação F1 suportada" in SYSTEM_INSTRUCTION
+    assert "Retorne exatamente um objeto JSON no nível superior" in SYSTEM_INSTRUCTION
+    assert (
+        "SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) "
+        "AS average_consumption_per_uc"
+    ) in SYSTEM_INSTRUCTION
+    assert 'declare `result_columns` com `name="average_consumption_per_uc"`' in SYSTEM_INSTRUCTION
+    assert 'preencha `interpretation.operation="ratio_of_sums"`' in SYSTEM_INSTRUCTION
+    assert "nunca classifique como `total`," in SYSTEM_INSTRUCTION
     assert "Exceção estrita para `service.attendance` no contrato v3" in SYSTEM_INSTRUCTION
     assert "Exceção estrita para `service.satisfaction` no contrato v7" in SYSTEM_INSTRUCTION
     assert "AVG(nota_satisfacao) AS satisfaction" in SYSTEM_INSTRUCTION
@@ -169,6 +177,7 @@ def test_provider_schema_uses_only_supported_gemini_json_schema_keywords():
         "text-to-sql-f1-v10",
         "text-to-sql-f1-v11",
         "text-to-sql-f1-v12",
+        "text-to-sql-f1-v13",
     ]
     assert "semantic_intent" in schema["required"]
     assert "maxItems" not in json.dumps(schema)
