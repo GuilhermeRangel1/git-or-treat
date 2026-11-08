@@ -61,7 +61,7 @@ services:
       GENAI_MODEL_PROVIDER: ${GENAI_MODEL_PROVIDER:-gemini}
       GENAI_GEMINI_API_KEY: ${GENAI_GEMINI_API_KEY:-}
       GENAI_GEMINI_MODEL: ${GENAI_GEMINI_MODEL:-gemini-3.5-flash-lite}
-      GENAI_SQL_GENERATION_ENABLED: ${GENAI_SQL_GENERATION_ENABLED:-false}
+      GENAI_SQL_GENERATION_ENABLED: ${GENAI_SQL_GENERATION_ENABLED:-true}
       GENAI_MODEL_CACHE_TTL_SECONDS: "120"
       GENAI_MODEL_CACHE_MAX_BYTES: "4194304"
     command: [uvicorn, "app.gold_runtime:create_gold_app", --factory, --host, "0.0.0.0", --port, "8001"]
@@ -90,7 +90,7 @@ services:
       AI_AGENT_SERVICE_API_TOKEN: ${DOCKER_SERVICE_TOKEN:?Configure .env}
       GENAI_AUDIT_WRITE_TOKEN: ${DOCKER_AUDIT_TOKEN:?Configure .env}
       GENAI_GOLD_APPROVED_CONTROLS: ${GENAI_GOLD_APPROVED_CONTROLS:-[]}
-      GENAI_SQL_EXECUTION_ENABLED: ${GENAI_SQL_EXECUTION_ENABLED:-false}
+      GENAI_SQL_EXECUTION_ENABLED: ${GENAI_SQL_EXECUTION_ENABLED:-true}
       DB_POOL_SIZE: "5"
       DB_MAX_OVERFLOW: "5"
     ports: ["127.0.0.1:8000:8000"]
@@ -112,7 +112,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        VITE_GENAI_SQL_ANALYSIS_ENABLED: ${VITE_GENAI_SQL_ANALYSIS_ENABLED:-false}
+        VITE_GENAI_SQL_ANALYSIS_ENABLED: ${VITE_GENAI_SQL_ANALYSIS_ENABLED:-true}
     ports: ["127.0.0.1:5173:5173"]
     depends_on:
       backend: {condition: service_healthy}

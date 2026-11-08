@@ -1,5 +1,9 @@
 # Desenvolvimento explícito; a fonte continua sendo Gold v2.
 services:
+  gold-loader:
+    environment:
+      LOCAL_PRESENTATION_ACCOUNTS: "true"
+      LOCAL_PRESENTATION_PASSWORD: ${LOCAL_PRESENTATION_PASSWORD:-senha123}
   backend:
     environment:
       APP_ENV: development
@@ -13,7 +17,7 @@ services:
       dockerfile: frontend/Dockerfile.dev
     environment:
       VITE_API_URL: /
-      VITE_GENAI_SQL_ANALYSIS_ENABLED: ${VITE_GENAI_SQL_ANALYSIS_ENABLED:-false}
+      VITE_GENAI_SQL_ANALYSIS_ENABLED: ${VITE_GENAI_SQL_ANALYSIS_ENABLED:-true}
       API_PROXY_TARGET: http://backend:8000
       DEV_USE_POLLING: "false"
     volumes:
