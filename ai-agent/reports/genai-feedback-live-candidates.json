@@ -1,0 +1,2626 @@
+{
+  "FB-EXT-01": {
+    "input_bytes": 6868,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "55d9f7dbb0b7196201b89b96775968c324706f333b3dd62b6651f3dec5ac39a3",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "A solicitação refere-se a um evento de luta (UFC), que está fora do domínio de energia elétrica.",
+        "reason_code": "out_of_domain"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "luta de UFC"
+        ]
+      }
+    },
+    "elapsed_ms": 2192.4,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2187.26,
+        "context_bytes": 6868,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9390,
+        "output_tokens": 259,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9649
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-EXT-02": {
+    "input_bytes": 6861,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "7f87fb9210023ddb1f12cbe06ba77dc9d9b09b84e8b7d6e4ad3c835147c3e1c6",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": {
+        "metric_id": "billing.revenue",
+        "periods": [
+          {
+            "start": "2025-01-01",
+            "end": "2025-01-31"
+          }
+        ],
+        "filters": []
+      },
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "A solicitação refere-se a uma entidade ou assunto externo (UFC) que não corresponde ao domínio de energia elétrica ou às unidades consumidoras da distribuidora.",
+        "reason_code": "out_of_domain"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "UFC"
+        ]
+      }
+    },
+    "elapsed_ms": 2490.7,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2486.8,
+        "context_bytes": 6861,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9388,
+        "output_tokens": 335,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9723
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-EXT-03": {
+    "input_bytes": 6868,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "88b137034b31eca044d2f1646963c8875731bd46b233dd7aadfe4bf229f0459c",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "A entidade solicitada está fora do escopo de energia elétrica e da base autorizada.",
+        "reason_code": "out_of_domain"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "Netflix"
+        ]
+      }
+    },
+    "elapsed_ms": 2186.6,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2182.65,
+        "context_bytes": 6868,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9387,
+        "output_tokens": 247,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9634
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-EXT-06": {
+    "input_bytes": 6881,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "f82dd20a7bacb587e5bbea52ea2799e271542b4d314d3b9c81796ec1fa643964",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "O assunto sobre o campeonato pernambucano de futebol está fora do domínio de energia elétrica.",
+        "reason_code": "out_of_domain"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "campeonato pernambucano de futebol"
+        ]
+      }
+    },
+    "elapsed_ms": 2161.6,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2156.91,
+        "context_bytes": 6881,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9390,
+        "output_tokens": 256,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9646
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-EXT-07": {
+    "input_bytes": 6907,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "8b59fdba73dcd6a4b0a262c4feb6ae1b88111717fbf43fcaf207fa8183b0c152",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "A solicitação contém partes independentes fora do escopo ou domínio autorizado.",
+        "reason_code": "out_of_domain"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "cotação do dólar"
+        ]
+      }
+    },
+    "elapsed_ms": 1949.1,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 1943.56,
+        "context_bytes": 6907,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9396,
+        "output_tokens": 241,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9637
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-EXT-08": {
+    "input_bytes": 6852,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "0829725321535d0af68423ab12edf0ed48be960555ab01da5b0bc4f86f52dad5",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "Nome de empresa sem relação com energia elétrica é assunto externo e fora do domínio.",
+        "reason_code": "out_of_domain"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "iFood"
+        ]
+      }
+    },
+    "elapsed_ms": 2072.0,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2067.6,
+        "context_bytes": 6852,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9382,
+        "output_tokens": 243,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9625
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-EXT-09": {
+    "input_bytes": 6861,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "04f4d4d290d4332f5e572795b385192fb3f0444fb3551a397fe451d93d938115",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "O assunto é fora do domínio de energia elétrica.",
+        "reason_code": "out_of_domain"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "Nubank"
+        ]
+      }
+    },
+    "elapsed_ms": 3679.0,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 3674.95,
+        "context_bytes": 6861,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9393,
+        "output_tokens": 239,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9632
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-EXT-10": {
+    "input_bytes": 6876,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "ceb2a2402d9a04638d16325772c2ae8dad73c1dbb3b54a387ddbba1f516d5fd7",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "Nome de evento ou competição esportiva sem relação com energia elétrica é assunto externo.",
+        "reason_code": "out_of_domain"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "Copa do Mundo"
+        ]
+      }
+    },
+    "elapsed_ms": 2243.2,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2239.18,
+        "context_bytes": 6876,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9389,
+        "output_tokens": 248,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9637
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-EXT-11": {
+    "input_bytes": 6911,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "208ab2eca1e86fa764cecab29f3f7b1ea94a509628faf16954ec012544cf2dce",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "O assunto refere-se a um estabelecimento comercial específico fora do escopo de agregação de energia elétrica.",
+        "reason_code": "out_of_domain"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "restaurante da esquina"
+        ]
+      }
+    },
+    "elapsed_ms": 2052.4,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2048.23,
+        "context_bytes": 6911,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9388,
+        "output_tokens": 249,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9637
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-EXT-12": {
+    "input_bytes": 6861,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "2566e977075abba1d156a10140ef9356db7c9ec048d1ab490d92a85db0222909",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": {
+        "metric_id": "billing.revenue",
+        "periods": [
+          {
+            "start": "2025-01-01",
+            "end": "2025-01-31"
+          }
+        ],
+        "filters": []
+      },
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "A entidade CAR não está reconhecida no catálogo de municípios ou dimensões autorizadas.",
+        "reason_code": "out_of_domain"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "CAR"
+        ]
+      }
+    },
+    "elapsed_ms": 2114.2,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2108.52,
+        "context_bytes": 6861,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9386,
+        "output_tokens": 315,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9701
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LEG-01": {
+    "input_bytes": 6904,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "548e997cad7075ab3dc396003bc0565219e68169b74df2d53708f3bd95f99efa",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia = :period_start",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2025-06"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-06-01",
+            "end": "2025-06-30"
+          }
+        ],
+        "filters": [],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2282.6,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2278.52,
+        "context_bytes": 6904,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9395,
+        "output_tokens": 405,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9800
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LEG-02": {
+    "input_bytes": 6890,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "482894aef37c6d6cf7d9e24442afaa47db1608a7aa5dae1723031e3a78417d36",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+      "parameters": {
+        "municipality": {
+          "type": "string",
+          "value": "Olinda"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2025-01"
+        },
+        "period_start": {
+          "type": "string",
+          "value": "2025-01"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-01-01",
+            "end": "2025-01-31"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2537.8,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2533.24,
+        "context_bytes": 6890,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9394,
+        "output_tokens": 527,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9921
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LEG-03": {
+    "input_bytes": 7156,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v11",
+      "status": "sql_candidate",
+      "context_version": "d1f20b1d87e982774a04550c70e15e5c2a76469a0735d572236813cafeb4b96c",
+      "sql": "SELECT SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) AS average_consumption_per_uc FROM gold_v2.diagnostico_receita WHERE competencia = :month",
+      "parameters": {
+        "month": {
+          "type": "string",
+          "value": "2025-03"
+        }
+      },
+      "interpretation": {
+        "metric_id": "energy.average_consumption_per_uc",
+        "operation": "ratio_of_sums",
+        "aggregation": "ratio_of_sums",
+        "periods": [
+          {
+            "start": "2025-03-01",
+            "end": "2025-03-31"
+          }
+        ],
+        "filters": [],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "average_consumption_per_uc",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "kWh por UC com leitura no mês"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": [
+          "obras de manutenção na rede"
+        ]
+      }
+    },
+    "elapsed_ms": 2265.2,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2254.31,
+        "context_bytes": 7156,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9473,
+        "output_tokens": 471,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9944
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LEG-04": {
+    "input_bytes": 6874,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "13ff2c01f2e096a4780b23a7f16fcd0819409c741052e27c85027825a0d7360a",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2025-01"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2025-01"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-01-01",
+            "end": "2025-01-31"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2549.2,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2543.71,
+        "context_bytes": 6874,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9394,
+        "output_tokens": 532,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9926
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LEG-05": {
+    "input_bytes": 7129,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v13",
+      "status": "sql_candidate",
+      "context_version": "ed9058dd6a1be9f14a3c1059c96afaaaa4c7b7ebb7773e3e0890aa9112a40f48",
+      "sql": "SELECT ROUND(SUM(receita_total_reais) / NULLIF(SUM(qtd_ucs_distintas_faturadas_no_mes), 0), 2) AS average_ticket FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality AND classe_consumo = :consumption_class",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2024-01"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2024-12"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        },
+        "consumption_class": {
+          "type": "string",
+          "value": "Residencial"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.average_ticket",
+        "operation": "ratio_of_sums",
+        "aggregation": "ratio_of_sums",
+        "periods": [
+          {
+            "start": "2024-01-01",
+            "end": "2024-12-31"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          },
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "Residencial"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "average_ticket",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$ por UC faturada no mês"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2585.6,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2581.25,
+        "context_bytes": 7129,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9482,
+        "output_tokens": 625,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 10107
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LEG-06": {
+    "input_bytes": 7138,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v11",
+      "status": "sql_candidate",
+      "context_version": "9b97694c84e485b0a4c555001131c321d6b22f00866e4741d631ea37128897e3",
+      "sql": "SELECT SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) AS average_consumption_per_uc FROM gold_v2.diagnostico_receita WHERE competencia = :month AND municipio = :municipality",
+      "parameters": {
+        "month": {
+          "type": "string",
+          "value": "2024-12"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        }
+      },
+      "interpretation": {
+        "metric_id": "energy.average_consumption_per_uc",
+        "operation": "ratio_of_sums",
+        "aggregation": "ratio_of_sums",
+        "periods": [
+          {
+            "start": "2024-12-01",
+            "end": "2024-12-31"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "average_consumption_per_uc",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "kWh por UC com leitura no mês"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2600.8,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2596.4,
+        "context_bytes": 7138,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9474,
+        "output_tokens": 542,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 10016
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LEG-07": {
+    "input_bytes": 6718,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v7",
+      "status": "sql_candidate",
+      "context_version": "19b0887ab0703b29c3b1e0893630f653ccfc5f19aa1b9aaa4464e86fb0580a20",
+      "sql": "SELECT AVG(nota_satisfacao) AS satisfaction FROM gold_v2.atendimentos_uc WHERE data_abertura >= :period_start AND data_abertura < :period_end",
+      "parameters": {
+        "period_start": {
+          "type": "timestamp",
+          "value": "2025-06-01T00:00:00Z"
+        },
+        "period_end": {
+          "type": "timestamp",
+          "value": "2025-07-01T00:00:00Z"
+        }
+      },
+      "interpretation": {
+        "metric_id": "service.satisfaction",
+        "operation": "average",
+        "aggregation": "average_non_null",
+        "periods": [
+          {
+            "start": "2025-06-01",
+            "end": "2025-06-30"
+          }
+        ],
+        "filters": [],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "satisfaction",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "pontos"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2495.2,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2489.88,
+        "context_bytes": 6718,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9344,
+        "output_tokens": 482,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9826
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LEG-08": {
+    "input_bytes": 6419,
+    "attempts": 1,
+    "error": "unavailable",
+    "error_type": "ModelProviderUnavailable",
+    "elapsed_ms": 1453.8,
+    "usage": [],
+    "provider_failures": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "kind": "unavailable",
+        "reason": null,
+        "validation_fields": [],
+        "status": 503,
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 1449.37,
+        "context_bytes": 6419,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        }
+      }
+    ]
+  },
+  "FB-LEG-09": {
+    "input_bytes": 7178,
+    "attempts": 1,
+    "error": "invalid_response",
+    "error_type": "ModelProviderInvalidResponse",
+    "elapsed_ms": 2466.5,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2457.37,
+        "context_bytes": 7178,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9483,
+        "output_tokens": 452,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9935
+      }
+    ],
+    "provider_failures": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "kind": "invalid_response",
+        "reason": "contract_validation",
+        "validation_fields": [
+          "envelope"
+        ],
+        "status": null,
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2462.33,
+        "context_bytes": 7178,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        }
+      }
+    ]
+  },
+  "FB-LEG-10": {
+    "input_bytes": 6904,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "c2bcaf6f772a0fd1838f367b2c20adfdef96dce4eac02c20a1a2969028e38766",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality AND classe_consumo = :consumption_class",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2025-02"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2025-02"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        },
+        "consumption_class": {
+          "type": "string",
+          "value": "Comercial"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-02-01",
+            "end": "2025-02-28"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          },
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "Comercial"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2623.6,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2619.42,
+        "context_bytes": 6904,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9392,
+        "output_tokens": 608,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 10000
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LEG-11": {
+    "input_bytes": 6898,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "78a05e38c49e9948d2bd4ece85e90fc05c3e67b3834142814cf5f1ab75dfb335",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2025-06"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2025-06"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Olinda"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-06-01",
+            "end": "2025-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 3973.8,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 3969.76,
+        "context_bytes": 6898,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9397,
+        "output_tokens": 527,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9924
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LEG-12": {
+    "input_bytes": 6882,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "64f455586a689b64846bf544fcd6b5515b77e89f084d3b07456d8f46fff1a482",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia = :period_start",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2025-07"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-07-01",
+            "end": "2025-07-31"
+          }
+        ],
+        "filters": [],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": [
+          "período de seca"
+        ]
+      }
+    },
+    "elapsed_ms": 2218.1,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2212.54,
+        "context_bytes": 6882,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9394,
+        "output_tokens": 422,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9816
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-01": {
+    "input_bytes": 6844,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "needs_clarification",
+      "context_version": "5b635549570432cb9664cfdcc1e545f352059a1682522289eae260db552bd646",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": {
+        "question": "De qual ano você gostaria de saber a receita de junho?",
+        "missing_fields": [
+          "period"
+        ],
+        "reason_code": "ambiguous_subject",
+        "options": [
+          {
+            "label": "Junho de 2024",
+            "question": "Qual a receita em junho de 2024?"
+          },
+          {
+            "label": "Junho de 2025",
+            "question": "Qual a receita em junho de 2025?"
+          },
+          {
+            "label": "Junho de 2026",
+            "question": "Qual a receita em junho de 2026?"
+          }
+        ]
+      },
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2097.0,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2090.88,
+        "context_bytes": 6844,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9379,
+        "output_tokens": 362,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9741
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-02": {
+    "input_bytes": 7048,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "02ad0e2c8ddb56505d2a8f40e04286f9d3491f8e23a4c250c01f608b00e940f5",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+      "parameters": {
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2025-06"
+        },
+        "period_start": {
+          "type": "string",
+          "value": "2025-06"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-06-01",
+            "end": "2025-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2476.9,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2470.75,
+        "context_bytes": 7048,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9436,
+        "output_tokens": 532,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9968
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-03": {
+    "input_bytes": 6944,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "a5a67011b7af6fd4791f27adc9a1654af5627adebaacc867c0bba8c94a2fba4c",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia = :period_start AND municipio = :municipality",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2025-06"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-06-01",
+            "end": "2025-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2364.0,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2355.32,
+        "context_bytes": 6944,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9401,
+        "output_tokens": 484,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9885
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-04": {
+    "input_bytes": 7090,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "fab2f734f28045bc1860f26df4b3be0acca0ace3b1e840c20bd257ef0bf95ec2",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2025-03"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2025-03"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Olinda"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-03-01",
+            "end": "2025-03-31"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2644.1,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2637.12,
+        "context_bytes": 7090,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9433,
+        "output_tokens": 520,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9953
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-05": {
+    "input_bytes": 7099,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "5ba46cda4371be84be7a4ee9941a285abe15960df654b43bde2fdc18de45c127",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2025-03"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2025-03"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-03-01",
+            "end": "2025-03-31"
+          }
+        ],
+        "filters": [],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2277.4,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2272.88,
+        "context_bytes": 7099,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9437,
+        "output_tokens": 442,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9879
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-06": {
+    "input_bytes": 6849,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "ad0f4e134a1c6c6c6385b1c5876d4dbfa9e1e8b5f18c2aea0328a19c6a86b4f1",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "Dados cadastrais de unidade consumidora específica não estão disponíveis na capacidade de faturamento.",
+        "reason_code": "unsupported_capability"
+      },
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": [
+          "UC 004512"
+        ]
+      }
+    },
+    "elapsed_ms": 2167.4,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2159.31,
+        "context_bytes": 6849,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9389,
+        "output_tokens": 248,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9637
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-07": {
+    "input_bytes": 7230,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v13",
+      "status": "sql_candidate",
+      "context_version": "3846a572824faa72aef92b4ef5f497f8ec07d63f0203e678a178794b82570f32",
+      "sql": "SELECT ROUND(SUM(receita_total_reais) / NULLIF(SUM(qtd_ucs_distintas_faturadas_no_mes), 0), 2) AS average_ticket FROM gold_v2.diagnostico_receita WHERE competencia = :period_start AND classe_consumo = :consumption_class AND municipio = :municipality",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2025-03"
+        },
+        "consumption_class": {
+          "type": "string",
+          "value": "Residencial"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.average_ticket",
+        "operation": "ratio_of_sums",
+        "aggregation": "ratio_of_sums",
+        "periods": [
+          {
+            "start": "2025-03-01",
+            "end": "2025-03-31"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "Residencial"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "average_ticket",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$ por UC faturada no mês"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 3041.5,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 3034.97,
+        "context_bytes": 7230,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9509,
+        "output_tokens": 617,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 10126
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-09": {
+    "input_bytes": 6868,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "f0c1d5aea927709071b56d42240d0dbd593e224097553737677927ffde1e49d2",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2025-06"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2025-06"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2025-06-01",
+            "end": "2025-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2820.9,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2815.1,
+        "context_bytes": 6868,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9390,
+        "output_tokens": 529,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9919
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-10": {
+    "input_bytes": 6859,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "ef59e33277ce000f562aea5b4a5592f1d14eede7ddf5eb29cc266c9bc5ec9f8c",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia >= :period_start AND competencia <= :period_end AND municipio = :municipality",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2026-01"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2026-06"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 2608.7,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2600.81,
+        "context_bytes": 6859,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9382,
+        "output_tokens": 525,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9907
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-11": {
+    "input_bytes": 7024,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "needs_clarification",
+      "context_version": "aef687c9b5193f998162cf6f997e9de407c343af81f00c2b8c07fbce3da8c296",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": {
+        "question": "A qual classe de consumo você se refere para detalhar o maior deles por município?",
+        "missing_fields": [
+          "dimension"
+        ],
+        "reason_code": "ambiguous_subject",
+        "options": [
+          {
+            "label": "Residencial",
+            "question": "Qual o município com maior faturamento da classe Residencial em 2025?"
+          },
+          {
+            "label": "Comercial",
+            "question": "Qual o município com maior faturamento da classe Comercial em 2025?"
+          },
+          {
+            "label": "Industrial",
+            "question": "Qual o município com maior faturamento da classe Industrial em 2025?"
+          }
+        ]
+      },
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": [
+          "maior deles"
+        ]
+      }
+    },
+    "elapsed_ms": 2220.4,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 2214.87,
+        "context_bytes": 7024,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9426,
+        "output_tokens": 376,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9802
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-AMB-12": {
+    "input_bytes": 6847,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "needs_clarification",
+      "context_version": "64e1da1a30666fe5ad6ea7413877b81c63704e656d604b621a5cb1223cad7d49",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": {
+        "question": "Qual período você deseja comparar com o ano anterior?",
+        "missing_fields": [
+          "period"
+        ],
+        "reason_code": "missing_context",
+        "options": []
+      },
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 1965.5,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 1959.73,
+        "context_bytes": 6847,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9379,
+        "output_tokens": 239,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9618
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LIM-01": {
+    "input_bytes": 6887,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "644159725211f8e5454320831bade350c734b89b9fe931c2ff7e48343ace3e29",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "operation_outside_f1",
+        "message": "Essa análise ainda não está disponível.",
+        "reason_code": "unsupported_capability"
+      },
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": [
+          "programação de desligamentos"
+        ]
+      }
+    },
+    "elapsed_ms": 1941.8,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 1937.64,
+        "context_bytes": 6887,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9386,
+        "output_tokens": 239,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9625
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LIM-05": {
+    "input_bytes": 6878,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "sql_candidate",
+      "context_version": "4f45a9ec2b72d56a6429f3fb4a15e983c718e524ca30dd775941e4b68ab842fa",
+      "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+      "parameters": {
+        "period_start": {
+          "type": "string",
+          "value": "2026-01"
+        },
+        "period_end": {
+          "type": "string",
+          "value": "2026-06"
+        },
+        "municipality": {
+          "type": "string",
+          "value": "Recife"
+        }
+      },
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "semantic_intent": null,
+      "result_columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "clarification": null,
+      "unsupported_reason": null,
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 3166.6,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 3149.05,
+        "context_bytes": 6878,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9391,
+        "output_tokens": 528,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9919
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LIM-06": {
+    "input_bytes": 6863,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "bc166207d44a6bf3b18cf6ae310072029163e96f215e979de1db8b9f4995ba9b",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "operation_outside_f1",
+        "message": "Operações de exclusão ou alteração de dados não são suportadas.",
+        "reason_code": "security_restriction"
+      },
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": []
+      }
+    },
+    "elapsed_ms": 1918.9,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 1914.69,
+        "context_bytes": 6863,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9387,
+        "output_tokens": 233,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9620
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LIM-07": {
+    "input_bytes": 6863,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "4ff4121983adb2f75194da401d9235f64d781ce89da6a9ab471db16b84301bcd",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "source_outside_f1",
+        "message": "Solicitação de credenciais de banco de dados não é permitida.",
+        "reason_code": "security_restriction"
+      },
+      "scope_assessment": {
+        "status": "out_of_domain",
+        "unresolved_terms": [
+          "senha",
+          "banco de dados"
+        ]
+      }
+    },
+    "elapsed_ms": 1890.9,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 1883.08,
+        "context_bytes": 6863,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9382,
+        "output_tokens": 247,
+        "thought_tokens": null,
+        "cached_tokens": 7775,
+        "total_tokens": 9629
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LIM-09": {
+    "input_bytes": 6862,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "9acb2260843454ef8f07341c5fee17904fc4c99c791f03d0ae93a1cbd76a951e",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": null,
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "metric_outside_f1",
+        "message": "Indicadores financeiros ou operacionais como lucro líquido não estão disponíveis na capacidade atual.",
+        "reason_code": "unsupported_capability"
+      },
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": [
+          "lucro líquido"
+        ]
+      }
+    },
+    "elapsed_ms": 2007.3,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 1997.86,
+        "context_bytes": 6862,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9387,
+        "output_tokens": 244,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9631
+      }
+    ],
+    "provider_failures": []
+  },
+  "FB-LIM-10": {
+    "input_bytes": 6861,
+    "attempts": 1,
+    "candidate": {
+      "generation_contract_version": "text-to-sql-f1-v1",
+      "status": "unsupported",
+      "context_version": "a442f1d8ad5e68fa2ea17e55efef6d3b05c571e63e5672653b5e640f1dde1772",
+      "sql": null,
+      "parameters": {},
+      "interpretation": null,
+      "semantic_intent": {
+        "metric_id": "billing.revenue",
+        "periods": [],
+        "filters": []
+      },
+      "result_columns": [],
+      "clarification": null,
+      "unsupported_reason": {
+        "code": "operation_outside_f1",
+        "message": "Previsões futuras não são suportadas pela capacidade executável.",
+        "reason_code": "unsupported_capability"
+      },
+      "scope_assessment": {
+        "status": "in_domain",
+        "unresolved_terms": [
+          "previsão"
+        ]
+      }
+    },
+    "elapsed_ms": 2009.7,
+    "usage": [
+      {
+        "correlation_id": null,
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
+        "prompt_version": "text-to-sql-f1-35",
+        "elapsed_ms": 1999.25,
+        "context_bytes": 6861,
+        "max_output_tokens": 4096,
+        "temperature": 0.0,
+        "attempts": 1,
+        "dependencies": {
+          "google-genai": "2.34.0",
+          "sqlglot": "30.24.0",
+          "psycopg": "3.3.6"
+        },
+        "prompt_tokens": 9386,
+        "output_tokens": 256,
+        "thought_tokens": null,
+        "cached_tokens": null,
+        "total_tokens": 9642
+      }
+    ],
+    "provider_failures": []
+  }
+}

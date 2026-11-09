@@ -1,5 +1,9 @@
 import { apiClient } from "@/shared/api/client";
-import { decodeAIQuestionResponse, type AIQuestionResponse } from "./contract";
+import {
+  decodeAIQuestionResponse,
+  decodeSqlAnalysisResponse,
+  type AIQuestionResponse,
+} from "./contract";
 
 export type ConversationSummary = {
   id: string;
@@ -67,14 +71,17 @@ export function decodeDetail(value: unknown): ConversationDetail {
         (typeof entry.question !== "string" || entry.question.length > 1000))
     )
       throw new Error("Histórico inválido.");
+    const response =
+      entry.sql_response != null
+        ? decodeSqlAnalysisResponse(entry.sql_response)
+        : entry.response == null
+          ? null
+          : decodeAIQuestionResponse(entry.response);
     return {
       request_id: entry.request_id,
       state: entry.state as SavedExchange["state"],
       question: entry.question as string | null,
-      response:
-        entry.response == null
-          ? null
-          : decodeAIQuestionResponse(entry.response),
+      response,
     };
   });
   return {

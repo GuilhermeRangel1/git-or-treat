@@ -1,7 +1,7 @@
 {
   "summary": {
-    "total": 45,
-    "passed": 45,
+    "total": 46,
+    "passed": 46,
     "failed": 0,
     "known_failures": 0
   },
@@ -12,8 +12,8 @@
       "failed": 0
     },
     "backend.coverage": {
-      "total": 14,
-      "passed": 14,
+      "total": 15,
+      "passed": 15,
       "failed": 0
     },
     "backend.permissions": {
@@ -24,8 +24,8 @@
   },
   "dimensions": {
     "contract": {
-      "total": 44,
-      "passed": 44,
+      "total": 45,
+      "passed": 45,
       "failed": 0
     },
     "required_suites": {
@@ -47,6 +47,15 @@
     {
       "id": "BACKEND-0327534d75d70a986e15",
       "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-0bdd6d4b20881bf33f7b",
+      "category": "backend.coverage",
       "checks": {
         "contract": true
       },
@@ -306,15 +315,6 @@
       "outcome": "passed"
     },
     {
-      "id": "BACKEND-ac4093fe81881c650f19",
-      "category": "backend.authorization",
-      "checks": {
-        "contract": true
-      },
-      "passed": true,
-      "outcome": "passed"
-    },
-    {
       "id": "BACKEND-ad5abfd84f007571c095",
       "category": "backend.permissions",
       "checks": {
@@ -416,6 +416,15 @@
     {
       "id": "BACKEND-de3e4c4728321226d987",
       "category": "backend.permissions",
+      "checks": {
+        "contract": true
+      },
+      "passed": true,
+      "outcome": "passed"
+    },
+    {
+      "id": "BACKEND-ebcbb8908979d1429c1b",
+      "category": "backend.authorization",
       "checks": {
         "contract": true
       },

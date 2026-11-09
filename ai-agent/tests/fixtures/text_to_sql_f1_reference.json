@@ -1,0 +1,529 @@
+{
+  "dataset_version": "text-to-sql-f1-reference-1",
+  "scope": "Hand-authored reference SQL on artificial data; not generated SQL acceptance or human-reviewed business certification",
+  "coverage": [
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06"
+  ],
+  "rows": [
+    {
+      "competencia": "2026-01",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "100",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-01",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "50",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-01",
+      "municipio": "Olinda",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-01",
+      "municipio": "Cidade Controle",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-01",
+      "municipio": "Jaboatão dos Guararapes",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "70",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-01",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-01",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "40",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-02",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "100",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-02",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "50",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-02",
+      "municipio": "Olinda",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-02",
+      "municipio": "Cidade Controle",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-02",
+      "municipio": "Jaboatão dos Guararapes",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "70",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-02",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-02",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "40",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-03",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "100",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-03",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "50",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-03",
+      "municipio": "Olinda",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-03",
+      "municipio": "Cidade Controle",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-03",
+      "municipio": "Jaboatão dos Guararapes",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "70",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-03",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-03",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "40",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-04",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "100",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-04",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "50",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-04",
+      "municipio": "Olinda",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-04",
+      "municipio": "Cidade Controle",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-04",
+      "municipio": "Jaboatão dos Guararapes",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "70",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-04",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-04",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "40",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-05",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "100",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-05",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "50",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-05",
+      "municipio": "Olinda",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-05",
+      "municipio": "Cidade Controle",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-05",
+      "municipio": "Jaboatão dos Guararapes",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "70",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-05",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-05",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "40",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-06",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "100",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-06",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "50",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-06",
+      "municipio": "Olinda",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-06",
+      "municipio": "Cidade Controle",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-06",
+      "municipio": "Jaboatão dos Guararapes",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "70",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-06",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "80",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2025-06",
+      "municipio": "Recife",
+      "classe_consumo": "COMERCIAL",
+      "receita_total_reais": "40",
+      "bandeira_tarifaria": "BASE"
+    },
+    {
+      "competencia": "2026-06",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": "50",
+      "bandeira_tarifaria": "OUTRA"
+    },
+    {
+      "competencia": "2026-06",
+      "municipio": "Recife",
+      "classe_consumo": "RESIDENCIAL",
+      "receita_total_reais": null,
+      "bandeira_tarifaria": "NULO"
+    }
+  ],
+  "cases": [
+    {
+      "id": "F1-01",
+      "question": "Qual foi o faturamento de Recife em junho de 2026?",
+      "expected_status": "answered",
+      "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+      "parameters": {
+        "municipality": "Recife",
+        "start": "2026-06",
+        "end": "2026-06"
+      },
+      "expected_rows": [
+        {
+          "revenue": "200.00"
+        }
+      ]
+    },
+    {
+      "id": "F1-02",
+      "question": "E o faturamento total de 2026?",
+      "context": [
+        "F1-01"
+      ],
+      "expected_status": "needs_clarification",
+      "reason": "missing_months",
+      "requested_competencies": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "expected_missing_competencies": [
+        "2026-07",
+        "2026-08",
+        "2026-09",
+        "2026-10",
+        "2026-11",
+        "2026-12"
+      ],
+      "reference_sql": null
+    },
+    {
+      "id": "F1-03",
+      "question": "Então mostre o acumulado de janeiro a junho de 2026.",
+      "context": [
+        "F1-01",
+        "F1-02"
+      ],
+      "expected_status": "answered",
+      "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+      "parameters": {
+        "municipality": "Recife",
+        "start": "2026-01",
+        "end": "2026-06"
+      },
+      "expected_rows": [
+        {
+          "revenue": "950.00"
+        }
+      ]
+    },
+    {
+      "id": "F1-04",
+      "question": "Compare esse acumulado com janeiro a junho de 2025.",
+      "context": [
+        "F1-03"
+      ],
+      "expected_status": "answered",
+      "reference_sql": "SELECT LEFT(competencia, 4) AS year, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND (competencia BETWEEN '2025-01' AND '2025-06' OR competencia BETWEEN '2026-01' AND '2026-06') GROUP BY LEFT(competencia, 4) ORDER BY year",
+      "parameters": {
+        "municipality": "Recife"
+      },
+      "expected_rows": [
+        {
+          "year": "2025",
+          "revenue": "720.00"
+        },
+        {
+          "year": "2026",
+          "revenue": "950.00"
+        }
+      ],
+      "expected_difference_reais": "230.00"
+    },
+    {
+      "id": "F1-05",
+      "question": "Mostre o faturamento por mês de janeiro a junho de 2026 em Recife.",
+      "context": [],
+      "expected_status": "answered",
+      "reference_sql": "SELECT competencia, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY competencia ORDER BY competencia",
+      "parameters": {
+        "municipality": "Recife",
+        "start": "2026-01",
+        "end": "2026-06"
+      },
+      "expected_rows": [
+        {
+          "competencia": "2026-01",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-02",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-03",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-04",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-05",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-06",
+          "revenue": "200.00"
+        }
+      ]
+    },
+    {
+      "id": "F1-06",
+      "question": "Quais cinco municípios mais faturaram entre janeiro e junho de 2026, considerando todos os municípios?",
+      "context": [
+        "F1-01"
+      ],
+      "expected_status": "answered",
+      "reference_sql": "SELECT municipio, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :start AND :end GROUP BY municipio ORDER BY revenue DESC, municipio ASC LIMIT 5",
+      "parameters": {
+        "start": "2026-01",
+        "end": "2026-06"
+      },
+      "expected_rows": [
+        {
+          "municipio": "Recife",
+          "revenue": "950.00"
+        },
+        {
+          "municipio": "Cidade Controle",
+          "revenue": "480.00"
+        },
+        {
+          "municipio": "Olinda",
+          "revenue": "480.00"
+        },
+        {
+          "municipio": "Jaboatão dos Guararapes",
+          "revenue": "420.00"
+        }
+      ]
+    },
+    {
+      "id": "F1-07",
+      "question": "Quanto corresponde a cada classe em Recife em junho de 2026?",
+      "context": [],
+      "expected_status": "answered",
+      "reference_sql": "SELECT classe_consumo, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY classe_consumo ORDER BY classe_consumo",
+      "parameters": {
+        "municipality": "Recife",
+        "start": "2026-06",
+        "end": "2026-06"
+      },
+      "expected_rows": [
+        {
+          "classe_consumo": "COMERCIAL",
+          "revenue": "50.00"
+        },
+        {
+          "classe_consumo": "RESIDENCIAL",
+          "revenue": "150.00"
+        }
+      ]
+    },
+    {
+      "id": "F1-08",
+      "question": "Qual foi a soma em reais das faturas emitidas em Recife em junho de 2026?",
+      "context": [],
+      "expected_status": "answered",
+      "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end",
+      "parameters": {
+        "municipality": "Recife",
+        "start": "2026-06",
+        "end": "2026-06"
+      },
+      "expected_rows": [
+        {
+          "revenue": "200.00"
+        }
+      ]
+    }
+  ]
+}

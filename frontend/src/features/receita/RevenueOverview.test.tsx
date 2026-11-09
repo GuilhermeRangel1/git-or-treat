@@ -64,7 +64,7 @@ it("não repete os efeitos em cartões nem exibe a apresentação genérica do c
   expect(screen.queryByText(/premissas do case/)).not.toBeInTheDocument();
 });
 
-it("não apresenta fechamento nem percentual inventado para base parcial", () => {
+it("sinaliza dados parciais e deixa os limites no modal", async () => {
   const partial = structuredClone(envelope);
   Object.assign(partial.data.window_decomposition!, {
     status: "partial",
@@ -79,6 +79,16 @@ it("não apresenta fechamento nem percentual inventado para base parcial", () =>
     screen.queryByRole("img", { name: "Cascata da variação de receita" }),
   ).not.toBeInTheDocument();
   expect(screen.queryByText("Percentual indisponível")).not.toBeInTheDocument();
+  expect(screen.getByText("Dados parciais · R$")).toBeVisible();
+  expect(screen.queryByText(/tarifa homologada/)).not.toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Como calculamos e valores" }),
+  );
+  expect(
+    within(screen.getByRole("dialog")).getByText(
+      /Grupos com base incompleta: 1/,
+    ),
+  ).toBeVisible();
 });
 
 it("valida números externos e conserva compatibilidade com respostas sem a extensão", () => {

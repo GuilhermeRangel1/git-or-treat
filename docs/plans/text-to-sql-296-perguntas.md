@@ -1,0 +1,329 @@
+# 296 casos fora do escopo da F1
+
+## energy.consumption (264)
+
+- **LANG-001** — Quanto consumiram as casas em Recife em março de 2025?
+- **LANG-002** — Quanto consumiram as casas em Recife em 2025-03?
+- **LANG-003** — Quanto consumiram as casas em Recife em mar/2025?
+- **LANG-004** — Quanto consumiram as casas em Recife no mês de março de 2025?
+- **LANG-005** — Quanto consumiram as casas em Olinda em março de 2025?
+- **LANG-006** — Quanto consumiram as casas em Olinda em 2025-03?
+- **LANG-007** — Quanto consumiram as casas em Olinda em mar/2025?
+- **LANG-008** — Quanto consumiram as casas em Olinda no mês de março de 2025?
+- **LANG-009** — Quanto consumiram as casas em Jaboatão dos Guararapes em março de 2025?
+- **LANG-010** — Quanto consumiram as casas em Jaboatão dos Guararapes em 2025-03?
+- **LANG-011** — Quanto consumiram as casas em Jaboatão dos Guararapes em mar/2025?
+- **LANG-012** — Quanto consumiram as casas em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-013** — Quanto consumiram as famílias em Recife em março de 2025?
+- **LANG-014** — Quanto consumiram as famílias em Recife em 2025-03?
+- **LANG-015** — Quanto consumiram as famílias em Recife em mar/2025?
+- **LANG-016** — Quanto consumiram as famílias em Recife no mês de março de 2025?
+- **LANG-017** — Quanto consumiram as famílias em Olinda em março de 2025?
+- **LANG-018** — Quanto consumiram as famílias em Olinda em 2025-03?
+- **LANG-019** — Quanto consumiram as famílias em Olinda em mar/2025?
+- **LANG-020** — Quanto consumiram as famílias em Olinda no mês de março de 2025?
+- **LANG-021** — Quanto consumiram as famílias em Jaboatão dos Guararapes em março de 2025?
+- **LANG-022** — Quanto consumiram as famílias em Jaboatão dos Guararapes em 2025-03?
+- **LANG-023** — Quanto consumiram as famílias em Jaboatão dos Guararapes em mar/2025?
+- **LANG-024** — Quanto consumiram as famílias em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-025** — Quanto consumiram as residências em Recife em março de 2025?
+- **LANG-026** — Quanto consumiram as residências em Recife em 2025-03?
+- **LANG-027** — Quanto consumiram as residências em Recife em mar/2025?
+- **LANG-028** — Quanto consumiram as residências em Recife no mês de março de 2025?
+- **LANG-029** — Quanto consumiram as residências em Olinda em março de 2025?
+- **LANG-030** — Quanto consumiram as residências em Olinda em 2025-03?
+- **LANG-031** — Quanto consumiram as residências em Olinda em mar/2025?
+- **LANG-032** — Quanto consumiram as residências em Olinda no mês de março de 2025?
+- **LANG-033** — Quanto consumiram as residências em Jaboatão dos Guararapes em março de 2025?
+- **LANG-034** — Quanto consumiram as residências em Jaboatão dos Guararapes em 2025-03?
+- **LANG-035** — Quanto consumiram as residências em Jaboatão dos Guararapes em mar/2025?
+- **LANG-036** — Quanto consumiram as residências em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-037** — Quanto consumiram as unidades residenciais em Recife em março de 2025?
+- **LANG-038** — Quanto consumiram as unidades residenciais em Recife em 2025-03?
+- **LANG-039** — Quanto consumiram as unidades residenciais em Recife em mar/2025?
+- **LANG-040** — Quanto consumiram as unidades residenciais em Recife no mês de março de 2025?
+- **LANG-041** — Quanto consumiram as unidades residenciais em Olinda em março de 2025?
+- **LANG-042** — Quanto consumiram as unidades residenciais em Olinda em 2025-03?
+- **LANG-043** — Quanto consumiram as unidades residenciais em Olinda em mar/2025?
+- **LANG-044** — Quanto consumiram as unidades residenciais em Olinda no mês de março de 2025?
+- **LANG-045** — Quanto consumiram as unidades residenciais em Jaboatão dos Guararapes em março de 2025?
+- **LANG-046** — Quanto consumiram as unidades residenciais em Jaboatão dos Guararapes em 2025-03?
+- **LANG-047** — Quanto consumiram as unidades residenciais em Jaboatão dos Guararapes em mar/2025?
+- **LANG-048** — Quanto consumiram as unidades residenciais em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-049** — Quanto consumiram os clientes residenciais em Recife em março de 2025?
+- **LANG-050** — Quanto consumiram os clientes residenciais em Recife em 2025-03?
+- **LANG-051** — Quanto consumiram os clientes residenciais em Recife em mar/2025?
+- **LANG-052** — Quanto consumiram os clientes residenciais em Recife no mês de março de 2025?
+- **LANG-053** — Quanto consumiram os clientes residenciais em Olinda em março de 2025?
+- **LANG-054** — Quanto consumiram os clientes residenciais em Olinda em 2025-03?
+- **LANG-055** — Quanto consumiram os clientes residenciais em Olinda em mar/2025?
+- **LANG-056** — Quanto consumiram os clientes residenciais em Olinda no mês de março de 2025?
+- **LANG-057** — Quanto consumiram os clientes residenciais em Jaboatão dos Guararapes em março de 2025?
+- **LANG-058** — Quanto consumiram os clientes residenciais em Jaboatão dos Guararapes em 2025-03?
+- **LANG-059** — Quanto consumiram os clientes residenciais em Jaboatão dos Guararapes em mar/2025?
+- **LANG-060** — Quanto consumiram os clientes residenciais em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-061** — Quanto consumiu a classe residencial em Recife em março de 2025?
+- **LANG-062** — Quanto consumiu a classe residencial em Recife em 2025-03?
+- **LANG-063** — Quanto consumiu a classe residencial em Recife em mar/2025?
+- **LANG-064** — Quanto consumiu a classe residencial em Recife no mês de março de 2025?
+- **LANG-065** — Quanto consumiu a classe residencial em Olinda em março de 2025?
+- **LANG-066** — Quanto consumiu a classe residencial em Olinda em 2025-03?
+- **LANG-067** — Quanto consumiu a classe residencial em Olinda em mar/2025?
+- **LANG-068** — Quanto consumiu a classe residencial em Olinda no mês de março de 2025?
+- **LANG-069** — Quanto consumiu a classe residencial em Jaboatão dos Guararapes em março de 2025?
+- **LANG-070** — Quanto consumiu a classe residencial em Jaboatão dos Guararapes em 2025-03?
+- **LANG-071** — Quanto consumiu a classe residencial em Jaboatão dos Guararapes em mar/2025?
+- **LANG-072** — Quanto consumiu a classe residencial em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-073** — Quanto consumiu a classe comercial em Recife em março de 2025?
+- **LANG-074** — Quanto consumiu a classe comercial em Recife em 2025-03?
+- **LANG-075** — Quanto consumiu a classe comercial em Recife em mar/2025?
+- **LANG-076** — Quanto consumiu a classe comercial em Recife no mês de março de 2025?
+- **LANG-077** — Quanto consumiu a classe comercial em Olinda em março de 2025?
+- **LANG-078** — Quanto consumiu a classe comercial em Olinda em 2025-03?
+- **LANG-079** — Quanto consumiu a classe comercial em Olinda em mar/2025?
+- **LANG-080** — Quanto consumiu a classe comercial em Olinda no mês de março de 2025?
+- **LANG-081** — Quanto consumiu a classe comercial em Jaboatão dos Guararapes em março de 2025?
+- **LANG-082** — Quanto consumiu a classe comercial em Jaboatão dos Guararapes em 2025-03?
+- **LANG-083** — Quanto consumiu a classe comercial em Jaboatão dos Guararapes em mar/2025?
+- **LANG-084** — Quanto consumiu a classe comercial em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-085** — Quanto consumiram os clientes comerciais em Recife em março de 2025?
+- **LANG-086** — Quanto consumiram os clientes comerciais em Recife em 2025-03?
+- **LANG-087** — Quanto consumiram os clientes comerciais em Recife em mar/2025?
+- **LANG-088** — Quanto consumiram os clientes comerciais em Recife no mês de março de 2025?
+- **LANG-089** — Quanto consumiram os clientes comerciais em Olinda em março de 2025?
+- **LANG-090** — Quanto consumiram os clientes comerciais em Olinda em 2025-03?
+- **LANG-091** — Quanto consumiram os clientes comerciais em Olinda em mar/2025?
+- **LANG-092** — Quanto consumiram os clientes comerciais em Olinda no mês de março de 2025?
+- **LANG-093** — Quanto consumiram os clientes comerciais em Jaboatão dos Guararapes em março de 2025?
+- **LANG-094** — Quanto consumiram os clientes comerciais em Jaboatão dos Guararapes em 2025-03?
+- **LANG-095** — Quanto consumiram os clientes comerciais em Jaboatão dos Guararapes em mar/2025?
+- **LANG-096** — Quanto consumiram os clientes comerciais em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-097** — Quanto consumiram os estabelecimentos comerciais em Recife em março de 2025?
+- **LANG-098** — Quanto consumiram os estabelecimentos comerciais em Recife em 2025-03?
+- **LANG-099** — Quanto consumiram os estabelecimentos comerciais em Recife em mar/2025?
+- **LANG-100** — Quanto consumiram os estabelecimentos comerciais em Recife no mês de março de 2025?
+- **LANG-101** — Quanto consumiram os estabelecimentos comerciais em Olinda em março de 2025?
+- **LANG-102** — Quanto consumiram os estabelecimentos comerciais em Olinda em 2025-03?
+- **LANG-103** — Quanto consumiram os estabelecimentos comerciais em Olinda em mar/2025?
+- **LANG-104** — Quanto consumiram os estabelecimentos comerciais em Olinda no mês de março de 2025?
+- **LANG-105** — Quanto consumiram os estabelecimentos comerciais em Jaboatão dos Guararapes em março de 2025?
+- **LANG-106** — Quanto consumiram os estabelecimentos comerciais em Jaboatão dos Guararapes em 2025-03?
+- **LANG-107** — Quanto consumiram os estabelecimentos comerciais em Jaboatão dos Guararapes em mar/2025?
+- **LANG-108** — Quanto consumiram os estabelecimentos comerciais em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-109** — Quanto consumiu a classe industrial em Recife em março de 2025?
+- **LANG-110** — Quanto consumiu a classe industrial em Recife em 2025-03?
+- **LANG-111** — Quanto consumiu a classe industrial em Recife em mar/2025?
+- **LANG-112** — Quanto consumiu a classe industrial em Recife no mês de março de 2025?
+- **LANG-113** — Quanto consumiu a classe industrial em Olinda em março de 2025?
+- **LANG-114** — Quanto consumiu a classe industrial em Olinda em 2025-03?
+- **LANG-115** — Quanto consumiu a classe industrial em Olinda em mar/2025?
+- **LANG-116** — Quanto consumiu a classe industrial em Olinda no mês de março de 2025?
+- **LANG-117** — Quanto consumiu a classe industrial em Jaboatão dos Guararapes em março de 2025?
+- **LANG-118** — Quanto consumiu a classe industrial em Jaboatão dos Guararapes em 2025-03?
+- **LANG-119** — Quanto consumiu a classe industrial em Jaboatão dos Guararapes em mar/2025?
+- **LANG-120** — Quanto consumiu a classe industrial em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-121** — Quanto consumiram os clientes industriais em Recife em março de 2025?
+- **LANG-122** — Quanto consumiram os clientes industriais em Recife em 2025-03?
+- **LANG-123** — Quanto consumiram os clientes industriais em Recife em mar/2025?
+- **LANG-124** — Quanto consumiram os clientes industriais em Recife no mês de março de 2025?
+- **LANG-125** — Quanto consumiram os clientes industriais em Olinda em março de 2025?
+- **LANG-126** — Quanto consumiram os clientes industriais em Olinda em 2025-03?
+- **LANG-127** — Quanto consumiram os clientes industriais em Olinda em mar/2025?
+- **LANG-128** — Quanto consumiram os clientes industriais em Olinda no mês de março de 2025?
+- **LANG-129** — Quanto consumiram os clientes industriais em Jaboatão dos Guararapes em março de 2025?
+- **LANG-130** — Quanto consumiram os clientes industriais em Jaboatão dos Guararapes em 2025-03?
+- **LANG-131** — Quanto consumiram os clientes industriais em Jaboatão dos Guararapes em mar/2025?
+- **LANG-132** — Quanto consumiram os clientes industriais em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-133** — Quanto consumiram as unidades rurais em Recife em março de 2025?
+- **LANG-134** — Quanto consumiram as unidades rurais em Recife em 2025-03?
+- **LANG-135** — Quanto consumiram as unidades rurais em Recife em mar/2025?
+- **LANG-136** — Quanto consumiram as unidades rurais em Recife no mês de março de 2025?
+- **LANG-137** — Quanto consumiram as unidades rurais em Olinda em março de 2025?
+- **LANG-138** — Quanto consumiram as unidades rurais em Olinda em 2025-03?
+- **LANG-139** — Quanto consumiram as unidades rurais em Olinda em mar/2025?
+- **LANG-140** — Quanto consumiram as unidades rurais em Olinda no mês de março de 2025?
+- **LANG-141** — Quanto consumiram as unidades rurais em Jaboatão dos Guararapes em março de 2025?
+- **LANG-142** — Quanto consumiram as unidades rurais em Jaboatão dos Guararapes em 2025-03?
+- **LANG-143** — Quanto consumiram as unidades rurais em Jaboatão dos Guararapes em mar/2025?
+- **LANG-144** — Quanto consumiram as unidades rurais em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-145** — Quanto consumiu o poder público em Recife em março de 2025?
+- **LANG-146** — Quanto consumiu o poder público em Recife em 2025-03?
+- **LANG-147** — Quanto consumiu o poder público em Recife em mar/2025?
+- **LANG-148** — Quanto consumiu o poder público em Recife no mês de março de 2025?
+- **LANG-149** — Quanto consumiu o poder público em Olinda em março de 2025?
+- **LANG-150** — Quanto consumiu o poder público em Olinda em 2025-03?
+- **LANG-151** — Quanto consumiu o poder público em Olinda em mar/2025?
+- **LANG-152** — Quanto consumiu o poder público em Olinda no mês de março de 2025?
+- **LANG-153** — Quanto consumiu o poder público em Jaboatão dos Guararapes em março de 2025?
+- **LANG-154** — Quanto consumiu o poder público em Jaboatão dos Guararapes em 2025-03?
+- **LANG-155** — Quanto consumiu o poder público em Jaboatão dos Guararapes em mar/2025?
+- **LANG-156** — Quanto consumiu o poder público em Jaboatão dos Guararapes no mês de março de 2025?
+- **LANG-397** — Qual foi o consumo residencial há 1 mês?
+- **LANG-398** — Qual foi o consumo residencial há um mês?
+- **LANG-399** — Qual foi o consumo residencial 1 mês atrás?
+- **LANG-400** — Qual foi o consumo residencial um mês atrás?
+- **LANG-401** — Qual foi o consumo residencial há 2 meses?
+- **LANG-402** — Qual foi o consumo residencial há dois meses?
+- **LANG-403** — Qual foi o consumo residencial 2 meses atrás?
+- **LANG-404** — Qual foi o consumo residencial dois meses atrás?
+- **LANG-405** — Qual foi o consumo residencial nos últimos 2 meses?
+- **LANG-406** — Qual foi o consumo residencial nos últimos dois meses?
+- **LANG-407** — Qual foi o consumo residencial há 3 meses?
+- **LANG-408** — Qual foi o consumo residencial há três meses?
+- **LANG-409** — Qual foi o consumo residencial 3 meses atrás?
+- **LANG-410** — Qual foi o consumo residencial três meses atrás?
+- **LANG-411** — Qual foi o consumo residencial nos últimos 3 meses?
+- **LANG-412** — Qual foi o consumo residencial nos últimos três meses?
+- **LANG-413** — Qual foi o consumo residencial há 4 meses?
+- **LANG-414** — Qual foi o consumo residencial há quatro meses?
+- **LANG-415** — Qual foi o consumo residencial 4 meses atrás?
+- **LANG-416** — Qual foi o consumo residencial quatro meses atrás?
+- **LANG-417** — Qual foi o consumo residencial nos últimos 4 meses?
+- **LANG-418** — Qual foi o consumo residencial nos últimos quatro meses?
+- **LANG-419** — Qual foi o consumo residencial há 5 meses?
+- **LANG-420** — Qual foi o consumo residencial há cinco meses?
+- **LANG-421** — Qual foi o consumo residencial 5 meses atrás?
+- **LANG-422** — Qual foi o consumo residencial cinco meses atrás?
+- **LANG-423** — Qual foi o consumo residencial nos últimos 5 meses?
+- **LANG-424** — Qual foi o consumo residencial nos últimos cinco meses?
+- **LANG-425** — Qual foi o consumo residencial há 6 meses?
+- **LANG-426** — Qual foi o consumo residencial há seis meses?
+- **LANG-427** — Qual foi o consumo residencial 6 meses atrás?
+- **LANG-428** — Qual foi o consumo residencial seis meses atrás?
+- **LANG-429** — Qual foi o consumo residencial nos últimos 6 meses?
+- **LANG-430** — Qual foi o consumo residencial nos últimos seis meses?
+- **LANG-431** — Qual foi o consumo residencial há 7 meses?
+- **LANG-432** — Qual foi o consumo residencial há sete meses?
+- **LANG-433** — Qual foi o consumo residencial 7 meses atrás?
+- **LANG-434** — Qual foi o consumo residencial sete meses atrás?
+- **LANG-435** — Qual foi o consumo residencial nos últimos 7 meses?
+- **LANG-436** — Qual foi o consumo residencial nos últimos sete meses?
+- **LANG-437** — Qual foi o consumo residencial há 8 meses?
+- **LANG-438** — Qual foi o consumo residencial há oito meses?
+- **LANG-439** — Qual foi o consumo residencial 8 meses atrás?
+- **LANG-440** — Qual foi o consumo residencial oito meses atrás?
+- **LANG-441** — Qual foi o consumo residencial nos últimos 8 meses?
+- **LANG-442** — Qual foi o consumo residencial nos últimos oito meses?
+- **LANG-443** — Qual foi o consumo residencial há 9 meses?
+- **LANG-444** — Qual foi o consumo residencial há nove meses?
+- **LANG-445** — Qual foi o consumo residencial 9 meses atrás?
+- **LANG-446** — Qual foi o consumo residencial nove meses atrás?
+- **LANG-447** — Qual foi o consumo residencial nos últimos 9 meses?
+- **LANG-448** — Qual foi o consumo residencial nos últimos nove meses?
+- **LANG-449** — Qual foi o consumo residencial há 10 meses?
+- **LANG-450** — Qual foi o consumo residencial há dez meses?
+- **LANG-451** — Qual foi o consumo residencial 10 meses atrás?
+- **LANG-452** — Qual foi o consumo residencial dez meses atrás?
+- **LANG-453** — Qual foi o consumo residencial nos últimos 10 meses?
+- **LANG-454** — Qual foi o consumo residencial nos últimos dez meses?
+- **LANG-455** — Qual foi o consumo residencial há 11 meses?
+- **LANG-456** — Qual foi o consumo residencial há onze meses?
+- **LANG-457** — Qual foi o consumo residencial 11 meses atrás?
+- **LANG-458** — Qual foi o consumo residencial onze meses atrás?
+- **LANG-459** — Qual foi o consumo residencial nos últimos 11 meses?
+- **LANG-460** — Qual foi o consumo residencial nos últimos onze meses?
+- **LANG-461** — Qual foi o consumo residencial há 12 meses?
+- **LANG-462** — Qual foi o consumo residencial há doze meses?
+- **LANG-463** — Qual foi o consumo residencial 12 meses atrás?
+- **LANG-464** — Qual foi o consumo residencial doze meses atrás?
+- **LANG-465** — Qual foi o consumo residencial nos últimos 12 meses?
+- **LANG-466** — Qual foi o consumo residencial nos últimos doze meses?
+- **LANG-485** — Quanto as casas consumiram em Recife em março de 2025?
+- **LANG-487** — Quanto as casas consumiram em Recife em março de 2025?
+- **LANG-488** — Quanto de energia as residências consumiram em Recife em março de 2025?
+- **LANG-489** — Qual foi o consumo das unidades residenciais em Recife em março de 2025?
+- **LANG-490** — Como ficou o consumo residencial em Recife em março de 2025?
+- **LANG-491** — Qual foi a energia consumida pelos clientes residenciais em Recife em março de 2025?
+- **LANG-492** — Quanto as famílias consumiram em Recife em março de 2025?
+- **LANG-493** — Quanto de energia foi usada pelas famílias em Recife em março de 2025?
+- **LANG-494** — Quanto a classe comercial consumiu em Recife em março de 2025?
+- **LANG-495** — Qual foi o consumo residencial em Olinda em março de 2025?
+- **LANG-496** — Quanto foi o volume consumido pelas casas em Recife em março de 2025?
+- **LANG-497** — Qual foi o volume de consumo residencial em Recife em março de 2025?
+- **LANG-498** — Qual foi o consumo medido residencial em Recife em março de 2025?
+- **LANG-499** — Quanto consumiram os clientes comerciais em Recife em março de 2025?
+- **LANG-547** — Qual foi o consumo residencial no último ano?
+- **LANG-548** — Qual foi o consumo residencial nos últimos 12 meses?
+- **LANG-549** — Qual foi o consumo residencial nos últimos 2 meses?
+- **LANG-550** — Qual foi o consumo residencial nos últimos quatro meses?
+- **LANG-551** — Qual foi o consumo residencial nos últimos 3 meses?
+- **LANG-552** — Qual foi o consumo residencial nos últimos nove meses?
+- **LANG-553** — Qual foi o consumo residencial nos últimos seis meses?
+- **LANG-554** — Qual foi o consumo residencial há três meses?
+- **LANG-555** — Qual foi o consumo residencial três meses atrás?
+- **LANG-556** — Qual foi o consumo residencial há 1 mês?
+- **LANG-557** — Qual foi o consumo residencial há seis meses?
+- **LANG-558** — Qual foi o consumo residencial seis meses atrás?
+- **LANG-559** — Qual foi o consumo residencial há 12 meses?
+- **LANG-560** — Qual foi o consumo residencial no mês retrasado?
+- **LANG-561** — Qual foi o consumo residencial no ano passado?
+- **LANG-562** — Quanto as casas consumiram?
+- **LANG-565** — E o volume por bairro?
+  - Contexto anterior — [{"role": "user", "content": "Mostre o consumo residencial medido em Recife em março de 2025."}]
+- **LANG-566** — E no comercial?
+  - Contexto anterior — [{"role": "user", "content": "Quanto as casas consumiram em Recife em março de 2025?"}]
+- **LANG-567** — E o volume residencial por bairro?
+  - Contexto anterior — [{"role": "user", "content": "Mostre o consumo residencial medido em Recife em março de 2025."}]
+- **LANG-569** — Qual bairro teve a maior queda de consumo entre fevereiro e março de 2025?
+- **LANG-570** — Qual bairro mais perdeu consumo medido entre fevereiro e março de 2025?
+- **LANG-573** — Qual bairro teve a maior queda de consumo entre fevereiro e março de 2025?
+- **LANG-577** — E no comercial?
+  - Contexto anterior — [{"role": "user", "content": "Quanto as casas consumiram em Recife em março de 2025?"}]
+- **LANG-578** — E em Olinda?
+  - Contexto anterior — [{"role": "user", "content": "Quanto de energia as casas consumiram em Recife em março de 2025?"}]
+
+## service.attendance (8)
+
+- **LANG-477** — Quantos chamados abriram em março de 2025?
+- **LANG-478** — Quantas solicitações de atendimento foram abertas em março de 2025?
+- **LANG-512** — Quantos chamados abriram em março de 2025?
+- **LANG-513** — Quantos chamados foram abertos em março de 2025?
+- **LANG-514** — Quantos protocolos abriram em março de 2025?
+- **LANG-515** — Qual foi o volume de chamados abertos em março de 2025?
+- **LANG-516** — Quantos atendimentos foram abertos em março de 2025?
+- **LANG-517** — Quantos protocolos de atendimento abriram em março de 2025?
+
+## network.interruption_events (7)
+
+- **LANG-475** — Quantas vezes caiu a energia no alimentador AL-01 em março de 2025?
+- **LANG-476** — Quantos apagões ocorreram no alimentador AL-01 em março de 2025?
+- **LANG-523** — Quantas vezes a luz caiu no alimentador AL-01 em março de 2025?
+- **LANG-524** — Quantas vezes faltou luz no alimentador AL-01 em março de 2025?
+- **LANG-525** — Qual foi a contagem de interrupções no alimentador AL-01 em março de 2025?
+- **LANG-526** — Qual foi o número de ocorrências de falta de energia no alimentador AL-01 em março de 2025?
+- **LANG-527** — Quantas interrupções ocorreram no alimentador AL-01 em março de 2025?
+
+## service.satisfaction (7)
+
+- **LANG-479** — Qual foi a nota dos clientes para o atendimento em março de 2025?
+- **LANG-480** — O que os clientes acharam do atendimento em março de 2025?
+- **LANG-518** — Como o pessoal avaliou o atendimento em março de 2025?
+- **LANG-519** — Qual foi a nota média do atendimento em março de 2025?
+- **LANG-520** — Que nota os clientes deram ao atendimento em março de 2025?
+- **LANG-521** — Como avaliaram o atendimento em março de 2025?
+- **LANG-522** — Como os clientes avaliaram o atendimento em março de 2025?
+
+## billing.effective_tariff (5)
+
+- **LANG-484** — Quanto custou o kWh em média em Recife em março de 2025?
+- **LANG-508** — Quanto custou o kWh em média em Recife em março de 2025?
+- **LANG-509** — Qual foi o preço médio do kWh em Recife em março de 2025?
+- **LANG-510** — Qual foi o preço médio observado por kWh em Recife em março de 2025?
+- **LANG-511** — Quanto custou em média cada kWh em Recife em março de 2025?
+
+## billing.revenue (2)
+
+- **LANG-571** — Qual município teve o maior crescimento de receita entre fevereiro e março de 2025?
+- **LANG-574** — Qual município teve o maior crescimento de receita entre fevereiro e março de 2025?
+
+## network.equivalent_interruption_duration (1)
+
+- **LANG-528** — Qual foi o DEC do alimentador AL-01 em março de 2025?
+
+## network.equivalent_interruption_frequency (1)
+
+- **LANG-529** — Qual foi o FEC do alimentador AL-01 em março de 2025?
+
+## energy.gd_units (1)
+
+- **LANG-530** — Quantas unidades com GD foram registradas em Olinda?

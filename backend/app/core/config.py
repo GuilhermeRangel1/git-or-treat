@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     AI_AGENT_TIMEOUT_SECONDS: float = Field(default=GOLD_REQUEST_TIMEOUT_SECONDS, ge=0.1, le=120.0)
     GENAI_AUDIT_WRITE_TOKEN: SecretStr | None = None
     GENAI_CONVERSATION_MEMORY_ENABLED: bool = True
+    GENAI_SQL_EXECUTION_ENABLED: bool = False
     GENAI_INSIGHT_CACHE_TTL_SECONDS: int = Field(default=120, ge=0, le=86400)
     GENAI_INSIGHT_CACHE_MAX_ENTRIES: int = Field(default=64, ge=1, le=10000)
     GENAI_INSIGHT_CACHE_MAX_BYTES: int = Field(default=1_048_576, ge=1024, le=67_108_864)
@@ -81,6 +82,7 @@ class Settings(BaseSettings):
     # Credencial operacional do CLI administrativo; nunca usada pela API.
     GENAI_AUDIT_DATABASE_URL: SecretStr | None = None
     GENAI_GOLD_APPROVED_CONTROLS: list[str] = []
+    GENAI_PRICE_VOLUME_STAGING_DIR: Path | None = None
 
     # Data directory (Mocks now, Gold exported CSVs later)
     GOLD_DATA_DIR: Path = Path(__file__).resolve().parent.parent.parent / "data" / "gold"

@@ -1,0 +1,31 @@
+{
+  "dataset_version": "p0-noncanonical-1.0.0",
+  "scope": "Two authored revenue paraphrases without revenue aliases; planning only, artificial coverage, development after this execution",
+  "limitations": ["No SQL, numerical results, provider or portal validated.", "Expected business meaning is annotated independently from actual planner output."],
+  "cases": [
+    {
+      "id": "NONCAN-01",
+      "category": "noncanonical_revenue",
+      "question": "Qual foi a soma em reais das faturas emitidas em Recife no mês 03/2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "group_by_dimension_ids": [],
+        "filters": [{"dimension_id": "geography.municipality", "operator": "eq", "values": ["Recife"]}],
+        "window": {"kind": "bounded", "phrase": null, "start": "2025-03-01", "end": "2025-03-31", "granularity": "month"}
+      }
+    },
+    {
+      "id": "NONCAN-02",
+      "category": "noncanonical_revenue",
+      "question": "Somando o valor total das faturas emitidas em março de 2025, quanto corresponde a cada classe de consumo?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "group_by_dimension_ids": ["customer.consumption_class"],
+        "filters": [],
+        "window": {"kind": "bounded", "phrase": null, "start": "2025-03-01", "end": "2025-03-31", "granularity": "month"}
+      }
+    }
+  ]
+}

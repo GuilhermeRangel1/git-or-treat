@@ -1,5 +1,5 @@
 {
-  "dataset_version": "p0-1.1.0",
+  "dataset_version": "p0-1.1.0-oracle-audit-1",
   "scope": "P0 diagnostic: 32 existing controls, 8 initial demands, 6 conversational cases; artificial January–March 2025 coverage",
   "limitations": [
     "Nonrepresentative author sample, not real user frequency or general accuracy.",
@@ -828,7 +828,15 @@
           "customer.consumption_class"
         ],
         "aggregation_scope": "window",
-        "limit": 1
+        "limit": 1,
+        "filters": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-01-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
       },
       "expected_business_intent": "Somar os três meses por classe e escolher maior total, não maior linha mensal.",
       "origin": "authored_diagnostic",
@@ -845,7 +853,15 @@
           "geography.municipality"
         ],
         "aggregation_scope": "window",
-        "limit": 5
+        "limit": 5,
+        "filters": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-01-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
       },
       "expected_business_intent": "Top cinco municípios por receita consolidada; desempate estável pelo rótulo.",
       "origin": "authored_diagnostic",
@@ -859,7 +875,15 @@
         "status": "planned",
         "metric_id": "billing.revenue",
         "ranking_axis": "period",
-        "limit": 1
+        "limit": 1,
+        "filters": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-01-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
       },
       "expected_business_intent": "Somar por mês e escolher maior mês, sem agrupamento por município ou classe.",
       "origin": "authored_diagnostic",
@@ -878,7 +902,15 @@
         "aggregation_scope": "window",
         "derived_calculations": [
           "share_of_total"
-        ]
+        ],
+        "filters": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-01-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
       },
       "expected_business_intent": "Total consolidado e participação por classe no mesmo universo; não apresentar uma série mensal como distribuição do intervalo.",
       "origin": "user_demand_paraphrase",

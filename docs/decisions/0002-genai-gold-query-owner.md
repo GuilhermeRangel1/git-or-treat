@@ -1,5 +1,7 @@
 # ADR-0002 — Backend como proprietário da consulta analítica Gold
 
+> **Transição autorizada em 05/11/2026:** a [ADR-0025](0025-text-to-sql-generativo.md) permite SQL candidato proposto pelo modelo na arquitetura-alvo, mantendo execução/validação final no Backend. O fluxo implantado desta ADR permanece ativo até habilitação comprovada da nova estratégia.
+
 **Data:** 2026-10-18 (proposta inicial); revisada em 2026-10-25
 **Estado:** aprovada em 25/10/2026. A aprovação se baseia nos comentários de concordância no PR #54 do Backend (Felipe) e da Engenharia de Dados (Júlia), com o Guilherme da GenAI; não houve Approve formal no GitHub. Ela cobre a decisão: Backend como executor único das consultas Gold, fluxo planejar → executar → sintetizar e banco local alimentado pelos CSV da Gold. Não autoriza adaptador Gold, credencial ou consulta real; essas dependem das pendências de implementação listadas no fim deste documento.
 **IDs do PRD afetados:** IA-01, IA-03, IA-06, DE-06, DE-08, P-04

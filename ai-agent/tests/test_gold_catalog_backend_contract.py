@@ -1,4 +1,5 @@
 """O Backend recebe o mesmo catálogo físico, sem importar a GenAI."""
+
 import json
 import subprocess
 import sys
@@ -13,6 +14,14 @@ def test_backend_artifact_matches_mapping_and_is_loadable_without_genai_imports(
     assert json.loads(artifact.read_text(encoding="utf-8")) == GRID360_GOLD_MAPPING.model_dump(
         mode="json"
     )
+    generation_check = subprocess.run(
+        [sys.executable, "scripts/generate-gold-v2-catalog.py", "--check"],
+        cwd=artifact.parents[3],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "gold_v2_catalog_matches_canonical_mapping" in generation_check.stdout
     result = subprocess.run(
         [
             sys.executable,
@@ -35,7 +44,9 @@ def test_business_metadata_matches_logical_profile_without_physical_names():
     for metric in data["metrics"]:
         logical = profile[metric["metric_id"]]
         assert (metric["label"], metric["definition"], metric["unit"]) == (
-            logical.label, logical.definition, logical.unit,
+            logical.label,
+            logical.definition,
+            logical.unit,
         )
         assert metric["label"] and metric["definition"]
         assert all(s["table"] not in metric["definition"] for s in metric["sources"])

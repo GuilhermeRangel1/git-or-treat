@@ -119,6 +119,40 @@ def test_simultaneous_requests_respect_dependency_limit(stage: str) -> None:
     assert asyncio.run(run()) == 1
 
 
+def test_model_gate_sustains_burst_without_exceeding_configured_concurrency() -> None:
+    async def run() -> tuple[int, int, int]:
+        controller = ExecutionController(
+            _limits(concurrent_requests=16, concurrent_models=4, request_seconds=5)
+        )
+        active = peak = calls = 0
+
+        async def model_call() -> int:
+            nonlocal active, peak, calls
+            calls += 1
+            call_id = calls
+            active += 1
+            peak = max(peak, active)
+            try:
+                await asyncio.sleep(0.005)
+                return call_id
+            finally:
+                active -= 1
+
+        async def request() -> int:
+            return await controller.run(
+                lambda budget: budget.model(model_call), timeout_seconds=5,
+            )
+
+        results = await asyncio.gather(*(request() for _ in range(100)))
+        assert len(results) == 100
+        return calls, peak, len(set(results))
+
+    calls, peak, unique_results = asyncio.run(run())
+    assert calls == 100
+    assert peak == 4
+    assert unique_results == 100
+
+
 def test_request_concurrency_limit_queues_second_request() -> None:
     async def run() -> bool:
         controller = ExecutionController(_limits(concurrent_requests=1))

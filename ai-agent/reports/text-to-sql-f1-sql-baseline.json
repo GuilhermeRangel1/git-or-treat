@@ -1,0 +1,575 @@
+{
+  "boundary": "legacy compiler _query on synthetic PostgreSQL; not production admission/executor or public end-to-end",
+  "planning_benchmark_sha256": "0a8a811bcde4d61494679fbdc3bbc65860944aaee917104493fa056d3197ceb5",
+  "dataset_sha256": "ba5a0bded61d8256439a6bd24bc3c24128225bdc6337ec8fd9fec0a879269216",
+  "denominator": 40,
+  "counts": {
+    "exact_reference_match": 8,
+    "not_executed_no_plan": 27,
+    "divergent": 5
+  },
+  "results": [
+    {
+      "id": "F1-01-V0",
+      "outcome": "exact_reference_match",
+      "first_divergence": null,
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-06",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "revenue": "200.00"
+        }
+      ],
+      "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end"
+    },
+    {
+      "id": "F1-01-V1",
+      "outcome": "exact_reference_match",
+      "first_divergence": null,
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-06",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "revenue": "200.00"
+        }
+      ],
+      "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end"
+    },
+    {
+      "id": "F1-01-V2",
+      "outcome": "exact_reference_match",
+      "first_divergence": null,
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-06",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "revenue": "200.00"
+        }
+      ],
+      "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end"
+    },
+    {
+      "id": "F1-01-V3",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-02-V0",
+      "outcome": "divergent",
+      "first_divergence": "planning_http",
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-06",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": null,
+      "reference_sql": null
+    },
+    {
+      "id": "F1-02-V1",
+      "outcome": "divergent",
+      "first_divergence": "planning_http",
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-06",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": null,
+      "reference_sql": null
+    },
+    {
+      "id": "F1-02-V2",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-02-V3",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-03-V0",
+      "outcome": "divergent",
+      "first_divergence": "compiled_result",
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-01",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-01",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-02",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-03",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-04",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-05",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "revenue": "950.00"
+        }
+      ],
+      "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end"
+    },
+    {
+      "id": "F1-03-V1",
+      "outcome": "divergent",
+      "first_divergence": "planning_http",
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.competencia IN (__[POSTCOMPILE_competencia_3]) AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-01",
+        "competencia_2": "2026-06",
+        "competencia_3": [
+          "2026-01",
+          "2026-06"
+        ],
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-01",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "revenue": "950.00"
+        }
+      ],
+      "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end"
+    },
+    {
+      "id": "F1-03-V2",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-03-V3",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-04-V0",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-04-V1",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-04-V2",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-04-V3",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-05-V0",
+      "outcome": "exact_reference_match",
+      "first_divergence": null,
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-01",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-01",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-02",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-03",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-04",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-05",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "competencia": "2026-01",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-02",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-03",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-04",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-05",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-06",
+          "revenue": "200.00"
+        }
+      ],
+      "reference_sql": "SELECT competencia, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY competencia ORDER BY competencia"
+    },
+    {
+      "id": "F1-05-V1",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-05-V2",
+      "outcome": "divergent",
+      "first_divergence": "planning_http",
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.competencia IN (__[POSTCOMPILE_competencia_3]) AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-01",
+        "competencia_2": "2026-06",
+        "competencia_3": [
+          "2026-01",
+          "2026-06"
+        ],
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-01",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "competencia": "2026-01",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-02",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-03",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-04",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-05",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-06",
+          "revenue": "200.00"
+        }
+      ],
+      "reference_sql": "SELECT competencia, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY competencia ORDER BY competencia"
+    },
+    {
+      "id": "F1-05-V3",
+      "outcome": "exact_reference_match",
+      "first_divergence": null,
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-01",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-01",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-02",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-03",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-04",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-05",
+          "value": "150.00"
+        },
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "competencia": "2026-01",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-02",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-03",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-04",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-05",
+          "revenue": "150.00"
+        },
+        {
+          "competencia": "2026-06",
+          "revenue": "200.00"
+        }
+      ],
+      "reference_sql": "SELECT competencia, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY competencia ORDER BY competencia"
+    },
+    {
+      "id": "F1-06-V0",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-06-V1",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-06-V2",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-06-V3",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-07-V0",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-07-V1",
+      "outcome": "exact_reference_match",
+      "first_divergence": null,
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, gold_v2.diagnostico_receita.classe_consumo AS consumption_class, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia, gold_v2.diagnostico_receita.classe_consumo ORDER BY gold_v2.diagnostico_receita.competencia ASC, gold_v2.diagnostico_receita.classe_consumo ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-06",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-06",
+          "consumption_class": "COMERCIAL",
+          "value": "50.00"
+        },
+        {
+          "period": "2026-06",
+          "consumption_class": "RESIDENCIAL",
+          "value": "150.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "classe_consumo": "COMERCIAL",
+          "revenue": "50.00"
+        },
+        {
+          "classe_consumo": "RESIDENCIAL",
+          "revenue": "150.00"
+        }
+      ],
+      "reference_sql": "SELECT classe_consumo, SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end GROUP BY classe_consumo ORDER BY classe_consumo"
+    },
+    {
+      "id": "F1-07-V2",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-07-V3",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-08-V0",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-08-V1",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-08-V2",
+      "outcome": "exact_reference_match",
+      "first_divergence": null,
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-06",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "revenue": "200.00"
+        }
+      ],
+      "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end"
+    },
+    {
+      "id": "F1-08-V3",
+      "outcome": "exact_reference_match",
+      "first_divergence": null,
+      "sql": "SELECT gold_v2.diagnostico_receita.competencia AS period, sum(gold_v2.diagnostico_receita.receita_total_reais) AS value \nFROM gold_v2.diagnostico_receita \nWHERE gold_v2.diagnostico_receita.competencia >= %(competencia_1)s::VARCHAR AND gold_v2.diagnostico_receita.competencia <= %(competencia_2)s::VARCHAR AND gold_v2.diagnostico_receita.municipio = %(municipio_1)s::VARCHAR GROUP BY gold_v2.diagnostico_receita.competencia ORDER BY gold_v2.diagnostico_receita.competencia ASC \n LIMIT %(param_1)s::INTEGER",
+      "parameters": {
+        "competencia_1": "2026-06",
+        "competencia_2": "2026-06",
+        "municipio_1": "Recife",
+        "param_1": 101
+      },
+      "observed_rows": [
+        {
+          "period": "2026-06",
+          "value": "200.00"
+        }
+      ],
+      "reference_rows": [
+        {
+          "revenue": "200.00"
+        }
+      ],
+      "reference_sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia BETWEEN :start AND :end"
+    },
+    {
+      "id": "F1-C01",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-C02",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-C03",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-C04",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-C05",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-C06",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-C07",
+      "outcome": "not_executed_no_plan"
+    },
+    {
+      "id": "F1-C08",
+      "outcome": "not_executed_no_plan"
+    }
+  ]
+}

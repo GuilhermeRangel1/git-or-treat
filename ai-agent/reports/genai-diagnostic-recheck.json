@@ -1,0 +1,1025 @@
+{
+  "gold_p0_diagnostic.json": {
+    "report_type": "gold_language_planning",
+    "synthetic": true,
+    "dataset_version": "p0-1.1.0",
+    "scenario_scope": "P0 diagnostic: 32 existing controls, 8 initial demands, 6 conversational cases; artificial January–March 2025 coverage",
+    "provider": "none; interpretation only",
+    "limitations": [
+      "Nonrepresentative author sample, not real user frequency or general accuracy.",
+      "No SQL, numerical reconciliation, provider, portal, or end-to-end latency evaluated.",
+      "aggregation_scope, ranking_axis and derived_calculations are expected business semantics for missing capabilities, not approved wire-contract field proposals.",
+      "New questions become development data after this run. Existing gold_language_holdout.json remains unexecuted by this diagnostic.",
+      "Period coverage intentionally has three months; 12-month clarifications cannot establish support for annual distribution."
+    ],
+    "summary": {
+      "total": 46,
+      "passed": 40,
+      "failed": 6
+    },
+    "categories": {
+      "canonical": {
+        "total": 3,
+        "passed": 3
+      },
+      "passive": {
+        "total": 2,
+        "passed": 2
+      },
+      "politeness": {
+        "total": 1,
+        "passed": 1
+      },
+      "order": {
+        "total": 2,
+        "passed": 2
+      },
+      "plural": {
+        "total": 2,
+        "passed": 2
+      },
+      "count": {
+        "total": 2,
+        "passed": 2
+      },
+      "service": {
+        "total": 2,
+        "passed": 2
+      },
+      "network": {
+        "total": 2,
+        "passed": 2
+      },
+      "unknown_entity": {
+        "total": 2,
+        "passed": 2
+      },
+      "missing_period": {
+        "total": 1,
+        "passed": 1
+      },
+      "missing_metric": {
+        "total": 2,
+        "passed": 2
+      },
+      "payment": {
+        "total": 2,
+        "passed": 2
+      },
+      "ambiguous_unit": {
+        "total": 1,
+        "passed": 1
+      },
+      "solar": {
+        "total": 1,
+        "passed": 1
+      },
+      "multiple_metrics": {
+        "total": 2,
+        "passed": 2
+      },
+      "exclusion": {
+        "total": 1,
+        "passed": 1
+      },
+      "unsupported_limit": {
+        "total": 1,
+        "passed": 1
+      },
+      "missing_filter": {
+        "total": 1,
+        "passed": 1
+      },
+      "invalid_calendar": {
+        "total": 2,
+        "passed": 1
+      },
+      "unknown_operation": {
+        "total": 1,
+        "passed": 1
+      },
+      "unit_mismatch": {
+        "total": 1,
+        "passed": 1
+      },
+      "period_coverage": {
+        "total": 2,
+        "passed": 1
+      },
+      "window_ranking": {
+        "total": 2,
+        "passed": 0
+      },
+      "temporal_ranking": {
+        "total": 1,
+        "passed": 0
+      },
+      "window_distribution": {
+        "total": 1,
+        "passed": 0
+      },
+      "follow_up_period": {
+        "total": 3,
+        "passed": 3
+      },
+      "follow_up_metric": {
+        "total": 2,
+        "passed": 2
+      },
+      "topic_switch": {
+        "total": 1,
+        "passed": 1
+      }
+    },
+    "cases": [
+      {
+        "id": "REV-01",
+        "category": "canonical",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "REV-02",
+        "category": "passive",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "REV-03",
+        "category": "politeness",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "REV-04",
+        "category": "order",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "ENE-01",
+        "category": "canonical",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "ENE-02",
+        "category": "passive",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "ENE-03",
+        "category": "plural",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "ENE-04",
+        "category": "order",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "RANK-01",
+        "category": "canonical",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "RANK-02",
+        "category": "plural",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "RANK-03",
+        "category": "count",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "RANK-04",
+        "category": "count",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "ATE-01",
+        "category": "service",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "ATE-02",
+        "category": "service",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "DEC-01",
+        "category": "network",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "FEC-01",
+        "category": "network",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "unit": true,
+          "dimension_ids": true,
+          "group_by_dimension_ids": true,
+          "window": true,
+          "filters": true,
+          "order": true,
+          "comparison_periods": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "GUARD-01",
+        "category": "unknown_entity",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-02",
+        "category": "missing_period",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-03",
+        "category": "missing_metric",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-04",
+        "category": "payment",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-05",
+        "category": "payment",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-06",
+        "category": "ambiguous_unit",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-07",
+        "category": "solar",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-08",
+        "category": "multiple_metrics",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-09",
+        "category": "exclusion",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-10",
+        "category": "unknown_entity",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-11",
+        "category": "unsupported_limit",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-12",
+        "category": "missing_filter",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-13",
+        "category": "invalid_calendar",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-14",
+        "category": "invalid_calendar",
+        "passed": false,
+        "outcome": "unexpected_failure",
+        "actual_status": "needs_clarification",
+        "failing_checks": [
+          "clarification_reason"
+        ],
+        "checks": {
+          "status": true,
+          "clarification_reason": false
+        }
+      },
+      {
+        "id": "GUARD-15",
+        "category": "unknown_operation",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "GUARD-16",
+        "category": "unit_mismatch",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "P0-33",
+        "category": "period_coverage",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "P0-34",
+        "category": "period_coverage",
+        "passed": false,
+        "outcome": "unexpected_failure",
+        "actual_status": "needs_clarification",
+        "failing_checks": [
+          "clarification_reason"
+        ],
+        "checks": {
+          "status": true,
+          "clarification_reason": false
+        }
+      },
+      {
+        "id": "P0-35",
+        "category": "window_ranking",
+        "passed": false,
+        "outcome": "unexpected_failure",
+        "actual_status": "needs_clarification",
+        "failing_checks": [
+          "aggregation_scope",
+          "group_by_dimension_ids",
+          "limit",
+          "metric_id",
+          "status"
+        ],
+        "checks": {
+          "status": false,
+          "metric_id": false,
+          "group_by_dimension_ids": false,
+          "aggregation_scope": false,
+          "limit": false
+        }
+      },
+      {
+        "id": "P0-36",
+        "category": "window_ranking",
+        "passed": false,
+        "outcome": "unexpected_failure",
+        "actual_status": "needs_clarification",
+        "failing_checks": [
+          "aggregation_scope",
+          "group_by_dimension_ids",
+          "limit",
+          "metric_id",
+          "status"
+        ],
+        "checks": {
+          "status": false,
+          "metric_id": false,
+          "group_by_dimension_ids": false,
+          "aggregation_scope": false,
+          "limit": false
+        }
+      },
+      {
+        "id": "P0-37",
+        "category": "temporal_ranking",
+        "passed": false,
+        "outcome": "unexpected_failure",
+        "actual_status": "planned",
+        "failing_checks": [
+          "limit",
+          "ranking_axis"
+        ],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "ranking_axis": false,
+          "limit": false
+        }
+      },
+      {
+        "id": "P0-38",
+        "category": "window_distribution",
+        "passed": false,
+        "outcome": "unexpected_failure",
+        "actual_status": "needs_clarification",
+        "failing_checks": [
+          "aggregation_scope",
+          "derived_calculations",
+          "group_by_dimension_ids",
+          "metric_id",
+          "status"
+        ],
+        "checks": {
+          "status": false,
+          "metric_id": false,
+          "group_by_dimension_ids": false,
+          "aggregation_scope": false,
+          "derived_calculations": false
+        }
+      },
+      {
+        "id": "P0-39",
+        "category": "multiple_metrics",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "P0-40",
+        "category": "missing_metric",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "needs_clarification",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "clarification_reason": true
+        }
+      },
+      {
+        "id": "P0-41",
+        "category": "follow_up_period",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "filters": true,
+          "window": true
+        }
+      },
+      {
+        "id": "P0-42",
+        "category": "follow_up_period",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "filters": true,
+          "window": true
+        }
+      },
+      {
+        "id": "P0-43",
+        "category": "follow_up_period",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "filters": true,
+          "window": true
+        }
+      },
+      {
+        "id": "P0-44",
+        "category": "follow_up_metric",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "filters": true,
+          "window": true
+        }
+      },
+      {
+        "id": "P0-45",
+        "category": "follow_up_metric",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "filters": true,
+          "window": true
+        }
+      },
+      {
+        "id": "P0-46",
+        "category": "topic_switch",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "filters": true,
+          "window": true
+        }
+      }
+    ]
+  },
+  "gold_p0_user_reported.json": {
+    "report_type": "gold_language_planning",
+    "synthetic": true,
+    "dataset_version": "user-reported-1.0.0",
+    "scenario_scope": "Two real reported failures, four authored controls, one clarification continuation; artificial complete coverage",
+    "provider": "none; interpretation only",
+    "limitations": [
+      "Reported usage has no denominator: do not infer all unevaluated questions fail.",
+      "Original sectors ambiguity is not converted into a universal alias; user explicitly confirmed consumption classes.",
+      "No SQL, numerical answer or provider measured.",
+      "Plan expectations of controls describe logical fields only; no returned value validated."
+    ],
+    "summary": {
+      "total": 7,
+      "passed": 4,
+      "failed": 3
+    },
+    "categories": {
+      "reported": {
+        "total": 2,
+        "passed": 0
+      },
+      "canonical_control": {
+        "total": 1,
+        "passed": 1
+      },
+      "aggregation_control": {
+        "total": 1,
+        "passed": 1
+      },
+      "period_control": {
+        "total": 1,
+        "passed": 1
+      },
+      "dimension_control": {
+        "total": 1,
+        "passed": 1
+      },
+      "user_clarification": {
+        "total": 1,
+        "passed": 0
+      }
+    },
+    "cases": [
+      {
+        "id": "REAL-01",
+        "category": "reported",
+        "passed": false,
+        "outcome": "unexpected_failure",
+        "actual_status": "needs_clarification",
+        "failing_checks": [
+          "clarification_reason"
+        ],
+        "checks": {
+          "status": true,
+          "clarification_reason": false
+        }
+      },
+      {
+        "id": "REAL-01A",
+        "category": "canonical_control",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "window": true,
+          "group_by_dimension_ids": true,
+          "order": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "REAL-01B",
+        "category": "aggregation_control",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "window": true,
+          "group_by_dimension_ids": true,
+          "order": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "REAL-02",
+        "category": "reported",
+        "passed": false,
+        "outcome": "unexpected_failure",
+        "actual_status": "needs_clarification",
+        "failing_checks": [
+          "clarification_reason"
+        ],
+        "checks": {
+          "status": true,
+          "clarification_reason": false
+        }
+      },
+      {
+        "id": "REAL-02A",
+        "category": "period_control",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "window": true,
+          "group_by_dimension_ids": true,
+          "order": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "REAL-02B",
+        "category": "dimension_control",
+        "passed": true,
+        "outcome": "passed",
+        "actual_status": "planned",
+        "failing_checks": [],
+        "checks": {
+          "status": true,
+          "metric_id": true,
+          "window": true,
+          "group_by_dimension_ids": true,
+          "order": true,
+          "limit": true
+        }
+      },
+      {
+        "id": "REAL-02C",
+        "category": "user_clarification",
+        "passed": false,
+        "outcome": "unexpected_failure",
+        "actual_status": "needs_clarification",
+        "failing_checks": [
+          "group_by_dimension_ids",
+          "limit",
+          "metric_id",
+          "status",
+          "window"
+        ],
+        "checks": {
+          "status": false,
+          "metric_id": false,
+          "window": false,
+          "group_by_dimension_ids": false,
+          "order": true,
+          "limit": false
+        }
+      }
+    ]
+  }
+}

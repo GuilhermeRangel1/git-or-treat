@@ -1,8 +1,8 @@
 import asyncio
 import json
 import logging
-from time import monotonic
 from contextlib import asynccontextmanager, suppress
+from time import monotonic
 from uuid import uuid4
 
 import httpx
@@ -19,11 +19,12 @@ from app.db.base import Base
 from app.middleware.request_limits import RequestLimitsMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.repositories.analytics import AnalyticsSourceUnavailable
+from app.services.ai_history_retention import maintain_history_retention
 from app.services.analytics import AnalyticsAPIError
 from app.services.genai_audit import AuditStore
 from app.services.genai_audit_retention import maintain_audit_retention
-from app.services.ai_history_retention import maintain_history_retention
 from app.services.genai_client import GenAIInsightClient, GenAIQuestionClient
+from app.services.genai_sql_telemetry import record_sql_stage
 
 
 @asynccontextmanager
@@ -159,8 +160,34 @@ app.add_middleware(SecurityHeadersMiddleware)
 async def add_correlation_id(request: Request, call_next):
     correlation_id = uuid4().hex
     request.state.correlation_id = correlation_id
+    # Mark the opt-in F1 route before dispatch: mutations made by the endpoint
+    # are not reliably visible to this outer middleware across ASGI tasks.
+    if request.url.path.endswith("/ai/sql-analyses"):
+        request.state.genai_strategy = "text_to_sql_f1"
     started = monotonic()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        if getattr(request.state, "genai_strategy", None) == "text_to_sql_f1":
+            record_sql_stage(
+                correlation_id=correlation_id,
+                stage="http",
+                elapsed_ms=int((monotonic() - started) * 1000),
+                outcome="error",
+                reason="internal_error",
+                contract_version="text-to-sql-f1-presentation-v1",
+            )
+        raise
+    if getattr(request.state, "genai_strategy", None) == "text_to_sql_f1":
+        record_sql_stage(
+            correlation_id=correlation_id,
+            stage="http",
+            elapsed_ms=int((monotonic() - started) * 1000),
+            outcome="success" if response.status_code < 400 else "error",
+            reason=None if response.status_code < 400 else "http_error",
+            http_status=response.status_code,
+            contract_version="text-to-sql-f1-presentation-v1",
+        )
     if request.url.path == "/api/v1/ai/questions":
         logging.getLogger("uvicorn.error").info("genai_execution %s", json.dumps({
             "correlation_id": correlation_id, "stage": "http", "status": response.status_code,

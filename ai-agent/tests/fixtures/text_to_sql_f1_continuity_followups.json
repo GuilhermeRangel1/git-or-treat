@@ -1,0 +1,33 @@
+{
+  "version": "text-to-sql-f1-continuity-followups-v1",
+  "boundary": "synthetic temporal and short-correction follow-ups; no SQL execution or Gold reads",
+  "cases": [
+    {
+      "id": "F1-CONT-11",
+      "question": "E no ano anterior?",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife no ano de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "comparison", "periods": [["2026-01", "2026-12"], ["2025-01", "2025-12"]], "filters": {"geography.municipality": ["Recife"]}, "group_by": [], "ranking_limit": null}
+    },
+    {
+      "id": "F1-CONT-12",
+      "question": "Tire o município.",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento total de Recife em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento total do município de Recife na competência junho de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "total", "periods": [["2026-06", "2026-06"]], "filters": {}, "group_by": [], "ranking_limit": null}
+    },
+    {
+      "id": "F1-CONT-13",
+      "question": "E no comercial?",
+      "context": [
+        {"role": "user", "content": "Qual foi o faturamento de Recife na classe residencial em junho de 2026?"},
+        {"role": "assistant", "content": "O recorte consultado foi faturamento de Recife na classe residencial na competência junho de 2026."}
+      ],
+      "expected": {"status": "sql_candidate", "metric_id": "billing.revenue", "operation": "total", "periods": [["2026-06", "2026-06"]], "filters": {"geography.municipality": ["Recife"], "customer.consumption_class": ["COMERCIAL"]}, "group_by": [], "ranking_limit": null}
+    }
+  ]
+}

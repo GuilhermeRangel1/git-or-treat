@@ -25,6 +25,7 @@ from app.schemas.domain_profile import DomainProfile
 from app.schemas.insights import ScreenContext, ScreenInsightResponse
 from app.schemas.internal import QuestionPlanRequest, QuestionPlanResponse, QuestionSynthesisRequest
 from app.schemas.questions import QuestionRequest, QuestionResponse
+from app.schemas.sql_generation import SqlGenerationRequest, SqlGenerationResponse
 from app.telemetry import correlation
 
 SourceMode = Literal["demo", "external"]
@@ -60,6 +61,12 @@ class InsightHandler(Protocol):
     ) -> ScreenInsightResponse: ...
 
 
+class SqlCandidateHandler(Protocol):
+    async def generate(
+        self, payload: SqlGenerationRequest, correlation_id: str,
+    ) -> SqlGenerationResponse: ...
+
+
 def create_api_application(
     *,
     settings: Settings,
@@ -70,8 +77,12 @@ def create_api_application(
     source_mode: SourceMode,
     access_context_resolver: AccessContextResolver | None,
     readiness_handler: Callable[[PublicationFacts], ReadinessReport] | None = None,
+    sql_candidate_service: SqlCandidateHandler | None = None,
 ) -> FastAPI:
     """Configura a aplicação HTTP sem conhecer a composição concreta do serviço."""
+
+    if sql_candidate_service is not None and not settings.sql_generation_enabled:
+        raise ValueError("Handler SQL exige flag explícita de geração.")
 
     application = FastAPI(
         title=settings.service_name,
@@ -108,5 +119,6 @@ def create_api_application(
     application.state.insight_orchestrator = insight_handler
     application.state.readiness_handler = readiness_handler
     application.state.runtime_settings = settings
+    application.state.sql_candidate_service = sql_candidate_service
     application.include_router(router)
     return application

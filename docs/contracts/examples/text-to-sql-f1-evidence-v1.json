@@ -1,0 +1,880 @@
+{
+  "scope": "artificial contract examples; not business numeric oracles",
+  "valid": [
+    {
+      "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+      "source_id": "gold.local",
+      "source_table": "gold_v2.diagnostico_receita",
+      "metric_id": "billing.revenue",
+      "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+      "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+      "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+      "execution_digest": "0be0cf890d38942d5f819339c31caf5498c78eb6fe3af87b64093cbc4f9f04ad",
+      "result_digest": "517da7a089e8f135c701490d776252457ccac91298cce314fbcbe40a17db1c66",
+      "evidence_digest": "fe4ab2ef90f82d61f2ba3d45030b7aa34b499469b34093e0616694867933745a",
+      "mapping_version": "gold-catalog-v2",
+      "dictionary_version": "gold-csv-v2",
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-06-01",
+            "end": "2026-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "measure_semantics": {
+        "revenue": "revenue_total"
+      },
+      "dimension_semantics": {},
+      "rows": [
+        [
+          "150.03"
+        ]
+      ],
+      "status": "available"
+    },
+    {
+      "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+      "source_id": "gold.local",
+      "source_table": "gold_v2.diagnostico_receita",
+      "metric_id": "billing.revenue",
+      "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+      "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+      "admission_digest": "2756d98b5b4cd4840d965a21acb505e9ec4a0d81b1515786809ab009836bf336",
+      "execution_digest": "feaeaec017ecb2e17b2be399e3326b33e2d0b2053422992c5fd14c084d74e34c",
+      "result_digest": "762baec0c3b5b31f104847664a415bf1f90131887cb17dfbad2ac9e4e97f7d84",
+      "evidence_digest": "09db059b4a550b3c10f41f18fb238da0fdf836ccc87f4ce19c1647c1c42180fa",
+      "mapping_version": "gold-catalog-v2",
+      "dictionary_version": "gold-csv-v2",
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "ranking",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-06-01",
+            "end": "2026-06-30"
+          }
+        ],
+        "filters": [],
+        "group_by": [
+          "municipality"
+        ],
+        "ranking_direction": "desc",
+        "ranking_limit": 5
+      },
+      "columns": [
+        {
+          "name": "city",
+          "role": "dimension",
+          "value_type": "string",
+          "unit": null
+        },
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "measure_semantics": {
+        "revenue": "revenue_total"
+      },
+      "dimension_semantics": {
+        "city": "municipality"
+      },
+      "rows": [
+        [
+          "Recife",
+          "150.03"
+        ]
+      ],
+      "status": "available"
+    },
+    {
+      "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+      "source_id": "gold.local",
+      "source_table": "gold_v2.diagnostico_receita",
+      "metric_id": "billing.revenue",
+      "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+      "context_version": "d6d867985589f01621373f31a1fea1dbc2a74a008bf98ccf36072c10c75e5bae",
+      "admission_digest": "37e45808c16ff686121d6473fba33ee88bce8a2f5c8b70bd2a3bd73c1453c33b",
+      "execution_digest": "1fa1f8c9aa967c556072fb75121f6055a8d448a70d3f4a22af523e5b01e96216",
+      "result_digest": "607bf105e994e95c1c71c98a0b8d79e96e01d8e635a7450392c82d094032d5fe",
+      "evidence_digest": "2585d1161cfbcc634e511039b7a3744c232321c4c0fd532d139d90d3f480094f",
+      "mapping_version": "gold-catalog-v2",
+      "dictionary_version": "gold-csv-v2",
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "comparison",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-06-01",
+            "end": "2026-06-30"
+          },
+          {
+            "start": "2025-06-01",
+            "end": "2025-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "columns": [
+        {
+          "name": "a",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        },
+        {
+          "name": "b",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        },
+        {
+          "name": "delta",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "measure_semantics": {
+        "a": "period_0_total",
+        "b": "period_1_total",
+        "delta": "period_0_minus_period_1"
+      },
+      "dimension_semantics": {},
+      "rows": [
+        [
+          "150.03",
+          "80.00",
+          "70.03"
+        ]
+      ],
+      "status": "available"
+    },
+    {
+      "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+      "source_id": "gold.local",
+      "source_table": "gold_v2.diagnostico_receita",
+      "metric_id": "billing.revenue",
+      "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+      "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+      "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+      "execution_digest": "bf478ef4b471dd53a10034a8ffebf81e012e9a2a66b66c13ca2095c8f5e87ffb",
+      "result_digest": "5b9687edcdb49f760b501c2c1f5b5b5c4adc37effb4c7ae61e8bfb4ae636fbe1",
+      "evidence_digest": "093fa8be06202f7e60406ccc0e16be50ebd7af79524a481293a009777094a7ff",
+      "mapping_version": "gold-catalog-v2",
+      "dictionary_version": "gold-csv-v2",
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-06-01",
+            "end": "2026-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "measure_semantics": {
+        "revenue": "revenue_total"
+      },
+      "dimension_semantics": {},
+      "rows": [],
+      "status": "empty"
+    },
+    {
+      "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+      "source_id": "gold.local",
+      "source_table": "gold_v2.diagnostico_receita",
+      "metric_id": "billing.revenue",
+      "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+      "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+      "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+      "execution_digest": "540307c4a460c694f26238967a306c2150e2d67a60f488499e77aeec56917874",
+      "result_digest": "81d3bcbba6eb8b354f8cfe4f13e61ac10ec373a45a97147a0c4acc981324ab82",
+      "evidence_digest": "88ce48a9a1b35870b6bb5d4ff0a08fff97d8372dfb781e4ce0fd026fb768384e",
+      "mapping_version": "gold-catalog-v2",
+      "dictionary_version": "gold-csv-v2",
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-06-01",
+            "end": "2026-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "measure_semantics": {
+        "revenue": "revenue_total"
+      },
+      "dimension_semantics": {},
+      "rows": [
+        [
+          null
+        ]
+      ],
+      "status": "all_measures_null"
+    },
+    {
+      "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+      "source_id": "gold.local",
+      "source_table": "gold_v2.diagnostico_receita",
+      "metric_id": "billing.revenue",
+      "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+      "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+      "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+      "execution_digest": "34850b488df145dfd40aa666bcf2477b2192787245e04cdfe895ec4d0d9014f5",
+      "result_digest": "b4840ca730cce2d8101544fd355750eb3d75f2bebd67e7ababb3bed97245489c",
+      "evidence_digest": "64e3c566210f7403d68d36814e1d1c89504eceabfee832258d8a1043d7ff4da7",
+      "mapping_version": "gold-catalog-v2",
+      "dictionary_version": "gold-csv-v2",
+      "interpretation": {
+        "metric_id": "billing.revenue",
+        "operation": "total",
+        "aggregation": "sum",
+        "periods": [
+          {
+            "start": "2026-06-01",
+            "end": "2026-06-30"
+          }
+        ],
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "group_by": [],
+        "ranking_direction": null,
+        "ranking_limit": null
+      },
+      "columns": [
+        {
+          "name": "revenue",
+          "role": "measure",
+          "value_type": "decimal",
+          "unit": "R$"
+        }
+      ],
+      "measure_semantics": {
+        "revenue": "revenue_total"
+      },
+      "dimension_semantics": {},
+      "rows": [
+        [
+          "0.00"
+        ]
+      ],
+      "status": "available"
+    }
+  ],
+  "invalid": [
+    {
+      "id": "float",
+      "payload": {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+        "source_id": "gold.local",
+        "source_table": "gold_v2.diagnostico_receita",
+        "metric_id": "billing.revenue",
+        "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+        "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+        "execution_digest": "0be0cf890d38942d5f819339c31caf5498c78eb6fe3af87b64093cbc4f9f04ad",
+        "result_digest": "517da7a089e8f135c701490d776252457ccac91298cce314fbcbe40a17db1c66",
+        "evidence_digest": "83bab3efc673a0b1561495643c3f6bc209f1fb36fa71d3859a279c19df02238a",
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-csv-v2",
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "measure_semantics": {
+          "revenue": "revenue_total"
+        },
+        "dimension_semantics": {},
+        "rows": [
+          [
+            1.2
+          ]
+        ],
+        "status": "available"
+      }
+    },
+    {
+      "id": "nonfinite",
+      "payload": {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+        "source_id": "gold.local",
+        "source_table": "gold_v2.diagnostico_receita",
+        "metric_id": "billing.revenue",
+        "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+        "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+        "execution_digest": "0be0cf890d38942d5f819339c31caf5498c78eb6fe3af87b64093cbc4f9f04ad",
+        "result_digest": "517da7a089e8f135c701490d776252457ccac91298cce314fbcbe40a17db1c66",
+        "evidence_digest": "0ad2cf9666124812f19f39cf4d08bb2a3296419b17fda5a9ab47019a28bc3c0e",
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-csv-v2",
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "measure_semantics": {
+          "revenue": "revenue_total"
+        },
+        "dimension_semantics": {},
+        "rows": [
+          [
+            "NaN"
+          ]
+        ],
+        "status": "available"
+      }
+    },
+    {
+      "id": "false_empty",
+      "payload": {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+        "source_id": "gold.local",
+        "source_table": "gold_v2.diagnostico_receita",
+        "metric_id": "billing.revenue",
+        "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+        "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+        "execution_digest": "0be0cf890d38942d5f819339c31caf5498c78eb6fe3af87b64093cbc4f9f04ad",
+        "result_digest": "517da7a089e8f135c701490d776252457ccac91298cce314fbcbe40a17db1c66",
+        "evidence_digest": "35d5f712d0de1d5837fe068839c19eba51d6fc3660e9d3a185fca04e07069933",
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-csv-v2",
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "measure_semantics": {
+          "revenue": "revenue_total"
+        },
+        "dimension_semantics": {},
+        "rows": [
+          [
+            "150.03"
+          ]
+        ],
+        "status": "empty"
+      }
+    },
+    {
+      "id": "extra_sql",
+      "payload": {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+        "source_id": "gold.local",
+        "source_table": "gold_v2.diagnostico_receita",
+        "metric_id": "billing.revenue",
+        "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+        "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+        "execution_digest": "0be0cf890d38942d5f819339c31caf5498c78eb6fe3af87b64093cbc4f9f04ad",
+        "result_digest": "517da7a089e8f135c701490d776252457ccac91298cce314fbcbe40a17db1c66",
+        "evidence_digest": "d714eb58e5ddc7860c866e2df8e5c34ce62a56e5f0d90f8eb41271e0cc250525",
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-csv-v2",
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "measure_semantics": {
+          "revenue": "revenue_total"
+        },
+        "dimension_semantics": {},
+        "rows": [
+          [
+            "150.03"
+          ]
+        ],
+        "status": "available",
+        "sql": "SELECT 1"
+      }
+    },
+    {
+      "id": "changed_rows",
+      "payload": {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+        "source_id": "gold.local",
+        "source_table": "gold_v2.diagnostico_receita",
+        "metric_id": "billing.revenue",
+        "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+        "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+        "execution_digest": "0be0cf890d38942d5f819339c31caf5498c78eb6fe3af87b64093cbc4f9f04ad",
+        "result_digest": "517da7a089e8f135c701490d776252457ccac91298cce314fbcbe40a17db1c66",
+        "evidence_digest": "319f9ac862af96e1a71fccd67c2921549e540e948772e4f9b4adbeb2996ddf58",
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-csv-v2",
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "measure_semantics": {
+          "revenue": "revenue_total"
+        },
+        "dimension_semantics": {},
+        "rows": [
+          [
+            "999.00"
+          ]
+        ],
+        "status": "available"
+      }
+    },
+    {
+      "id": "wrong_source",
+      "payload": {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+        "source_id": "other",
+        "source_table": "gold_v2.diagnostico_receita",
+        "metric_id": "billing.revenue",
+        "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+        "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+        "execution_digest": "0be0cf890d38942d5f819339c31caf5498c78eb6fe3af87b64093cbc4f9f04ad",
+        "result_digest": "517da7a089e8f135c701490d776252457ccac91298cce314fbcbe40a17db1c66",
+        "evidence_digest": "fe34ebe47e2456691af1074ea631273221d9849e65eb4206bbec7c70c8667e00",
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-csv-v2",
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "measure_semantics": {
+          "revenue": "revenue_total"
+        },
+        "dimension_semantics": {},
+        "rows": [
+          [
+            "150.03"
+          ]
+        ],
+        "status": "available"
+      }
+    },
+    {
+      "id": "lost_lineage",
+      "payload": {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+        "source_id": "gold.local",
+        "source_table": "gold_v2.diagnostico_receita",
+        "metric_id": "billing.revenue",
+        "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+        "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+        "execution_digest": "0be0cf890d38942d5f819339c31caf5498c78eb6fe3af87b64093cbc4f9f04ad",
+        "result_digest": "517da7a089e8f135c701490d776252457ccac91298cce314fbcbe40a17db1c66",
+        "evidence_digest": "5113af88147cd2e1af4aac9d22d4bcd82629cbdb8745e54ae8929fb96a70a1f2",
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-csv-v2",
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "measure_semantics": {},
+        "dimension_semantics": {},
+        "rows": [
+          [
+            "150.03"
+          ]
+        ],
+        "status": "available"
+      }
+    },
+    {
+      "id": "row_shape",
+      "payload": {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+        "source_id": "gold.local",
+        "source_table": "gold_v2.diagnostico_receita",
+        "metric_id": "billing.revenue",
+        "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+        "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+        "execution_digest": "0be0cf890d38942d5f819339c31caf5498c78eb6fe3af87b64093cbc4f9f04ad",
+        "result_digest": "517da7a089e8f135c701490d776252457ccac91298cce314fbcbe40a17db1c66",
+        "evidence_digest": "cebd6d24709126c8659db8e4d50355c7cab1dccc3474494c1587648f886a0195",
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-csv-v2",
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "measure_semantics": {
+          "revenue": "revenue_total"
+        },
+        "dimension_semantics": {},
+        "rows": [
+          [
+            "1.00",
+            "2.00"
+          ]
+        ],
+        "status": "available"
+      }
+    },
+    {
+      "id": "fake_dimension",
+      "payload": {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v1",
+        "source_id": "gold.local",
+        "source_table": "gold_v2.diagnostico_receita",
+        "metric_id": "billing.revenue",
+        "batch_ref": "gold-csv-v2:GOLD_20000101T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "b07e42a773220e0433568e972d6f4ba4581cbb25b8b6922a70f3b7885fefc285",
+        "admission_digest": "970e2e288ac581bdad3919a58525359645fea345cf6ee395ca7faf9cb0a77b6d",
+        "execution_digest": "0be0cf890d38942d5f819339c31caf5498c78eb6fe3af87b64093cbc4f9f04ad",
+        "result_digest": "517da7a089e8f135c701490d776252457ccac91298cce314fbcbe40a17db1c66",
+        "evidence_digest": "9a6b12fe920f6c87d7ee4cda123386ab47d91dacec4949867703cfa36cf0151a",
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-csv-v2",
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "measure_semantics": {
+          "revenue": "revenue_total"
+        },
+        "dimension_semantics": {
+          "city": "municipality"
+        },
+        "rows": [
+          [
+            "150.03"
+          ]
+        ],
+        "status": "available"
+      }
+    }
+  ]
+}

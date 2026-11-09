@@ -322,16 +322,28 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
     screen.getByRole("columnheader", { name: "Energia a recuperar" }),
   ).toBeVisible();
   expect(
-    screen.getAllByText(/Contatos ao atendimento: indisponível/),
-  ).toHaveLength(2);
+    screen.queryByRole("columnheader", { name: "Evidências publicadas" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("Evidências publicadas")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/Contatos ao atendimento: indisponível/),
+  ).not.toBeInTheDocument();
   expect(
     screen.queryByText(/Diferença observada não é estimativa/),
   ).not.toBeInTheDocument();
   expect(
     screen.queryByText("Prioridade demonstrativa"),
   ).not.toBeInTheDocument();
-  expect(screen.getByLabelText("Ordenar por")).toHaveValue("queue_position");
-  expect(screen.getByLabelText("Direção da ordenação")).toHaveValue("asc");
+  expect(screen.getByLabelText("Ordenar por")).toHaveValue(
+    "queue_position:asc",
+  );
+  expect(screen.queryByLabelText("Direção da ordenação")).toBeNull();
+  expect(
+    screen.getByRole("columnheader", { name: "Posição / UC / categoria" }),
+  ).toHaveAttribute("aria-sort", "ascending");
+  expect(
+    screen.getByRole("columnheader", { name: "Energia a recuperar" }),
+  ).toHaveAttribute("aria-sort", "none");
   await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
   const filterDialog = screen.getByRole("dialog", { name: "Ajustar filtros" });
   expect(within(filterDialog).getByLabelText("Município")).toBeVisible();
@@ -339,7 +351,7 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
   expect(within(filterDialog).getByLabelText("Classe")).toBeVisible();
   expect(within(filterDialog).getByLabelText("Alimentador")).toBeVisible();
   expect(within(filterDialog).queryByLabelText("Ordenar por")).toBeNull();
-  expect(within(filterDialog).queryByLabelText("UCs por página")).toBeNull();
+  expect(within(filterDialog).queryByLabelText("Por página")).toBeNull();
   expect(
     within(filterDialog).queryByRole("option", {
       name: "Posição oficial da fila",
@@ -350,11 +362,16 @@ it("apresenta fila Gold sem score e cria ordem com lote e fingerprint confirmado
     screen.getAllByRole("link", { name: "Ver evidência de UC-GOLD" })[0],
   );
   expect(
-    await screen.findByText("Energia recuperável indisponível"),
-  ).toBeVisible();
+    await screen.findByRole("region", {
+      name: "Energia a recuperar (estimativa)",
+    }),
+  ).toHaveTextContent("Estimativa indisponível");
   expect(
     screen.getByText(/fotografia cadastral, sem competência mensal/),
   ).toBeVisible();
+  await user.click(screen.getByText("Potencial estimado para investigação"));
+  await user.click(screen.getByText("Referência histórica de recuperação"));
+  await user.click(screen.getByText("Comparação proposta de consumo"));
   expect(
     screen.getByRole("region", {
       name: "Potencial estimado para investigação",
@@ -407,13 +424,13 @@ it("oferece ordenar a fila Gold pela energia recuperável estimada", async () =>
   const ordering = await screen.findByLabelText("Ordenar por");
   expect(
     within(ordering).getByRole("option", {
-      name: "Energia recuperável estimada",
+      name: "Energia recuperável estimada (decrescente)",
     }),
   ).toBeEnabled();
-  await user.selectOptions(ordering, "potential_recoverable_energy_kwh");
+  await user.selectOptions(ordering, "potential_recoverable_energy_kwh:desc");
   await waitFor(() =>
     expect(screen.getByLabelText("URL atual")).toHaveTextContent(
-      "order_by=potential_recoverable_energy_kwh",
+      "order_by=potential_recoverable_energy_kwh&direction=desc",
     ),
   );
   await waitFor(() =>
@@ -622,9 +639,17 @@ it("mostra a estimativa condicional e sua faixa na fila e no detalhe Gold", asyn
   );
   expect(
     await screen.findByRole("region", {
-      name: "Estimativa condicional de energia a recuperar",
+      name: "Energia a recuperar (estimativa)",
     }),
   ).toHaveTextContent("125,5 kWh");
+  expect(
+    screen.getByText(
+      "Estimativa se a irregularidade se confirmar; não garante recuperação nesta UC.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/A faixa foi validada temporalmente/),
+  ).toHaveTextContent(/Faixa nominal de 90%: 100 kWh a 151 kWh/);
   expect(
     screen.getByText(
       /Janela de aplicação: 12 meses até junho de 2026 \(mínimo: 6 meses\)/,
@@ -731,6 +756,9 @@ it("na Gold v2 desativa ordenação por energia e preserva a volta do detalhe", 
   expect(
     screen.getByText("Média histórica de recuperação por inspeção"),
   ).toBeVisible();
+  await user.click(
+    screen.getByText("Média histórica de recuperação por inspeção"),
+  );
   expect(screen.getByText(/não é estimativa para esta UC/)).toBeVisible();
   expect(
     screen.getByText(/A fila não informa uma janela temporal própria/),
@@ -820,7 +848,9 @@ it("abre evidências reproduzíveis e volta preservando a página e os filtros",
     screen.getByRole("heading", { name: "O que define a posição na fila" }),
   ).toBeVisible();
   await user.click(screen.getByRole("link", { name: "Voltar à fila" }));
-  expect(await screen.findByText(/Página 2 de 2/)).toBeVisible();
+  expect(
+    await screen.findByRole("button", { name: "Página 2" }),
+  ).toHaveAttribute("aria-current", "page");
   expect(screen.getByLabelText("URL atual")).toHaveTextContent(
     "municipio=Recife&page_size=1&page=2",
   );
@@ -925,25 +955,13 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
   await firstEvidenceLink();
   expect(screen.queryByText("Competência")).not.toBeInTheDocument();
   expect(screen.queryByText("Comparar com")).not.toBeInTheDocument();
-  await user.selectOptions(
-    screen.getByLabelText("Ordenar por"),
-    "potential_recoverable_energy_kwh",
-  );
-  await user.selectOptions(screen.getByLabelText("Ordenar por"), "uc_id");
-  await user.selectOptions(
-    screen.getByLabelText("Direção da ordenação"),
-    "asc",
-  );
-  await user.selectOptions(
-    screen.getByLabelText("Direção da ordenação"),
-    "desc",
-  );
-  await user.selectOptions(
-    screen.getByLabelText("Direção da ordenação"),
-    "asc",
-  );
-  await user.selectOptions(screen.getByLabelText("UCs por página"), "20");
-  await user.selectOptions(screen.getByLabelText("UCs por página"), "50");
+  await user.click(screen.getByRole("button", { name: "Energia estimada" }));
+  await user.click(screen.getByRole("button", { name: "UC / prioridade" }));
+  await user.click(screen.getByRole("button", { name: "UC / prioridade" }));
+  const pagination = () =>
+    within(screen.getByRole("navigation", { name: "Paginação da fila" }));
+  await user.selectOptions(pagination().getByLabelText("Por página"), "20");
+  await user.selectOptions(pagination().getByLabelText("Por página"), "50");
   await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
   await user.selectOptions(screen.getByLabelText("Município"), "Olinda");
   await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
@@ -954,7 +972,7 @@ it("aplica filtros e ordenação na API, reiniciando a página, e trata fila vaz
   ).toBeVisible();
   const url = new URL(fetch.mock.calls.at(-1)![0], window.location.origin);
   expect(url.searchParams.get("municipio")).toBe("Olinda");
-  expect(url.searchParams.get("order_by")).toBe("uc_id");
+  expect(url.searchParams.get("order_by")).toBe("priority");
   expect(url.searchParams.get("direction")).toBe("asc");
   expect(url.searchParams.get("page_size")).toBe("50");
   expect(url.searchParams.get("page")).toBe("1");
@@ -1018,15 +1036,21 @@ it("pagina pelo servidor e mantém estimativa ausente distinta de zero", async (
   vi.stubGlobal("fetch", fetch);
   const user = userEvent.setup();
   mount("/inspecoes?page_size=1");
-  await screen.findByText(/Página 1 de 2/);
-  await user.click(screen.getByRole("button", { name: "Próxima" }));
-  expect(await screen.findByText(/Página 2 de 2/)).toBeVisible();
+  await user.click(await screen.findByRole("button", { name: "Página 2" }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Página 2" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    ),
+  );
   expect(screen.getAllByText("Estimativa indisponível")).toHaveLength(2);
   expect(
     screen.queryByRole("region", { name: "Resumo do recorte da fila" }),
   ).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Ver fundamentos" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
+  expect(
+    screen.queryByRole("button", { name: "Página 3" }),
+  ).not.toBeInTheDocument();
 });
 
 it("mantém filtros como rascunho no diálogo e fecha com Escape devolvendo foco", async () => {
@@ -1056,7 +1080,7 @@ it("mantém filtros como rascunho no diálogo e fecha com Escape devolvendo foco
   ).toHaveValue("Recife");
 });
 
-it("apresenta os cinco campos da fila e registros mobile sem faixa de prioridade inventada", async () => {
+it("apresenta os quatro campos da fila e registros mobile sem faixa de prioridade inventada", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(envelope())));
   mount();
   expect(
@@ -1065,7 +1089,6 @@ it("apresenta os cinco campos da fila e registros mobile sem faixa de prioridade
   for (const heading of [
     "UC / prioridade",
     "Motivo da suspeita",
-    "Indicador usado",
     "Energia estimada",
     "Ação",
   ]) {
@@ -1073,13 +1096,17 @@ it("apresenta os cinco campos da fila e registros mobile sem faixa de prioridade
       screen.getByRole("columnheader", { name: heading }),
     ).toBeInTheDocument();
   }
+  expect(
+    screen.queryByRole("columnheader", { name: "Indicador usado" }),
+  ).not.toBeInTheDocument();
   const mobileCard = screen.getByRole("article", { name: "Suspeita UC-1004" });
   expect(
     within(mobileCard).getByText("Lacuna de leitura e medidor retirado"),
   ).toBeVisible();
+  expect(within(mobileCard).queryByText("Indicador usado")).toBeNull();
   expect(
-    within(mobileCard).getByText("Lacuna de leitura · Medidor retirado"),
-  ).toBeVisible();
+    within(mobileCard).queryByText("Lacuna de leitura · Medidor retirado"),
+  ).toBeNull();
   expect(screen.queryByText(/Alta|Média/)).not.toBeInTheDocument();
 });
 
@@ -1229,13 +1256,652 @@ it("uses descending as the default direction for Gold recovery estimates", async
 
   expect(await screen.findByLabelText("Ordenar por")).toBeVisible();
   expect(screen.getByLabelText("Ordenar por")).toHaveValue(
-    "potential_recoverable_energy_kwh",
+    "potential_recoverable_energy_kwh:desc",
   );
-  expect(screen.getByLabelText(/Dire/)).toHaveValue("desc");
+  expect(
+    screen.getByRole("columnheader", { name: "Energia a recuperar" }),
+  ).toHaveAttribute("aria-sort", "descending");
 
   const request = new URL(fetch.mock.calls.at(-1)![0], window.location.origin);
   expect(request.searchParams.get("order_by")).toBe(
     "potential_recoverable_energy_kwh",
   );
   expect(request.searchParams.get("direction")).toBeNull();
+});
+
+it("ordena a fila de demonstração pelo cabeçalho, voltando à página 1", async () => {
+  const fetch = vi.fn(async (_url: string) =>
+    respond(envelope([item, second], 3, 10, 30)),
+  );
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount("/inspecoes?page=3");
+
+  const priority = await screen.findByRole("columnheader", {
+    name: "UC / prioridade",
+  });
+  const energyHeader = screen.getByRole("columnheader", {
+    name: "Energia estimada",
+  });
+  expect(priority).toHaveAttribute("aria-sort", "descending");
+  expect(energyHeader).toHaveAttribute("aria-sort", "none");
+  expect(
+    screen.queryByRole("button", { name: "Motivo da suspeita" }),
+  ).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Energia estimada" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "page=1&order_by=potential_recoverable_energy_kwh&direction=desc",
+    ),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole("columnheader", { name: "Energia estimada" }),
+    ).toHaveAttribute("aria-sort", "descending"),
+  );
+  await user.click(screen.getByRole("button", { name: "Energia estimada" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "direction=asc",
+    ),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole("columnheader", { name: "Energia estimada" }),
+    ).toHaveAttribute("aria-sort", "ascending"),
+  );
+  await user.click(screen.getByRole("button", { name: "UC / prioridade" }));
+  await waitFor(() => {
+    const request = new URL(
+      fetch.mock.calls.at(-1)![0],
+      window.location.origin,
+    );
+    expect(request.searchParams.get("order_by")).toBe("priority");
+    expect(request.searchParams.get("direction")).toBe("desc");
+    expect(request.searchParams.get("page")).toBe("1");
+  });
+});
+
+it("ordena a fila Gold com a posição mais promissora primeiro e alterna a direção", async () => {
+  const fetch = vi.fn(async (_url: string) => respond(goldQueue));
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  const position = await screen.findByRole("button", {
+    name: "Posição / UC / categoria",
+  });
+  await user.click(position);
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "order_by=queue_position&direction=desc",
+    ),
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "Energia a recuperar" }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "order_by=potential_recoverable_energy_kwh&direction=desc",
+    ),
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "Posição / UC / categoria" }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("URL atual")).toHaveTextContent(
+      "order_by=queue_position&direction=asc",
+    ),
+  );
+});
+
+it.each([
+  ["uc_id", "asc", "Número da UC (crescente)"],
+  ["category", "desc", "Categoria (decrescente)"],
+])(
+  "mantém links com order_by=%s sem cabeçalho ativo",
+  async (order, direction, option) => {
+    const fetch = vi.fn(async (_url: string) => respond(goldQueue));
+    vi.stubGlobal("fetch", fetch);
+    mount(`/inspecoes?order_by=${order}&direction=${direction}`);
+
+    const header = await screen.findByRole("columnheader", {
+      name: "Posição / UC / categoria",
+    });
+    expect(header).toHaveAttribute("aria-sort", "none");
+    expect(
+      screen.getByRole("columnheader", { name: "Energia a recuperar" }),
+    ).toHaveAttribute("aria-sort", "none");
+    expect(screen.getByLabelText("Ordenar por")).toHaveValue(
+      `${order}:${direction}`,
+    );
+    expect(screen.getByRole("option", { name: option })).toBeInTheDocument();
+    const request = new URL(
+      fetch.mock.calls.at(-1)![0],
+      window.location.origin,
+    );
+    expect(request.searchParams.get("order_by")).toBe(order);
+    expect(request.searchParams.get("direction")).toBe(direction);
+  },
+);
+
+function sizeOptions(select: HTMLElement) {
+  return within(select)
+    .getAllByRole("option")
+    .map((option) => option.textContent);
+}
+
+const pageSizeLayouts = [
+  ["Gold", () => respond(goldQueue)],
+  ["demonstração", () => respond(envelope())],
+] as const;
+
+it.each(pageSizeLayouts)(
+  "pede 5 UCs por padrão e oferece 5, 10, 20 e 50 na fila %s",
+  async (_layout, reply) => {
+    const fetch = vi.fn(async (_url: string) => reply());
+    vi.stubGlobal("fetch", fetch);
+    mount("/inspecoes");
+
+    const footer = await screen.findByRole("navigation", {
+      name: "Paginação da fila",
+    });
+    const request = new URL(
+      fetch.mock.calls.at(-1)![0],
+      window.location.origin,
+    );
+    expect(request.searchParams.get("page_size")).toBe("5");
+    const controls = screen.getByLabelText("Controles da fila");
+    for (const select of [within(footer).getByLabelText("Por página")]) {
+      expect(select).toHaveValue("5");
+      expect(sizeOptions(select)).toEqual(["5", "10", "20", "50"]);
+    }
+    expect(within(controls).getByLabelText("Ordenar por")).toBeInTheDocument();
+    expect(screen.queryByLabelText("UCs por página")).toBeNull();
+  },
+);
+
+it.each(pageSizeLayouts)(
+  "volta à página 1 ao mudar Por página na fila %s",
+  async (_layout, reply) => {
+    const fetch = vi.fn(async (_url: string) => reply());
+    vi.stubGlobal("fetch", fetch);
+    const user = userEvent.setup();
+    mount("/inspecoes?page=3");
+
+    const footer = await screen.findByRole("navigation", {
+      name: "Paginação da fila",
+    });
+    await user.selectOptions(within(footer).getByLabelText("Por página"), "20");
+    await waitFor(() => {
+      const request = new URL(
+        fetch.mock.calls.at(-1)![0],
+        window.location.origin,
+      );
+      expect(request.searchParams.get("page_size")).toBe("20");
+      expect(request.searchParams.get("page")).toBe("1");
+    });
+  },
+);
+
+it.each([
+  ["10", ["5", "10", "20", "50"]],
+  ["100", ["5", "10", "20", "50", "100"]],
+  ["1", ["1", "5", "10", "20", "50"]],
+])(
+  "mantém links antigos com page_size=%s e só acrescenta a opção se faltar",
+  async (size, options) => {
+    const fetch = vi.fn(async (_url: string) => respond(envelope()));
+    vi.stubGlobal("fetch", fetch);
+    mount(`/inspecoes?page_size=${size}`);
+
+    const footer = await screen.findByRole("navigation", {
+      name: "Paginação da fila",
+    });
+    const select = within(footer).getByLabelText("Por página");
+    expect(select).toHaveValue(size);
+    expect(sizeOptions(select)).toEqual(options);
+    const request = new URL(
+      fetch.mock.calls.at(-1)![0],
+      window.location.origin,
+    );
+    expect(request.searchParams.get("page_size")).toBe(size);
+  },
+);
+
+it("mostra só o botão de exportar entre o aviso e a tabela da fila", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(envelope())),
+  );
+  mount("/inspecoes");
+
+  const table = await screen.findByRole("table", { name: /Suspeitas/ });
+  const notice = screen.getByRole("complementary", {
+    name: "Prioridade demonstrativa",
+  });
+  const button = screen.getByRole("button", { name: "Exportar fila" });
+  const follows = (first: Element, second: Element) =>
+    first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING;
+  expect(follows(notice, button)).toBeTruthy();
+  expect(follows(button, table)).toBeTruthy();
+  expect(screen.queryByText("Enviar a fila para a equipe")).toBeNull();
+  expect(screen.queryByText(/Prepare a fila de inspeção/)).toBeNull();
+});
+
+it("mantém o botão de exportar antes da tabela na fila Gold", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(goldQueue)),
+  );
+  mount("/inspecoes");
+
+  const header = await screen.findByRole("columnheader", {
+    name: "Posição / UC / categoria",
+  });
+  const button = screen.getByRole("button", { name: "Exportar fila" });
+  expect(
+    button.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
+
+const INFO_NAME = "Como a prioridade é calculada";
+
+it("abre a regra pelo ícone sem ordenar e fecha com Esc e ao clicar fora", async () => {
+  const fetch = vi.fn(async (_url: string) => respond(envelope()));
+  vi.stubGlobal("fetch", fetch);
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  const info = await screen.findByRole("button", { name: INFO_NAME });
+  const calls = fetch.mock.calls.length;
+  const url = screen.getByLabelText("URL atual").textContent;
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  expect(info).toHaveAccessibleDescription(
+    /Pontuação de priorização da fila; não é probabilidade de irregularidade/,
+  );
+
+  await user.click(info);
+  expect(screen.getByRole("tooltip")).toHaveTextContent(
+    "Soma dos pesos dos sinais presentes, limitada a 1 e arredondada a duas casas.",
+  );
+  expect(info).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByLabelText("URL atual").textContent).toBe(url);
+  expect(fetch.mock.calls.length).toBe(calls);
+  expect(
+    screen.getByRole("columnheader", { name: "UC / prioridade" }),
+  ).toHaveAttribute("aria-sort", "descending");
+
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  await user.click(info);
+  await user.click(screen.getByRole("heading", { level: 1 }));
+  expect(screen.queryByRole("tooltip")).toBeNull();
+  await user.click(info);
+  await user.click(info);
+  expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
+it("abre a regra ao focar pelo teclado e fecha ao sair do botão", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(envelope())),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  const sort = await screen.findByRole("button", { name: "UC / prioridade" });
+  sort.focus();
+  await user.tab();
+  expect(screen.getByRole("button", { name: INFO_NAME })).toHaveFocus();
+  expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  await user.tab();
+  expect(screen.queryByRole("tooltip")).toBeNull();
+});
+
+it("explica a fila Gold pela regra publicada, sem falar em pontuação", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(goldQueue)),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  await user.click(await screen.findByRole("button", { name: INFO_NAME }));
+  const rule = screen.getByRole("tooltip");
+  expect(rule).toHaveTextContent(/É ordem de triagem/);
+  expect(rule).not.toHaveTextContent(/Pontuação/);
+  expect(
+    screen.getByRole("columnheader", { name: "Posição / UC / categoria" }),
+  ).toHaveAttribute("aria-sort", "ascending");
+});
+
+it("informa que a fonte publicada não fornece pesos", async () => {
+  const published = envelope();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      respond({
+        ...published,
+        metadata: {
+          ...metadata,
+          source: { ...metadata.source, kind: "gold_csv", is_demo: false },
+        },
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes");
+
+  await user.click(await screen.findByRole("button", { name: INFO_NAME }));
+  expect(screen.getByRole("tooltip")).toHaveTextContent(
+    "Categoria publicada na Gold. Não há score nem pesos fornecidos nesta versão.",
+  );
+});
+
+it("resume o aviso da demonstração e tira da linha só o que ele já diz", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(envelope())),
+  );
+  mount("/inspecoes");
+
+  expect(
+    await screen.findByText(
+      "Dados sintéticos; priorização final e energia recuperável dependem de validação com as fontes.",
+    ),
+  ).toBeVisible();
+  const line = screen.getByText(/atualização ilustrativa/);
+  expect(line).toHaveTextContent(
+    "Demonstração · atualização ilustrativa: 21/10/2026 · cobertura parcial",
+  );
+  expect(screen.queryByText(/Motivos e estimativas/)).toBeNull();
+});
+
+it("mantém dados sintéticos na linha do detalhe, onde não há aviso", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(detail)),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  expect(await screen.findByText(/atualização ilustrativa/)).toHaveTextContent(
+    "Demonstração · dados sintéticos · atualização ilustrativa: 21/10/2026 · cobertura parcial",
+  );
+});
+
+function recoveryBlock() {
+  return screen.getByRole("region", {
+    name: "Energia a recuperar (estimativa)",
+  });
+}
+
+function expectBefore(first: Element, second: Element) {
+  expect(
+    first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+}
+
+it("destaca a energia da demonstração acima do motivo, com o aviso junto ao valor", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(detail)),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  const heading = await screen.findByRole("heading", {
+    name: "O que motivou a investigação",
+  });
+  const block = recoveryBlock();
+  expectBefore(block, heading);
+  expect(within(block).getByText("45 kWh")).toHaveClass("text-4xl");
+  expect(
+    within(block).getByText(
+      "Estimativa demonstrativa, sem confirmação de recuperação.",
+    ),
+  ).toBeVisible();
+  expect(screen.getAllByText("45 kWh")).toHaveLength(1);
+  expect(screen.queryByText("Energia potencialmente recuperável")).toBeNull();
+  expect(screen.getByLabelText("Limite da evidência")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Criar ordem de inspeção" }),
+  ).toBeInTheDocument();
+});
+
+it("na demonstração sem valor mantém o aviso e mostra a razão da indisponibilidade", async () => {
+  const unavailable = (reason: string | null) => ({
+    ...detail,
+    data: {
+      ...detail.data,
+      potential_recoverable_energy_kwh: null,
+      estimate_evidence: {
+        ...detail.data.estimate_evidence,
+        unavailable_reason: reason,
+      },
+    },
+  });
+  const fetch = vi.fn(async () =>
+    respond(unavailable("Sem leitura comparável.")),
+  );
+  vi.stubGlobal("fetch", fetch);
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  const block = recoveryBlock();
+  expect(within(block).getByText("Estimativa indisponível")).toHaveClass(
+    "text-2xl",
+  );
+  expect(block).not.toHaveTextContent(/\d/);
+  expect(
+    within(block).getByText(
+      "Estimativa demonstrativa, sem confirmação de recuperação.",
+    ),
+  ).toBeVisible();
+  expect(within(block).getByText("Sem leitura comparável.")).toBeVisible();
+});
+
+it("usa Insumos indisponíveis quando a demonstração não informa a razão", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      respond({
+        ...detail,
+        data: {
+          ...detail.data,
+          potential_recoverable_energy_kwh: null,
+          estimate_evidence: {
+            ...detail.data.estimate_evidence,
+            unavailable_reason: null,
+          },
+        },
+      }),
+    ),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  expect(
+    within(recoveryBlock()).getByText("Insumos indisponíveis"),
+  ).toBeVisible();
+});
+
+it("na fonte publicada sem estimativa mantém a informação de valor não fornecido", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      respond({
+        ...detail,
+        data: { ...detail.data, potential_recoverable_energy_kwh: null },
+        metadata: {
+          ...metadata,
+          source: { ...metadata.source, kind: "gold_csv", is_demo: false },
+        },
+      }),
+    ),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  const block = recoveryBlock();
+  expect(block).toHaveTextContent("Estimativa indisponível");
+  expect(block).toHaveTextContent("Estimativa não fornecida nesta consulta.");
+});
+
+it("no Gold sem estimativa mostra o bloco acima da triagem, com a razão publicada", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(goldDetail)),
+  );
+  mount("/inspecoes?uc=UC-GOLD");
+
+  const heading = await screen.findByRole("heading", {
+    name: "O que consta na triagem",
+  });
+  const block = recoveryBlock();
+  expectBefore(block, heading);
+  expect(within(block).getByText("Estimativa indisponível")).toHaveClass(
+    "text-2xl",
+  );
+  expect(block).toHaveTextContent(
+    "A Gold publicada não contém uma estimativa de energia recuperável.",
+  );
+  expect(screen.queryByText("Energia recuperável indisponível")).toBeNull();
+  expect(screen.getByLabelText("Limite da evidência")).toBeVisible();
+});
+
+const GUIDANCE_TEXT =
+  "Verificar cadastro, medição, histórico e eventual geração própria antes de concluir.";
+
+function collapsedSummaries() {
+  const details = [...document.querySelectorAll("article details")];
+  expect(details.every((item) => !item.hasAttribute("open"))).toBe(true);
+  return details.map((item) => item.querySelector("summary")?.textContent);
+}
+
+it("mostra Estimativa indisponível como texto neutro, sem parecer um valor", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(goldDetail)),
+  );
+  mount("/inspecoes?uc=UC-GOLD");
+
+  await screen.findByRole("heading", { name: "O que consta na triagem" });
+  const text = within(recoveryBlock()).getByText("Estimativa indisponível");
+  expect(text).toHaveClass("text-2xl", "text-content");
+  expect(text).not.toHaveClass("text-4xl");
+  expect(text).not.toHaveClass("text-brand");
+});
+
+it("mantém o valor em destaque quando há número", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(detail)),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  expect(within(recoveryBlock()).getByText("45 kWh")).toHaveClass(
+    "text-4xl",
+    "text-brand",
+  );
+});
+
+it("no Gold recolhe a fundamentação e mantém evidências, orientação e limite visíveis", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(goldDetail)),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes?uc=UC-GOLD");
+
+  await screen.findByRole("heading", { name: "O que consta na triagem" });
+  expect(collapsedSummaries()).toEqual([
+    "Referência histórica de recuperação",
+    "Potencial estimado para investigação",
+    "Comparação proposta de consumo",
+    "Variação de consumo observada",
+  ]);
+  expect(screen.getByText("Motivo registrado")).toBeVisible();
+  expect(screen.getByText("Evidências publicadas")).toBeVisible();
+  expect(screen.getByText("Inspeções realizadas")).toBeVisible();
+  expect(screen.getByText(GUIDANCE_TEXT)).toBeVisible();
+  expect(screen.getByLabelText("Limite da evidência")).toBeVisible();
+  expect(
+    screen.getByText(/fotografia cadastral, sem competência mensal/),
+  ).toBeVisible();
+  expect(screen.getByText(/Não é energia recuperada/)).not.toBeVisible();
+
+  await user.click(screen.getByText("Potencial estimado para investigação"));
+  expect(screen.getByText(/Não é energia recuperada/)).toBeVisible();
+  await user.click(screen.getByText("Potencial estimado para investigação"));
+  expect(screen.getByText(/Não é energia recuperada/)).not.toBeVisible();
+});
+
+it("na demonstração mantém o chip e o aviso visíveis e recolhe a explicação e a janela", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => respond(detail)),
+  );
+  const user = userEvent.setup();
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  expect(collapsedSummaries()).toEqual([
+    "Como a prioridade é calculada",
+    "Janela da evidência",
+  ]);
+  expect(
+    screen.getByLabelText("Prioridade analítica: 0,92 de 1"),
+  ).toBeVisible();
+  expect(
+    screen.getByText("Não é probabilidade de irregularidade."),
+  ).toBeVisible();
+  expect(screen.getByText("Motivo da suspeita")).toBeVisible();
+  expect(screen.getByText("Sinais observados")).toBeVisible();
+  expect(screen.getByText(GUIDANCE_TEXT)).toBeVisible();
+  expect(screen.getByLabelText("Limite da evidência")).toBeVisible();
+
+  const explanation = screen.getByText(/Pontuação de priorização da fila/);
+  const period = screen.getByText("janeiro de 2025 a fevereiro de 2025");
+  expect(explanation).not.toBeVisible();
+  expect(period).not.toBeVisible();
+  await user.click(screen.getByText("Como a prioridade é calculada"));
+  expect(explanation).toBeVisible();
+  await user.click(screen.getByText("Janela da evidência"));
+  expect(period).toBeVisible();
+});
+
+it("na fonte publicada deixa visível o que limita a evidência", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      respond({
+        ...detail,
+        data: {
+          ...detail.data,
+          priority: null,
+          priority_label: "ALTA",
+          potential_recoverable_energy_kwh: null,
+        },
+        metadata: {
+          ...metadata,
+          source: { ...metadata.source, kind: "gold_csv", is_demo: false },
+        },
+      }),
+    ),
+  );
+  mount("/inspecoes?uc=UC-1004");
+
+  await screen.findByRole("heading", { name: "O que motivou a investigação" });
+  expect(collapsedSummaries()).toEqual([
+    "Como a prioridade é calculada",
+    "Cobertura do consumo no lote",
+  ]);
+  expect(
+    screen.getByText("Regra provisória aguardando homologação."),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/A fila não informa uma janela temporal própria/),
+  ).toBeVisible();
 });

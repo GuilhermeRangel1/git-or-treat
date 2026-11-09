@@ -35,3 +35,6 @@ relacionados na mesma mudança.
 
 - [ADR-0023 — Pareamento do cadastro restrito pelos manifestos](0023-timestamps-cadastro-restrito.md): aprovada em 02/11/2026; timestamps das linhas cadastrais precisam ser válidos e uniformes, enquanto a identidade da publicação usa metadados coincidentes dos manifestos.
 - [ADR-0024 — Recuperação condicional e continuidade observada](0024-recuperacao-condicional-e-continuidade-observada.md): adotada em 03/11/2026; expõe estimativa Gold por UC sob condição e admite leitura delimitada DEC/FEC sem converter `NAO_CERTIFICADA` em cobertura certificada.
+
+- [ADR-0025 — Transição para SQL proposto pelo modelo](0025-text-to-sql-generativo.md): direção autorizada em 05/11/2026, implementação e aceite em andamento; Backend continua executor exclusivo, sem endpoint generativo habilitado nesta preparação.
+- [ADR-0026 — Assunto declarado e motivos tipados de recusa e esclarecimento](0026-assunto-declarado-e-motivos-de-recusa.md): implementada em 08/11/2026 na branch `feat/genai-recusas-esclarecimentos`; separa assunto externo, capacidade, cobertura, segurança e falha técnica; aceite generativo TSQL-12 pendente.

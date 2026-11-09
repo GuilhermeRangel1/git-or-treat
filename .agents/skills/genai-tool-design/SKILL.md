@@ -5,6 +5,11 @@ description: Projete ou amplie capacidades analíticas e contratos de ferramenta
 
 # Ferramentas analíticas do GenAI
 
+## Transição Text-to-SQL autorizada
+
+Ao desenvolver SQL generativo, siga a [ADR-0025](../../../docs/decisions/0025-text-to-sql-generativo.md) e o [contrato F1](../../../docs/contracts/text-to-sql-f1.md). Nesse escopo o modelo propõe SQL candidato, com validação/execução finais no Backend. As orientações abaixo sobre intenção/plano lógico descrevem o caminho legado, preservado até integração e ativação comprovadas. Catálogo, semântica, autorização, prontidão, orçamento e evidência continuam obrigatórios na transição.
+
+
 Use a [genai-gold](../genai-gold/SKILL.md) para rastrear o consumidor e a composição. Leia o [contrato de execução](../../../docs/contracts/genai-query-execution.md), o [catálogo Gold](../../../docs/gold-catalog.md) e o dicionário vigente da métrica antes de definir uma operação.
 
 ## Definir a capacidade

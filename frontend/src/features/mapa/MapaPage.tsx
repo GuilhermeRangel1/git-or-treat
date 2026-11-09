@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   isGoldPublicationStale,
@@ -20,6 +20,7 @@ import {
 } from "./map-state";
 import { valueForLayer } from "./map-values";
 import { useTerritoryMap } from "./useTerritoryMap";
+import { scrollToElement, useSelectionScroll } from "./useSelectionScroll";
 
 export default function MapaPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -77,6 +78,18 @@ export default function MapaPage() {
   const detailError = map.detail.isError;
   const summaryEnvelope = map.summaryEnvelope;
   const detailEnvelope = map.detailEnvelope;
+  const panelRef = useRef<HTMLElement>(null);
+  const mapSectionRef = useRef<HTMLDivElement>(null);
+  const selectedCode = query?.municipio ?? "";
+  // O painel só está pronto para ser enquadrado depois que o detalhe terminou
+  // de carregar (antes disso a altura da página ainda muda).
+  const panelReady =
+    Boolean(selected) && !(map.detailRequest && map.detail.isFetching);
+  useSelectionScroll({ selectedCode, panelReady, panelRef, mapSectionRef });
+
+  function clearSelection() {
+    update({ municipio: "" });
+  }
 
   function update(changes: Parameters<typeof updateMapSearchParams>[1]) {
     setSearchParams(updateMapSearchParams(searchParams, changes), {
@@ -184,42 +197,45 @@ export default function MapaPage() {
         </p>
       ) : null}
 
-      {query ? (
-        <MapLegend
-          layer={layer}
-          start={query.competencia_inicio}
-          end={query.competencia_fim}
-          min={scale.domainMin}
-          max={scale.domainMax}
-          diverging={layer.endsWith("change")}
-        />
-      ) : null}
-      {map.mapped?.unmatched.length ? (
-        <p
-          role="status"
-          className="rounded-xl border border-control bg-surface p-3 text-sm text-muted"
-        >
-          Algumas linhas não puderam ser associadas a um município oficial:{" "}
-          {map.mapped.unmatched.join(", ")}.
-        </p>
-      ) : null}
+      <div ref={mapSectionRef} className="grid min-w-0 scroll-mt-4 gap-4">
+        {query ? (
+          <MapLegend
+            layer={layer}
+            start={query.competencia_inicio}
+            end={query.competencia_fim}
+            min={scale.domainMin}
+            max={scale.domainMax}
+            diverging={layer.endsWith("change")}
+          />
+        ) : null}
+        {map.mapped?.unmatched.length ? (
+          <p
+            role="status"
+            className="rounded-xl border border-control bg-surface p-3 text-sm text-muted"
+          >
+            Algumas linhas não puderam ser associadas a um município oficial:{" "}
+            {map.mapped.unmatched.join(", ")}.
+          </p>
+        ) : null}
 
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)]">
-        <MunicipalityMap
-          items={metrics}
-          layer={layer}
-          selectedCode={query?.municipio ?? ""}
-          partialCodes={partialCodes}
-          onSelect={(code) => update({ municipio: code })}
-        />
-        <MunicipalityTable
-          items={metrics}
-          selectedCode={query?.municipio ?? ""}
-          layer={layer}
-          partialCodes={partialCodes}
-          dataAvailable={Boolean(summaryEnvelope)}
-          onSelect={(code) => update({ municipio: code })}
-        />
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)]">
+          <MunicipalityMap
+            items={metrics}
+            layer={layer}
+            selectedCode={query?.municipio ?? ""}
+            partialCodes={partialCodes}
+            onSelect={(code) => update({ municipio: code })}
+            onClearSelection={clearSelection}
+          />
+          <MunicipalityTable
+            items={metrics}
+            selectedCode={query?.municipio ?? ""}
+            layer={layer}
+            partialCodes={partialCodes}
+            dataAvailable={Boolean(summaryEnvelope)}
+            onSelect={(code) => update({ municipio: code })}
+          />
+        </div>
       </div>
       {selected && map.detailRequest && map.detail.isFetching && query ? (
         <p
@@ -239,6 +255,9 @@ export default function MapaPage() {
         </p>
       ) : null}
       <MunicipalityPanel
+        ref={panelRef}
+        onBackToMap={() => scrollToElement(mapSectionRef.current)}
+        onClearSelection={clearSelection}
         municipality={selected}
         item={selectedItem}
         detail={detailEnvelope}
