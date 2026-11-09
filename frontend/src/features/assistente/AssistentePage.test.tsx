@@ -681,7 +681,7 @@ describe("Assistente Grid 360", () => {
   it.each([
     [
       "refused",
-      "Solicitação recusada",
+      "Posso ajudar com dados de energia",
       "Não posso responder a esse pedido.",
       { code: "out_of_scope", retryable: false },
     ],
@@ -1170,4 +1170,161 @@ it("apresenta gráfico de pontos autorizados e tabela junto à resposta", async 
   expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(4);
   expect(screen.getByRole("button", { name: /PNG/ })).toBeVisible();
   expect(screen.getByRole("button", { name: /CSV/ })).toBeVisible();
+});
+
+describe("recusas e esclarecimentos do Assistente F1", () => {
+  const ids = {
+    correlation_id: "0123456789abcdef0123456789abcdef",
+    audit_reference: "abcdef0123456789abcdef0123456789",
+    evidence: null,
+    presentation: null,
+  };
+  const clarification = (extra: Record<string, unknown>) => ({
+    ...ids,
+    status: "needs_clarification",
+    clarification: {
+      question: "Junho de qual ano?",
+      missing_fields: ["period"],
+      reason_code: "missing_context",
+      ...extra,
+    },
+    unsupported_reason: null,
+  });
+  const refusal = (reason: string | undefined, message: string) => ({
+    ...ids,
+    status: "unsupported",
+    clarification: null,
+    unsupported_reason: {
+      code: "metric_outside_f1",
+      message,
+      ...(reason ? { reason_code: reason } : {}),
+    },
+  });
+
+  async function ask(question: string) {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      question,
+    );
+    await user.keyboard("{Enter}");
+    return user;
+  }
+
+  it("envia a opção escolhida como nova pergunta, uma única vez", async () => {
+    vi.stubEnv("VITE_GENAI_SQL_ANALYSIS_ENABLED", "true");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          clarification({
+            options: [
+              { label: "2025", question: "Qual a receita em junho de 2025?" },
+              { label: "2026", question: "Qual a receita em junho de 2026?" },
+            ],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(refusal(undefined, "Fim do teste.")));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = await ask("Qual a receita em junho?");
+
+    expect(await screen.findByText("Junho de qual ano?")).toBeVisible();
+    const option = screen.getByRole("button", { name: "2025" });
+    await user.click(option);
+    await user.click(option);
+
+    expect(await screen.findByText("Fim do teste.")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const second = JSON.parse(
+      String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body),
+    );
+    expect(second.question).toBe("Qual a receita em junho de 2025?");
+    expect(second.conversation_id).toEqual(expect.any(String));
+    expect(second).not.toHaveProperty("sql");
+    expect(
+      within(screen.getByRole("log")).getByText(
+        "Qual a receita em junho de 2025?",
+      ),
+    ).toBeVisible();
+  });
+
+  it("só mantém ativas as opções da última resposta", async () => {
+    vi.stubEnv("VITE_GENAI_SQL_ANALYSIS_ENABLED", "true");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          clarification({
+            options: [
+              { label: "2025", question: "Qual a receita em junho de 2025?" },
+            ],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          refusal("out_of_domain", "Não tenho dados de eventos esportivos."),
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = await ask("Qual a receita em junho?");
+    await screen.findByText("Junho de qual ano?");
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "Qual a receita da luta de UFC em janeiro de 2024?",
+    );
+    await user.keyboard("{Enter}");
+
+    expect(
+      await screen.findByText("Não tenho dados de eventos esportivos."),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "2025" })).toBeDisabled();
+    expect(
+      screen.getByRole("heading", {
+        name: "Posso ajudar com dados de energia",
+      }),
+    ).toBeVisible();
+  });
+
+  it("mostra cobertura insuficiente e capacidade ausente com títulos próprios, sem tabela", async () => {
+    vi.stubEnv("VITE_GENAI_SQL_ANALYSIS_ENABLED", "true");
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            refusal(
+              "insufficient_coverage",
+              "Faltam julho a dezembro de 2026.",
+            ),
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(
+            refusal("unsupported_capability", "A previsão ainda não existe."),
+          ),
+        ),
+    );
+    const user = await ask("Qual a receita de 2026 fechado?");
+    expect(
+      await screen.findByRole("heading", {
+        name: "Os dados não cobrem todo o período",
+      }),
+    ).toBeVisible();
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "Faça uma previsão para 2027.",
+    );
+    await user.keyboard("{Enter}");
+    expect(
+      await screen.findByRole("heading", {
+        name: "Essa análise ainda não está disponível",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Solicitação recusada")).not.toBeInTheDocument();
+  });
 });

@@ -37,7 +37,8 @@ def candidate(sql_request, sql=TOTAL, *, parameters=None, dimensions=()):
     path = Path(__file__).resolve().parents[2] / "docs/contracts/examples/text-to-sql-f1-v1.json"
     payload = json.loads(path.read_text(encoding="utf-8"))["valid"][0]
     payload.update(sql=sql, parameters=parameters or {},
-                   context_version=build_sql_generation_context(sql_request).context_version)
+                   context_version=build_sql_generation_context(sql_request).context_version,
+                   scope_assessment={"status": "in_domain"})
     payload["result_columns"] = [
         {"name": name, "role": "dimension", "value_type": "string"} for name in dimensions
     ] + [{"name": "revenue", "role": "measure", "value_type": "decimal", "unit": "R$"}]

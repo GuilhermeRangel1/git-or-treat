@@ -55,6 +55,7 @@ def run(
                 "status": status,
                 "generation_contract_version": "text-to-sql-f1-v1",
                 "context_version": body["context_version"],
+                "scope_assessment": {"status": "in_domain"},
                 "clarification": {
                     "question": "Qual período?",
                     "missing_fields": ["period"],
@@ -160,6 +161,21 @@ def test_clarification_does_not_generate_review_or_trigger_execution(sql_request
     assert run(sql_request, status="needs_clarification").review is None
 
 
+@pytest.mark.parametrize("scope_status", [None, "out_of_domain"])
+def test_scope_decision_is_required_and_consistent_before_sql_review(
+    sql_request, scope_status
+):
+    def mutate(candidate):
+        if scope_status is None:
+            candidate.pop("scope_assessment")
+        else:
+            candidate["scope_assessment"] = {"status": scope_status}
+        return candidate
+
+    with pytest.raises(GenAIResponseInvalid):
+        run(sql_request, mutation=mutate)
+
+
 def test_wrong_recuts_are_not_promoted_to_review(sql_request):
     def mutate(candidate):
         candidate["parameters"]["city"]["value"] = "Olinda"
@@ -242,6 +258,7 @@ def test_envelope_budget_caps_wider_global_deadline(sql_request):
     "question",
     [
         "Qual a receita de miojo em janeiro de 2026?",
+        "Como fazer uma receita de bolo?",
         "Qual foi o FATURAMENTO DE HAMBÚRGUER em janeiro de 2026?",
         "Qual a previsão do tempo em janeiro de 2026?",
     ],
@@ -264,6 +281,8 @@ def test_explicit_external_subject_stops_before_the_generator(sql_request, quest
     assert result.review is None
     assert result.candidate.status == "unsupported"
     assert result.candidate.sql is None
+    assert result.candidate.scope_assessment.status == "out_of_domain"
+    assert result.candidate.unsupported_reason.reason_code == "out_of_domain"
 
 
 @pytest.mark.parametrize(

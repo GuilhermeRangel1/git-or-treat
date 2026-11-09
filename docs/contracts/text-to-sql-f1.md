@@ -197,3 +197,20 @@ O retorno `SqlAdmission` liga por digest a revisão canônica, parâmetros, cand
 `GENAI_SQL_GENERATION_ENABLED=false` é o padrão. A habilitação compõe o adaptador Gemini somente na fábrica Gold, com auditoria durável e limites compartilhados de execução/modelo. A instância demonstrativa de `app.main:app` permanece sem geração SQL. O coordenador público ainda não chama esta rota; nenhum candidato é executado ou apresentado como evidência.
 
 Verificações desta fatia: 145 testes dirigidos GenAI e 52 Backend aprovados, incluindo chamada entre cliente Backend e aplicação Gold em processo separado com provedor artificial. A suíte GenAI completa registrou 4.608 aprovados, 17 skips e uma falha em `test_concrete_adapters_do_not_import_the_agent_or_composition_root`: o experimento local anterior `intent_proposer.py` importa `app.agent.access`. A pendência foi preservada; a suíte completa não está aprovada. Não houve chamada Gemini real nem execução PostgreSQL nesta rodada.
+
+## Assunto declarado, motivo e opções de esclarecimento (08/11/2026)
+
+Extensão aditiva do candidato, decidida na [ADR-0026](../decisions/0026-assunto-declarado-e-motivos-de-recusa.md). Exemplos válidos e inválidos compartilhados entre GenAI e Backend: [`text-to-sql-f1-scope-v1.json`](examples/text-to-sql-f1-scope-v1.json).
+
+| Campo | Onde | Regra |
+| --- | --- | --- |
+| `scope_assessment.status` | candidato, todo estado | `in_domain`, `out_of_domain` ou `uncertain`; `unresolved_terms` com até 3 termos de até 80 caracteres; sem raciocínio livre. Exigido pelo runtime novo, opcional no schema para ler contratos antigos. |
+| `clarification.reason_code` | `needs_clarification` | `ambiguous_subject`, `missing_context` ou `insufficient_coverage`. |
+| `unsupported_reason.reason_code` | `unsupported` | `out_of_domain`, `unsupported_capability`, `insufficient_coverage` ou `security_restriction`. |
+| `clarification.options` | `needs_clarification` | Até 5 `{label, question}`; a `question` é reenviada como nova mensagem e reaprovada, nunca é permissão ou SQL. |
+
+Regras de coerência (nos dois schemas espelhados e reaplicadas pelo Backend em `genai_question_feedback`): só `sql_candidate` com `in_domain` executa; `uncertain` exige esclarecimento; `out_of_domain` exige recusa (motivo externo ou de segurança); `out_of_domain` com `in_domain` declarado é contradição. Um esclarecimento rotulado `ambiguous_subject` com assunto conhecido é normalizado para `missing_context`; com assunto incerto, qualquer pergunta por município ou classe é substituída por uma pergunta neutra sobre o assunto. O Backend também responde `insufficient_coverage` sem chamar o modelo quando a pergunta pede ano completo (“2026 fechado”, “ano inteiro”, “janeiro a dezembro”) e faltam competências, oferecendo apenas o recorte já publicado.
+
+**Versionamento.** Não há `text-to-sql-f1-v14`: a versão de geração identifica a métrica (`v1`…`v13`); esta extensão é independente dela e a geração que a produz é identificada pela versão do prompt (`text-to-sql-f1-34`). **Ordem de implantação:** Backend e portal compatíveis, depois a GenAI com o prompt novo. **Reversão:** restaurar as imagens da base; conversas salvas com os campos novos ficam indisponíveis para o Backend antigo (schema fechado) até a reimplantação.
+
+**Limite.** A classificação é declarada pelo mesmo modelo; os validadores não provam entendimento semântico. A medição está em `ai-agent/reports/genai-feedback-live.json` (desenvolvimento, sem reserva humana).

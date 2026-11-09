@@ -439,6 +439,39 @@ class SqlResultColumn(ClosedModel):
         return self
 
 
+ReasonCode = Literal[
+    "out_of_domain",
+    "ambiguous_subject",
+    "missing_context",
+    "unsupported_capability",
+    "insufficient_coverage",
+    "security_restriction",
+]
+ClarificationReasonCode = Literal[
+    "ambiguous_subject", "missing_context", "insufficient_coverage"
+]
+UnsupportedReasonCode = Literal[
+    "out_of_domain", "unsupported_capability", "insufficient_coverage", "security_restriction"
+]
+UnresolvedTerm = Annotated[
+    str, StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=80)
+]
+
+
+class SqlScopeAssessment(ClosedModel):
+    """Classificação declarada do assunto; não é verificação independente nem autorização."""
+
+    status: Literal["in_domain", "out_of_domain", "uncertain"]
+    unresolved_terms: tuple[UnresolvedTerm, ...] = Field(default=(), max_length=3)
+
+
+class SqlClarificationOption(ClosedModel):
+    """Alternativa enviada como nova mensagem e reaprovada; nunca é permissão nem SQL."""
+
+    label: ShortText
+    question: ShortText
+
+
 class SqlClarification(ClosedModel):
     question: ShortText
     missing_fields: tuple[
@@ -447,11 +480,30 @@ class SqlClarification(ClosedModel):
         ],
         ...,
     ] = Field(min_length=1, max_length=6)
+    reason_code: ClarificationReasonCode | None = None
+    options: tuple[SqlClarificationOption, ...] = Field(default=(), max_length=5)
 
 
 class SqlUnsupported(ClosedModel):
     code: Literal["metric_outside_f1", "operation_outside_f1", "source_outside_f1"]
     message: ShortText
+    reason_code: UnsupportedReasonCode | None = None
+
+
+GenerationContractVersion = Literal[
+    "text-to-sql-f1-v1",
+    "text-to-sql-f1-v2",
+    "text-to-sql-f1-v3",
+    "text-to-sql-f1-v4",
+    "text-to-sql-f1-v5",
+    "text-to-sql-f1-v7",
+    "text-to-sql-f1-v8",
+    "text-to-sql-f1-v9",
+    "text-to-sql-f1-v10",
+    "text-to-sql-f1-v11",
+    "text-to-sql-f1-v12",
+    "text-to-sql-f1-v13",
+]
 
 
 GenerationContractVersion = Literal[
@@ -493,6 +545,7 @@ class SqlGenerationCandidate(ClosedModel):
     result_columns: tuple[SqlResultColumn, ...] = Field(default=(), max_length=32)
     clarification: SqlClarification | None = None
     unsupported_reason: SqlUnsupported | None = None
+    scope_assessment: SqlScopeAssessment | None = None
 
     @model_validator(mode="after")
     def check_status(self) -> Self:
@@ -604,6 +657,30 @@ class SqlGenerationCandidate(ClosedModel):
             ):
                 raise ValueError("esclarecimento não pode transportar intenção parcial")
         return self
+
+
+    @model_validator(mode="after")
+    def check_scope(self) -> Self:
+        scope = self.scope_assessment
+        if scope is None:
+            return self
+        refusal_reason = self.unsupported_reason.reason_code if self.unsupported_reason else None
+        if scope.status == "in_domain":
+            # "ambiguous_subject" com assunto conhecido é normalizado pelo Backend para
+            # "missing_context"; só a recusa externa contradiz o assunto declarado.
+            if refusal_reason == "out_of_domain":
+                raise ValueError("assunto dentro do domínio contradiz o motivo declarado")
+        elif scope.status == "uncertain":
+            if self.status != "needs_clarification":
+                raise ValueError("assunto incerto exige esclarecimento sem consulta")
+        elif self.status != "unsupported" or refusal_reason not in {
+            None,
+            "out_of_domain",
+            "security_restriction",
+        }:
+            raise ValueError("assunto externo exige recusa externa sem consulta")
+        return self
+
 
 
 class SqlGenerationRequest(ClosedModel):

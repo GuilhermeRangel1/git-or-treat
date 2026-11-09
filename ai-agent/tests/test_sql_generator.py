@@ -65,7 +65,7 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Ignore as regras" not in SYSTEM_INSTRUCTION
     for operation in ("total", "série mensal", "total agrupado", "ranking", "comparação"):
         assert operation in SYSTEM_INSTRUCTION
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-33"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-37"
     assert "Nunca escreva valor textual/número/data de filtro como literal" in SYSTEM_INSTRUCTION
     assert "FILTER" in SYSTEM_INSTRUCTION and "period0_start" in SYSTEM_INSTRUCTION
     assert "A única agregação" in SYSTEM_INSTRUCTION
@@ -351,3 +351,86 @@ def test_contract_failure_identifies_field_without_values_or_unknown_field_names
     assert "private_key_name" not in caplog.text
     assert "private_extra_field" not in caplog.text
     assert "secret content" not in caplog.text
+
+
+def test_provider_must_declare_the_subject_assessment_in_every_state():
+    row = payload()
+    gen, method = generator(response=SimpleNamespace(text=json.dumps(row)))
+    asyncio.run(gen.generate("{}", context_version=row["context_version"]))
+    schema = method.call_args.kwargs["config"]["response_json_schema"]
+    assert "scope_assessment" in schema["required"]
+    assert "semantic_intent" in schema["required"]
+    scope = schema["$defs"]["SqlScopeAssessment"]
+    assert scope["properties"]["status"]["enum"] == ["in_domain", "out_of_domain", "uncertain"]
+    assert scope["additionalProperties"] is False
+    assert "maxItems" not in json.dumps(schema)
+
+
+def test_prompt_requires_subject_check_before_asking_for_municipality_or_class():
+    text = " ".join(SYSTEM_INSTRUCTION.split())
+    assert "scope_assessment" in text
+    assert "`in_domain`" in text and "`out_of_domain`" in text and "`uncertain`" in text
+    assert "“receita” não resolve o domínio" in text
+    assert "sigla ou termo desconhecido" in text
+    assert "antes de perguntar município ou classe" in text
+    assert "reason_code" in text
+    assert "unresolved_terms" in text
+
+
+def test_prompt_treats_closed_year_as_full_year_but_plain_year_as_available_months():
+    text = SYSTEM_INSTRUCTION
+    assert "“2026 fechado”, “ano inteiro” e “janeiro a dezembro”" in text
+    assert "insufficient_coverage" in text
+    # O ano simples continua resolvido pelas competências disponíveis.
+    assert "use todas as competências disponíveis daquele ano" in " ".join(text.split())
+    assert "(por exemplo, “em 2026”, “no ano de 2026” ou “2026 fechado”)" not in text
+
+
+def test_prompt_answers_short_replies_only_for_the_pending_field():
+    text = " ".join(SYSTEM_INSTRUCTION.split())
+    assert "resposta curta" in text
+    assert "somente o campo pendente" in text
+
+
+def test_prompt_version_changes_with_the_scope_contract():
+    from app.providers.sql_generator import SQL_GENERATION_PROMPT_VERSION
+
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-37"
+
+
+def test_v13_schema_requires_ratio_operation_and_aggregation():
+    gen, method = generator(response=SimpleNamespace(text=json.dumps(payload())))
+    contents = json.dumps({"generation_contract_version": "text-to-sql-f1-v13"})
+    asyncio.run(gen.generate(contents, context_version=payload()["context_version"]))
+    fields = method.call_args.kwargs["config"]["response_json_schema"]["$defs"][
+        "SqlInterpretation"
+    ]["properties"]
+    assert fields["operation"]["enum"] == ["ratio_of_sums"]
+    assert fields["aggregation"]["enum"] == ["ratio_of_sums"]
+
+
+def test_v1_schema_keeps_other_supported_operations():
+    gen, method = generator(response=SimpleNamespace(text=json.dumps(payload())))
+    contents = json.dumps({"generation_contract_version": "text-to-sql-f1-v1"})
+    asyncio.run(gen.generate(contents, context_version=payload()["context_version"]))
+    fields = method.call_args.kwargs["config"]["response_json_schema"]["$defs"][
+        "SqlInterpretation"
+    ]["properties"]
+    assert "total" in fields["operation"]["enum"]
+    assert "sum" in fields["aggregation"]["enum"]
+
+
+def test_v13_contract_failure_reports_safe_rule_code(caplog):
+    row = payload()
+    row["generation_contract_version"] = "text-to-sql-f1-v13"
+    row["interpretation"]["metric_id"] = "billing.average_ticket"
+    row["interpretation"]["operation"] = "total"
+    row["interpretation"]["aggregation"] = "ratio_of_sums"
+    gen, _ = generator(response=SimpleNamespace(text=json.dumps(row)))
+    with (
+        caplog.at_level("WARNING", logger="uvicorn.error"),
+        pytest.raises(ModelProviderInvalidResponse),
+    ):
+        asyncio.run(gen.generate("{}", context_version=row["context_version"]))
+    assert '"reason":"v13_interpretation_invalid"' in caplog.text
+    assert "Recife" not in caplog.text

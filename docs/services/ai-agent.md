@@ -2,7 +2,7 @@
 
 ## Transição Text-to-SQL — 05/11/2026
 
-A [ADR-0025](../decisions/0025-text-to-sql-generativo.md) autoriza a direção de SQL candidato gerado pelo modelo, com validação/execução finais no Backend. [Contrato e matriz de consumidores](../contracts/text-to-sql-f1.md). Há preparação de schemas, contexto e adaptador; o caminho quantitativo implantado continua determinístico até integração e ativação explícitas. Não há liberação de SQL generativo pela simples validação do envelope. Referências abaixo ao fluxo antigo continuam descrevendo o runtime vigente e seu histórico.
+A [ADR-0025](../decisions/0025-text-to-sql-generativo.md) autoriza a direção de SQL candidato gerado pelo modelo, com validação/execução finais no Backend. [Contrato e matriz de consumidores](../contracts/text-to-sql-f1.md). Há preparação de schemas, contexto e adaptador. Estado em 08/11/2026: a rota F1 existe no Backend e no portal e é controlada por `GENAI_SQL_EXECUTION_ENABLED` e `VITE_GENAI_SQL_ANALYSIS_ENABLED`; o aceite generativo (TSQL-12) permanece pendente, e o texto histórico abaixo descreve o momento de cada fatia. Não há liberação de SQL generativo pela simples validação do envelope. Referências abaixo ao fluxo antigo continuam descrevendo o runtime vigente e seu histórico.
 
 
 Execução Docker vigente: a composição padrão inicia toda a stack com Gold v2, papéis separados e bootstrap local. Demonstração fica somente no smoke explícito do CI. Consulte [inicialização Docker](../plans/2026-11-04-docker-gold-inicializacao.md).
@@ -578,3 +578,12 @@ Limites por bytes/entradas, coalescência dos insights, invalidação por contex
 ### Catálogo Gold v2 para Text-to-SQL
 
 `ai-agent/app/profiles/grid360_gold_mapping.py` é a fonte de autoria do mapeamento semântico e físico v2, validada contra o perfil e readiness. O JSON de execução do Backend é derivado: da raiz, execute `python scripts/generate-gold-v2-catalog.py`; use `--check` para conferir drift sem escrever. Tabela presente não libera capacidade. A F1 recebe apenas a definição aprovada de receita em `diagnostico_receita`; consumo, razões, DEC/FEC e cadastro seguem suas próprias definições/capacidades. O contexto F1 declara que sua base são modelos instalados, não introspecção da instância publicada.
+
+## Atualização de 08/11/2026 — assunto declarado, motivos e opções
+
+O prompt `text-to-sql-f1-35` exige `scope_assessment` em todo estado e `reason_code` em recusas e esclarecimentos; o schema enviado ao provedor torna `scope_assessment` obrigatório. “2026 fechado”, “ano inteiro” e “janeiro a dezembro” exigem o ano completo; “em 2026” continua usando as competências disponíveis. As mensagens ao usuário não podem citar F1, Gold, SQL ou nomes de campos. Contrato, regras e limites em [text-to-sql-f1.md](../contracts/text-to-sql-f1.md) e na [ADR-0026](../decisions/0026-assunto-declarado-e-motivos-de-recusa.md). Medição com Gemini real e avaliador: `ai-agent/tests/genai_feedback_live_eval.py` (uma tentativa por caso, sem Gold e sem dados enviados ao modelo).
+
+
+### Ticket médio: schema do provedor (08/11/2026)
+
+Quando o contexto solicita F1 v13, o schema enviado ao Gemini restringe a interpretação à operação e agregação `ratio_of_sums`. Estados sem candidato continuam disponíveis; o Backend revalida a interpretação e a consulta. A telemetria só emite código fixo para a regra v13, sem conteúdo da resposta. A rodada artificial e os limites do aceite estão no [PRD](../PRD.md#14-registro-de-progresso).

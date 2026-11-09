@@ -1,0 +1,2287 @@
+{
+  "summary": {
+    "mode": "live",
+    "model": "gemini-3.5-flash-lite",
+    "evaluated": 47,
+    "passed": 29,
+    "failed": 18,
+    "not_evaluated": 1,
+    "model_calls": 41,
+    "total_tokens": 0,
+    "tag_counts": {
+      "operational_failure": 9,
+      "unnecessary_clarification": 4,
+      "continuation_resolved": 6,
+      "correct_clarification": 3
+    },
+    "latency_ms": {
+      "count": 39,
+      "p50": 2023.6,
+      "p95": 3061.0
+    },
+    "prompt_version": "text-to-sql-f1-34",
+    "generated_at": "2026-11-08T20:02:41+00:00",
+    "git": {
+      "commit": "7561a10f18b52d868185c43139a13be2d80d03a7",
+      "dirty": true
+    },
+    "cases_file": "genai_feedback_cases.json",
+    "scope": "decision and presentation only; no Gold query executed; no Gold data sent to the model"
+  },
+  "cases": [
+    {
+      "id": "FB-EXT-01",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-EXT-02",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-EXT-03",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-EXT-04",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 0,
+      "note": null
+    },
+    {
+      "id": "FB-EXT-05",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 0,
+      "note": null
+    },
+    {
+      "id": "FB-EXT-06",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-EXT-07",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-EXT-08",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-EXT-09",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-EXT-10",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: technical_error/None",
+      "violations": [
+        "resultado não permitido: technical_error/None",
+        "motivo diferente do esperado: None",
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [
+        "operational_failure"
+      ],
+      "model_calls": 1,
+      "note": "GenAIServiceUnavailable"
+    },
+    {
+      "id": "FB-EXT-11",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: needs_clarification/ambiguous_subject",
+      "violations": [
+        "resultado não permitido: needs_clarification/ambiguous_subject",
+        "campos pendentes fora do esperado: ['dimension', 'filter']",
+        "proibido: pedir município/classe"
+      ],
+      "status": "needs_clarification",
+      "reason_code": "ambiguous_subject",
+      "tags": [
+        "unnecessary_clarification"
+      ],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-EXT-12",
+      "result": "fail",
+      "first_divergence": "campos pendentes fora do esperado: ['dimension', 'filter']",
+      "violations": [
+        "campos pendentes fora do esperado: ['dimension', 'filter']",
+        "proibido: pedir município/classe"
+      ],
+      "status": "needs_clarification",
+      "reason_code": "ambiguous_subject",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-01",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: needs_clarification/missing_context",
+      "violations": [
+        "resultado não permitido: needs_clarification/missing_context",
+        "campos pendentes fora do esperado: ['filter']"
+      ],
+      "status": "needs_clarification",
+      "reason_code": "missing_context",
+      "tags": [
+        "unnecessary_clarification"
+      ],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-02",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-03",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: needs_clarification/missing_context",
+      "violations": [
+        "resultado não permitido: needs_clarification/missing_context",
+        "campos pendentes fora do esperado: ['filter']"
+      ],
+      "status": "needs_clarification",
+      "reason_code": "missing_context",
+      "tags": [
+        "unnecessary_clarification"
+      ],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-04",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-05",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: technical_error/None",
+      "violations": [
+        "resultado não permitido: technical_error/None",
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [
+        "operational_failure"
+      ],
+      "model_calls": 1,
+      "note": "GenAIResponseInvalid"
+    },
+    {
+      "id": "FB-LEG-06",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: technical_error/None",
+      "violations": [
+        "resultado não permitido: technical_error/None",
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [
+        "operational_failure"
+      ],
+      "model_calls": 1,
+      "note": "GenAIResponseInvalid"
+    },
+    {
+      "id": "FB-LEG-07",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: technical_error/None",
+      "violations": [
+        "resultado não permitido: technical_error/None",
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [
+        "operational_failure"
+      ],
+      "model_calls": 1,
+      "note": "GenAIServiceUnavailable"
+    },
+    {
+      "id": "FB-LEG-08",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: technical_error/None",
+      "violations": [
+        "resultado não permitido: technical_error/None",
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [
+        "operational_failure"
+      ],
+      "model_calls": 1,
+      "note": "GenAIResponseInvalid"
+    },
+    {
+      "id": "FB-LEG-09",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-10",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-11",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-12",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: needs_clarification/missing_context",
+      "violations": [
+        "resultado não permitido: needs_clarification/missing_context",
+        "campos pendentes fora do esperado: ['filter']"
+      ],
+      "status": "needs_clarification",
+      "reason_code": "missing_context",
+      "tags": [
+        "unnecessary_clarification"
+      ],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-AMB-01",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: technical_error/None",
+      "violations": [
+        "resultado não permitido: technical_error/None",
+        "motivo diferente do esperado: None",
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [
+        "operational_failure"
+      ],
+      "model_calls": 1,
+      "note": "GenAIResponseInvalid"
+    },
+    {
+      "id": "FB-AMB-02",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [
+        "continuation_resolved"
+      ],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-AMB-03",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [
+        "continuation_resolved"
+      ],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-AMB-04",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [
+        "continuation_resolved"
+      ],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-AMB-05",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [
+        "continuation_resolved"
+      ],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-AMB-06",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "unsupported_capability",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-AMB-07",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: technical_error/None",
+      "violations": [
+        "resultado não permitido: technical_error/None",
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [
+        "operational_failure"
+      ],
+      "model_calls": 1,
+      "note": "GenAIResponseInvalid"
+    },
+    {
+      "id": "FB-AMB-08",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 0,
+      "note": null
+    },
+    {
+      "id": "FB-AMB-09",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [
+        "continuation_resolved"
+      ],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-AMB-10",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [
+        "continuation_resolved"
+      ],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-AMB-11",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: technical_error/None",
+      "violations": [
+        "resultado não permitido: technical_error/None",
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [
+        "operational_failure"
+      ],
+      "model_calls": 1,
+      "note": "GenAIResponseInvalid"
+    },
+    {
+      "id": "FB-AMB-12",
+      "result": "fail",
+      "first_divergence": "campos pendentes fora do esperado: ['context', 'period']",
+      "violations": [
+        "campos pendentes fora do esperado: ['context', 'period']"
+      ],
+      "status": "needs_clarification",
+      "reason_code": "missing_context",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LIM-01",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "unsupported_capability",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LIM-02",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "needs_clarification",
+      "reason_code": "insufficient_coverage",
+      "tags": [
+        "correct_clarification"
+      ],
+      "model_calls": 0,
+      "note": null
+    },
+    {
+      "id": "FB-LIM-03",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "needs_clarification",
+      "reason_code": "insufficient_coverage",
+      "tags": [
+        "correct_clarification"
+      ],
+      "model_calls": 0,
+      "note": null
+    },
+    {
+      "id": "FB-LIM-04",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "needs_clarification",
+      "reason_code": "insufficient_coverage",
+      "tags": [
+        "correct_clarification"
+      ],
+      "model_calls": 0,
+      "note": null
+    },
+    {
+      "id": "FB-LIM-05",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LIM-06",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "security_restriction",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LIM-07",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: technical_error/None",
+      "violations": [
+        "resultado não permitido: technical_error/None",
+        "motivo diferente do esperado: None",
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [
+        "operational_failure"
+      ],
+      "model_calls": 1,
+      "note": "GenAIResponseInvalid"
+    },
+    {
+      "id": "FB-LIM-08",
+      "result": "fail",
+      "first_divergence": "termo interno exposto na mensagem",
+      "violations": [
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": "GenAIServiceUnavailable"
+    },
+    {
+      "id": "FB-LIM-09",
+      "result": "fail",
+      "first_divergence": "resultado não permitido: unsupported/out_of_domain",
+      "violations": [
+        "resultado não permitido: unsupported/out_of_domain",
+        "motivo diferente do esperado: out_of_domain",
+        "proibido: tratar como assunto externo"
+      ],
+      "status": "unsupported",
+      "reason_code": "out_of_domain",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LIM-10",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "unsupported",
+      "reason_code": "unsupported_capability",
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LIM-11",
+      "result": "not_evaluated",
+      "reason": "perfil restrito é conferido na borda HTTP, fora deste harness"
+    },
+    {
+      "id": "FB-LIM-12",
+      "result": "fail",
+      "first_divergence": "termo interno exposto na mensagem",
+      "violations": [
+        "termo interno exposto na mensagem"
+      ],
+      "status": "technical_error",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": "GenAITimeout"
+    }
+  ],
+  "raw_candidates": {
+    "FB-EXT-01": {
+      "input_bytes": 6868,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "55d9f7dbb0b7196201b89b96775968c324706f333b3dd62b6651f3dec5ac39a3",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "source_outside_f1",
+          "message": "Essa análise não está disponível.",
+          "reason_code": "out_of_domain"
+        },
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "luta de UFC"
+          ]
+        }
+      },
+      "elapsed_ms": 2339.4,
+      "provider_failures": []
+    },
+    "FB-EXT-02": {
+      "input_bytes": 6861,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "7f87fb9210023ddb1f12cbe06ba77dc9d9b09b84e8b7d6e4ad3c835147c3e1c6",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": {
+          "metric_id": "billing.revenue",
+          "periods": [
+            {
+              "start": "2025-01-01",
+              "end": "2025-01-31"
+            }
+          ],
+          "filters": []
+        },
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "source_outside_f1",
+          "message": "A entidade UFC mencionada na pergunta refere-se a assunto externo ou fora do escopo de energia elétrica autorizado.",
+          "reason_code": "out_of_domain"
+        },
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "UFC"
+          ]
+        }
+      },
+      "elapsed_ms": 2674.0,
+      "provider_failures": []
+    },
+    "FB-EXT-03": {
+      "input_bytes": 6868,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "88b137034b31eca044d2f1646963c8875731bd46b233dd7aadfe4bf229f0459c",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": {
+          "metric_id": "billing.revenue",
+          "periods": [
+            {
+              "start": "2025-03-01",
+              "end": "2025-03-31"
+            }
+          ],
+          "filters": []
+        },
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "source_outside_f1",
+          "message": "Assunto fora do domínio de energia elétrica ou entidade não reconhecida.",
+          "reason_code": "out_of_domain"
+        },
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "Netflix"
+          ]
+        }
+      },
+      "elapsed_ms": 1815.1,
+      "provider_failures": []
+    },
+    "FB-EXT-06": {
+      "input_bytes": 6881,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "f82dd20a7bacb587e5bbea52ea2799e271542b4d314d3b9c81796ec1fa643964",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "metric_outside_f1",
+          "message": "A solicitação refere-se a assunto fora do domínio de energia elétrica e não está coberta pelas métricas disponíveis.",
+          "reason_code": "out_of_domain"
+        },
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "campeonato pernambucano de futebol"
+          ]
+        }
+      },
+      "elapsed_ms": 1710.1,
+      "provider_failures": []
+    },
+    "FB-EXT-07": {
+      "input_bytes": 6907,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "8b59fdba73dcd6a4b0a262c4feb6ae1b88111717fbf43fcaf207fa8183b0c152",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "metric_outside_f1",
+          "message": "A solicitação contém partes fora do escopo de energia elétrica ou capacidades executáveis.",
+          "reason_code": "out_of_domain"
+        },
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "cotação do dólar hoje"
+          ]
+        }
+      },
+      "elapsed_ms": 1836.6,
+      "provider_failures": []
+    },
+    "FB-EXT-08": {
+      "input_bytes": 6852,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "0829725321535d0af68423ab12edf0ed48be960555ab01da5b0bc4f86f52dad5",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": {
+          "metric_id": "billing.revenue",
+          "periods": [
+            {
+              "start": "2025-01-01",
+              "end": "2025-12-31"
+            }
+          ],
+          "filters": []
+        },
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "source_outside_f1",
+          "message": "Essa entidade ou assunto não faz parte do escopo de energia elétrica atendido.",
+          "reason_code": "out_of_domain"
+        },
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "iFood"
+          ]
+        }
+      },
+      "elapsed_ms": 1814.7,
+      "provider_failures": []
+    },
+    "FB-EXT-09": {
+      "input_bytes": 6861,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "04f4d4d290d4332f5e572795b385192fb3f0444fb3551a397fe451d93d938115",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "source_outside_f1",
+          "message": "Essa análise não está disponível.",
+          "reason_code": "out_of_domain"
+        },
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "Nubank"
+          ]
+        }
+      },
+      "elapsed_ms": 2023.6,
+      "provider_failures": []
+    },
+    "FB-EXT-10": {
+      "input_bytes": 6876,
+      "attempts": 1,
+      "error": "unavailable",
+      "error_type": "ModelProviderUnavailable",
+      "elapsed_ms": 1678.5,
+      "provider_failures": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "model": "gemini-3.5-flash-lite",
+          "kind": "unavailable",
+          "reason": null,
+          "validation_fields": [],
+          "status": 503,
+          "prompt_version": "text-to-sql-f1-34",
+          "elapsed_ms": 1673.26,
+          "context_bytes": 6876,
+          "max_output_tokens": 4096,
+          "temperature": 0.0,
+          "attempts": 1,
+          "dependencies": {
+            "google-genai": "2.34.0",
+            "sqlglot": "30.24.0",
+            "psycopg": "3.3.6"
+          }
+        }
+      ]
+    },
+    "FB-EXT-11": {
+      "input_bytes": 6911,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "needs_clarification",
+        "context_version": "208ab2eca1e86fa764cecab29f3f7b1ea94a509628faf16954ec012544cf2dce",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": {
+          "question": "Poderia esclarecer qual classe de consumo ou local você deseja consultar para o faturamento em 2025?",
+          "missing_fields": [
+            "dimension",
+            "filter"
+          ],
+          "reason_code": "ambiguous_subject",
+          "options": []
+        },
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "uncertain",
+          "unresolved_terms": [
+            "restaurante da esquina"
+          ]
+        }
+      },
+      "elapsed_ms": 1664.6,
+      "provider_failures": []
+    },
+    "FB-EXT-12": {
+      "input_bytes": 6861,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "needs_clarification",
+        "context_version": "2566e977075abba1d156a10140ef9356db7c9ec048d1ab490d92a85db0222909",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": {
+          "question": "O que você quer dizer com 'CAR'? Por favor, esclareça a qual município, classe de consumo ou localidade se refere.",
+          "missing_fields": [
+            "dimension",
+            "filter"
+          ],
+          "reason_code": "ambiguous_subject",
+          "options": []
+        },
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "uncertain",
+          "unresolved_terms": [
+            "CAR"
+          ]
+        }
+      },
+      "elapsed_ms": 1679.9,
+      "provider_failures": []
+    },
+    "FB-LEG-01": {
+      "input_bytes": 7289,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v4",
+        "status": "needs_clarification",
+        "context_version": "7f9d4745bfdbbffbaa68d34586e8297558ce943e8fbc7e06b9676ae4dd3b93a0",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": {
+          "question": "Para qual alimentador específico você deseja consultar o DEC em junho de 2025?",
+          "missing_fields": [
+            "filter"
+          ],
+          "reason_code": "missing_context",
+          "options": []
+        },
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": [
+            "alimentador"
+          ]
+        }
+      },
+      "elapsed_ms": 2074.3,
+      "provider_failures": []
+    },
+    "FB-LEG-02": {
+      "input_bytes": 6890,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "482894aef37c6d6cf7d9e24442afaa47db1608a7aa5dae1723031e3a78417d36",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Olinda"
+          },
+          "period_end": {
+            "type": "string",
+            "value": "2025-01"
+          },
+          "period_start": {
+            "type": "string",
+            "value": "2025-01"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2025-01-01",
+              "end": "2025-01-31"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Olinda"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2440.8,
+      "provider_failures": []
+    },
+    "FB-LEG-03": {
+      "input_bytes": 7318,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v4",
+        "status": "needs_clarification",
+        "context_version": "1f1b8afe94fc85b17bc03d6648e261a1152a2372a320ab892671eaa906f86990",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": {
+          "question": "Para qual alimentador você deseja consultar o FEC em março de 2025?",
+          "missing_fields": [
+            "filter"
+          ],
+          "reason_code": "missing_context",
+          "options": []
+        },
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": [
+            "alimentador"
+          ]
+        }
+      },
+      "elapsed_ms": 1525.2,
+      "provider_failures": []
+    },
+    "FB-LEG-04": {
+      "input_bytes": 6874,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "13ff2c01f2e096a4780b23a7f16fcd0819409c741052e27c85027825a0d7360a",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia = :period_start AND municipio = :municipality",
+        "parameters": {
+          "period_start": {
+            "type": "string",
+            "value": "2025-01"
+          },
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2025-01-01",
+              "end": "2025-01-31"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2141.9,
+      "provider_failures": []
+    },
+    "FB-LEG-05": {
+      "input_bytes": 7129,
+      "attempts": 1,
+      "error": "invalid_response",
+      "error_type": "ModelProviderInvalidResponse",
+      "elapsed_ms": 2442.9,
+      "provider_failures": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "model": "gemini-3.5-flash-lite",
+          "kind": "invalid_response",
+          "reason": "contract_validation",
+          "validation_fields": [
+            "envelope"
+          ],
+          "status": null,
+          "prompt_version": "text-to-sql-f1-34",
+          "elapsed_ms": 2439.3,
+          "context_bytes": 7129,
+          "max_output_tokens": 4096,
+          "temperature": 0.0,
+          "attempts": 1,
+          "dependencies": {
+            "google-genai": "2.34.0",
+            "sqlglot": "30.24.0",
+            "psycopg": "3.3.6"
+          }
+        }
+      ]
+    },
+    "FB-LEG-06": {
+      "input_bytes": 7138,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v11",
+        "status": "sql_candidate",
+        "context_version": "9b97694c84e485b0a4c555001131c321d6b22f00866e4741d631ea37128897e3",
+        "sql": "SELECT SUM(consumo_total_kwh) / NULLIF(SUM(qtd_ucs_com_leitura), 0) AS average_consumption_per_uc FROM gold_v2.diagnostico_receita WHERE competencia = :period_start AND municipio = :municipality",
+        "parameters": {
+          "period_start": {
+            "type": "string",
+            "value": "2024-12"
+          },
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          }
+        },
+        "interpretation": {
+          "metric_id": "energy.average_consumption_per_uc",
+          "operation": "total",
+          "aggregation": "ratio_of_sums",
+          "periods": [
+            {
+              "start": "2024-12-01",
+              "end": "2024-12-31"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "average_consumption_per_uc",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "kWh por UC com leitura no mês"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2105.2,
+      "provider_failures": []
+    },
+    "FB-LEG-07": {
+      "input_bytes": 6718,
+      "attempts": 1,
+      "error": "unavailable",
+      "error_type": "ModelProviderUnavailable",
+      "elapsed_ms": 1536.4,
+      "provider_failures": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "model": "gemini-3.5-flash-lite",
+          "kind": "unavailable",
+          "reason": null,
+          "validation_fields": [],
+          "status": 503,
+          "prompt_version": "text-to-sql-f1-34",
+          "elapsed_ms": 1532.32,
+          "context_bytes": 6718,
+          "max_output_tokens": 4096,
+          "temperature": 0.0,
+          "attempts": 1,
+          "dependencies": {
+            "google-genai": "2.34.0",
+            "sqlglot": "30.24.0",
+            "psycopg": "3.3.6"
+          }
+        }
+      ]
+    },
+    "FB-LEG-08": {
+      "input_bytes": 6419,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v8",
+        "status": "sql_candidate",
+        "context_version": "a997160755436126f0bf1c62f876346449404d0fe77977fae76659df589f7b04",
+        "sql": "SELECT COUNT(possui_gd) AS gd_units FROM gold_v2.variacao_consumo_uc WHERE possui_gd = :gd AND municipio = :municipality",
+        "parameters": {
+          "gd": {
+            "type": "string",
+            "value": "Sim"
+          },
+          "municipality": {
+            "type": "string",
+            "value": "Olinda"
+          }
+        },
+        "interpretation": {
+          "metric_id": "energy.gd_units",
+          "operation": "snapshot_total",
+          "aggregation": "count_non_null",
+          "periods": [],
+          "filters": [
+            {
+              "dimension_id": "generation.distributed",
+              "operator": "eq",
+              "values": [
+                "Sim"
+              ]
+            },
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Olinda"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "gd_units",
+            "role": "measure",
+            "value_type": "integer",
+            "unit": "UCs"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2298.2,
+      "provider_failures": []
+    },
+    "FB-LEG-09": {
+      "input_bytes": 7178,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v13",
+        "status": "sql_candidate",
+        "context_version": "64e342dceb5d9989031c7cb3a42427d7dfc48a8d25f6d9c597f769fc36cb78bb",
+        "sql": "SELECT ROUND(SUM(receita_base_comparavel_reais) / NULLIF(SUM(consumo_base_comparavel_kwh)::numeric, 0), 4) AS effective_tariff FROM gold_v2.diagnostico_receita WHERE competencia = :period_start",
+        "parameters": {
+          "period_start": {
+            "type": "string",
+            "value": "2024-07"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.effective_tariff",
+          "operation": "ratio_of_sums",
+          "aggregation": "ratio_of_sums",
+          "periods": [
+            {
+              "start": "2024-07-01",
+              "end": "2024-07-31"
+            }
+          ],
+          "filters": [],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "effective_tariff",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$/kWh"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2008.1,
+      "provider_failures": []
+    },
+    "FB-LEG-10": {
+      "input_bytes": 6904,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "c2bcaf6f772a0fd1838f367b2c20adfdef96dce4eac02c20a1a2969028e38766",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality AND classe_consumo = :consumption_class",
+        "parameters": {
+          "period_start": {
+            "type": "string",
+            "value": "2025-02"
+          },
+          "period_end": {
+            "type": "string",
+            "value": "2025-02"
+          },
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "consumption_class": {
+            "type": "string",
+            "value": "Comercial"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2025-02-01",
+              "end": "2025-02-28"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            },
+            {
+              "dimension_id": "customer.consumption_class",
+              "operator": "eq",
+              "values": [
+                "Comercial"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2247.6,
+      "provider_failures": []
+    },
+    "FB-LEG-11": {
+      "input_bytes": 6898,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "78a05e38c49e9948d2bd4ece85e90fc05c3e67b3834142814cf5f1ab75dfb335",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+        "parameters": {
+          "period_start": {
+            "type": "string",
+            "value": "2025-06"
+          },
+          "period_end": {
+            "type": "string",
+            "value": "2025-06"
+          },
+          "municipality": {
+            "type": "string",
+            "value": "Olinda"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2025-06-01",
+              "end": "2025-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Olinda"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 3756.9,
+      "provider_failures": []
+    },
+    "FB-LEG-12": {
+      "input_bytes": 7284,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v4",
+        "status": "needs_clarification",
+        "context_version": "2313615d680558340c0301a5e48fbf0d279ef14e306af8b9a252b44b66774a92",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": {
+          "question": "Para qual alimentador você deseja consultar o DEC em julho de 2025?",
+          "missing_fields": [
+            "filter"
+          ],
+          "reason_code": "missing_context",
+          "options": []
+        },
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": [
+            "período de seca"
+          ]
+        }
+      },
+      "elapsed_ms": 1745.4,
+      "provider_failures": []
+    },
+    "FB-AMB-01": {
+      "input_bytes": 6844,
+      "attempts": 1,
+      "error": "invalid_response",
+      "error_type": "ModelProviderInvalidResponse",
+      "elapsed_ms": 2237.9,
+      "provider_failures": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "model": "gemini-3.5-flash-lite",
+          "kind": "invalid_response",
+          "reason": "contract_validation",
+          "validation_fields": [
+            "envelope"
+          ],
+          "status": null,
+          "prompt_version": "text-to-sql-f1-34",
+          "elapsed_ms": 2234.62,
+          "context_bytes": 6844,
+          "max_output_tokens": 4096,
+          "temperature": 0.0,
+          "attempts": 1,
+          "dependencies": {
+            "google-genai": "2.34.0",
+            "sqlglot": "30.24.0",
+            "psycopg": "3.3.6"
+          }
+        }
+      ]
+    },
+    "FB-AMB-02": {
+      "input_bytes": 7048,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "02ad0e2c8ddb56505d2a8f40e04286f9d3491f8e23a4c250c01f608b00e940f5",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+        "parameters": {
+          "period_start": {
+            "type": "string",
+            "value": "2025-06"
+          },
+          "period_end": {
+            "type": "string",
+            "value": "2025-06"
+          },
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2025-06-01",
+              "end": "2025-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2358.8,
+      "provider_failures": []
+    },
+    "FB-AMB-03": {
+      "input_bytes": 6944,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "a5a67011b7af6fd4791f27adc9a1654af5627adebaacc867c0bba8c94a2fba4c",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia = :period_start AND municipio = :municipality",
+        "parameters": {
+          "period_start": {
+            "type": "string",
+            "value": "2025-06"
+          },
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2025-06-01",
+              "end": "2025-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2146.1,
+      "provider_failures": []
+    },
+    "FB-AMB-04": {
+      "input_bytes": 7090,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "fab2f734f28045bc1860f26df4b3be0acca0ace3b1e840c20bd257ef0bf95ec2",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+        "parameters": {
+          "period_start": {
+            "type": "string",
+            "value": "2025-03"
+          },
+          "period_end": {
+            "type": "string",
+            "value": "2025-03"
+          },
+          "municipality": {
+            "type": "string",
+            "value": "Olinda"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2025-03-01",
+              "end": "2025-03-31"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Olinda"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2380.1,
+      "provider_failures": []
+    },
+    "FB-AMB-05": {
+      "input_bytes": 7099,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "5ba46cda4371be84be7a4ee9941a285abe15960df654b43bde2fdc18de45c127",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end",
+        "parameters": {
+          "period_start": {
+            "type": "string",
+            "value": "2025-03"
+          },
+          "period_end": {
+            "type": "string",
+            "value": "2025-03"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2025-03-01",
+              "end": "2025-03-31"
+            }
+          ],
+          "filters": [],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2213.7,
+      "provider_failures": []
+    },
+    "FB-AMB-06": {
+      "input_bytes": 6849,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "ad0f4e134a1c6c6c6385b1c5876d4dbfa9e1e8b5f18c2aea0328a19c6a86b4f1",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "source_outside_f1",
+          "message": "Dados cadastrais e consultas de unidades consumidoras específicas não são suportados nesta capacidade.",
+          "reason_code": "unsupported_capability"
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": [
+            "UC 004512"
+          ]
+        }
+      },
+      "elapsed_ms": 1781.6,
+      "provider_failures": []
+    },
+    "FB-AMB-07": {
+      "input_bytes": 7230,
+      "attempts": 1,
+      "error": "invalid_response",
+      "error_type": "ModelProviderInvalidResponse",
+      "elapsed_ms": 2744.2,
+      "provider_failures": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "model": "gemini-3.5-flash-lite",
+          "kind": "invalid_response",
+          "reason": "contract_validation",
+          "validation_fields": [
+            "envelope"
+          ],
+          "status": null,
+          "prompt_version": "text-to-sql-f1-34",
+          "elapsed_ms": 2740.85,
+          "context_bytes": 7230,
+          "max_output_tokens": 4096,
+          "temperature": 0.0,
+          "attempts": 1,
+          "dependencies": {
+            "google-genai": "2.34.0",
+            "sqlglot": "30.24.0",
+            "psycopg": "3.3.6"
+          }
+        }
+      ]
+    },
+    "FB-AMB-09": {
+      "input_bytes": 6868,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "f0c1d5aea927709071b56d42240d0dbd593e224097553737677927ffde1e49d2",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia >= :period_start AND competencia <= :period_end AND municipio = :municipality",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "period_end": {
+            "type": "string",
+            "value": "2025-06"
+          },
+          "period_start": {
+            "type": "string",
+            "value": "2025-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2025-06-01",
+              "end": "2025-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2116.2,
+      "provider_failures": []
+    },
+    "FB-AMB-10": {
+      "input_bytes": 6859,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "ef59e33277ce000f562aea5b4a5592f1d14eede7ddf5eb29cc266c9bc5ec9f8c",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "period_end": {
+            "type": "string",
+            "value": "2026-06"
+          },
+          "period_start": {
+            "type": "string",
+            "value": "2026-01"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-01-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 3061.0,
+      "provider_failures": []
+    },
+    "FB-AMB-11": {
+      "input_bytes": 7024,
+      "attempts": 1,
+      "error": "invalid_response",
+      "error_type": "ModelProviderInvalidResponse",
+      "elapsed_ms": 1896.6,
+      "provider_failures": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "model": "gemini-3.5-flash-lite",
+          "kind": "invalid_response",
+          "reason": "contract_validation",
+          "validation_fields": [
+            "envelope"
+          ],
+          "status": null,
+          "prompt_version": "text-to-sql-f1-34",
+          "elapsed_ms": 1893.46,
+          "context_bytes": 7024,
+          "max_output_tokens": 4096,
+          "temperature": 0.0,
+          "attempts": 1,
+          "dependencies": {
+            "google-genai": "2.34.0",
+            "sqlglot": "30.24.0",
+            "psycopg": "3.3.6"
+          }
+        }
+      ]
+    },
+    "FB-AMB-12": {
+      "input_bytes": 6847,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "needs_clarification",
+        "context_version": "64e1da1a30666fe5ad6ea7413877b81c63704e656d604b621a5cb1223cad7d49",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": {
+          "question": "Para qual período você deseja fazer a comparação com o ano anterior?",
+          "missing_fields": [
+            "period",
+            "context"
+          ],
+          "reason_code": "missing_context",
+          "options": []
+        },
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 1524.8,
+      "provider_failures": []
+    },
+    "FB-LIM-01": {
+      "input_bytes": 6887,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "644159725211f8e5454320831bade350c734b89b9fe931c2ff7e48343ace3e29",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "operation_outside_f1",
+          "message": "Essa análise ainda não está disponível.",
+          "reason_code": "unsupported_capability"
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": [
+            "desligamentos"
+          ]
+        }
+      },
+      "elapsed_ms": 1686.0,
+      "provider_failures": []
+    },
+    "FB-LIM-05": {
+      "input_bytes": 6878,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "sql_candidate",
+        "context_version": "4f45a9ec2b72d56a6429f3fb4a15e983c718e524ca30dd775941e4b68ab842fa",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE competencia BETWEEN :period_start AND :period_end AND municipio = :municipality",
+        "parameters": {
+          "period_start": {
+            "type": "string",
+            "value": "2026-01"
+          },
+          "period_end": {
+            "type": "string",
+            "value": "2026-06"
+          },
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-01-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": [],
+          "ranking_direction": null,
+          "ranking_limit": null
+        },
+        "semantic_intent": null,
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "clarification": null,
+        "unsupported_reason": null,
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 2131.8,
+      "provider_failures": []
+    },
+    "FB-LIM-06": {
+      "input_bytes": 6863,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "bc166207d44a6bf3b18cf6ae310072029163e96f215e979de1db8b9f4995ba9b",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "source_outside_f1",
+          "message": "Operações de escrita, alteração ou exclusão de dados não são suportadas.",
+          "reason_code": "security_restriction"
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      },
+      "elapsed_ms": 1872.4,
+      "provider_failures": []
+    },
+    "FB-LIM-07": {
+      "input_bytes": 6863,
+      "attempts": 1,
+      "error": "invalid_response",
+      "error_type": "ModelProviderInvalidResponse",
+      "elapsed_ms": 1608.1,
+      "provider_failures": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "model": "gemini-3.5-flash-lite",
+          "kind": "invalid_response",
+          "reason": "contract_validation",
+          "validation_fields": [
+            "envelope"
+          ],
+          "status": null,
+          "prompt_version": "text-to-sql-f1-34",
+          "elapsed_ms": 1604.56,
+          "context_bytes": 6863,
+          "max_output_tokens": 4096,
+          "temperature": 0.0,
+          "attempts": 1,
+          "dependencies": {
+            "google-genai": "2.34.0",
+            "sqlglot": "30.24.0",
+            "psycopg": "3.3.6"
+          }
+        }
+      ]
+    },
+    "FB-LIM-09": {
+      "input_bytes": 6862,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "9acb2260843454ef8f07341c5fee17904fc4c99c791f03d0ae93a1cbd76a951e",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": null,
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "metric_outside_f1",
+          "message": "Essa análise ainda não está disponível.",
+          "reason_code": "out_of_domain"
+        },
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "lucro líquido"
+          ]
+        }
+      },
+      "elapsed_ms": 1658.4,
+      "provider_failures": []
+    },
+    "FB-LIM-10": {
+      "input_bytes": 6861,
+      "attempts": 1,
+      "candidate": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "status": "unsupported",
+        "context_version": "a442f1d8ad5e68fa2ea17e55efef6d3b05c571e63e5672653b5e640f1dde1772",
+        "sql": null,
+        "parameters": {},
+        "interpretation": null,
+        "semantic_intent": {
+          "metric_id": "billing.revenue",
+          "periods": [],
+          "filters": []
+        },
+        "result_columns": [],
+        "clarification": null,
+        "unsupported_reason": {
+          "code": "operation_outside_f1",
+          "message": "Previsões futuras não são suportadas.",
+          "reason_code": "unsupported_capability"
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": [
+            "previsão"
+          ]
+        }
+      },
+      "elapsed_ms": 1604.3,
+      "provider_failures": []
+    }
+  }
+}

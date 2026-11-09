@@ -1,0 +1,74 @@
+{
+  "scope": "Gemini e revisao do candidato no Backend com cobertura artificial; sem execucao SQL ou dados Gold.",
+  "schema_adjustment": "F1 v13 restringe operation e aggregation a ratio_of_sums.",
+  "summary": {
+    "mode": "live",
+    "model": "gemini-3.5-flash-lite",
+    "evaluated": 4,
+    "passed": 4,
+    "failed": 0,
+    "not_evaluated": 44,
+    "model_calls": 4,
+    "total_tokens": 39860,
+    "tag_counts": {},
+    "latency_ms": {
+      "count": 4,
+      "p50": 2435.7,
+      "p95": 7626.8
+    },
+    "prompt_version": "text-to-sql-f1-35",
+    "generated_at": "2026-11-08T21:06:50+00:00",
+    "git": {
+      "commit": "83083602c3b452d33309ded1bb167830dc07caae",
+      "dirty": true
+    },
+    "cases_file": "genai_feedback_cases.json",
+    "scope": "decision and presentation only; no Gold query executed; no Gold data sent to the model"
+  },
+  "cases": [
+    {
+      "id": "FB-LEG-01",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-03",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-05",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    },
+    {
+      "id": "FB-LEG-09",
+      "result": "pass",
+      "first_divergence": null,
+      "violations": [],
+      "status": "sql_candidate",
+      "reason_code": null,
+      "tags": [],
+      "model_calls": 1,
+      "note": null
+    }
+  ]
+}

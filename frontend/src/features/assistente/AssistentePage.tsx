@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/shared/auth/useSession";
 import { currentAuthorizationGeneration } from "@/shared/auth/authorization";
 import ConversationHistory from "./ConversationHistory";
+import QuestionFeedback from "./QuestionFeedback";
 import { createConversation, openConversation } from "./history";
 import {
   AlertCircle,
@@ -288,13 +289,30 @@ function AssistantResult({
   response,
   preliminary = false,
   interpretationFailed = false,
+  onChooseOption,
+  choicesDisabled = true,
 }: {
   response: AIQuestionResponse;
   preliminary?: boolean;
   interpretationFailed?: boolean;
+  onChooseOption?: (question: string) => void;
+  choicesDisabled?: boolean;
 }) {
   const answered = response.status === "answered";
   const state = RESPONSE_STATES[response.status];
+  if (
+    !preliminary &&
+    !interpretationFailed &&
+    (response.status === "needs_clarification" || response.status === "refused")
+  ) {
+    return (
+      <QuestionFeedback
+        response={response}
+        onChoose={onChooseOption ?? (() => {})}
+        choicesDisabled={choicesDisabled || !onChooseOption}
+      />
+    );
+  }
   return (
     <div className="mt-3 space-y-3">
       <p className={`text-sm font-semibold ${state.appearance}`}>
@@ -669,9 +687,13 @@ function AssistantResult({
 function MessageCard({
   message,
   onRetry,
+  onChooseOption,
+  choicesDisabled,
 }: {
   message: ChatMessage;
   onRetry: (request: RetryRequest) => void;
+  onChooseOption: (question: string) => void;
+  choicesDisabled: boolean;
 }) {
   if (message.role === "user") {
     return (
@@ -747,6 +769,8 @@ function MessageCard({
         <AssistantResult
           response={message.response}
           preliminary={message.preliminary}
+          onChooseOption={onChooseOption}
+          choicesDisabled={choicesDisabled}
         />
       )}
       {message.response?.status === "recoverable_error" &&
@@ -1282,7 +1306,7 @@ export default function AssistentePage() {
               <h1 id="assistant-heading" className="sr-only">
                 Conversa com o Assistente Grid 360
               </h1>
-              {messages.map((message) => (
+              {messages.map((message, index) => (
                 <div
                   key={message.id}
                   id={`assistant-message-${message.id}`}
@@ -1291,6 +1315,10 @@ export default function AssistentePage() {
                 >
                   <MessageCard
                     message={message}
+                    onChooseOption={(question) =>
+                      void send(question, conversationContext, true)
+                    }
+                    choicesDisabled={isSending || index !== messages.length - 1}
                     onRetry={(request) =>
                       void send(
                         request.question,
