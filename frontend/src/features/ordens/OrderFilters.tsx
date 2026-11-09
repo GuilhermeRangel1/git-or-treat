@@ -122,12 +122,6 @@ export default function OrderFilters({
               <p className="mt-1 truncate font-medium">{item.value}</p>
             </div>
           ))}
-          {filters.pageSize !== 20 ? (
-            <div>
-              <p className="text-xs text-muted">Por página</p>
-              <p className="mt-1 font-medium">{filters.pageSize}</p>
-            </div>
-          ) : null}
         </div>
         <Button
           ref={triggerRef}

@@ -340,7 +340,7 @@ it("normaliza UC e consulta os filtros recebidos na URL", async () => {
   expect(appliedFilters).toHaveTextContent("UC-1041");
   expect(appliedFilters).toHaveTextContent("Em andamento");
   expect(appliedFilters).toHaveTextContent("PrioridadeAlta");
-  expect(appliedFilters).toHaveTextContent("Por página5");
+  expect(appliedFilters).not.toHaveTextContent("Por página");
   const requestedUrl = new URL(
     String(fetchMock.mock.calls[0][0]),
     location.origin,
@@ -500,8 +500,7 @@ it("preserva os filtros da URL ao avançar a página", async () => {
   vi.stubGlobal("fetch", fetchMock);
   renderPage("/ordens?uc_id=UC-1041&status=PENDENTE&priority=ALTA&page_size=5");
 
-  await screen.findByRole("button", { name: "Próxima" });
-  await user.click(screen.getByRole("button", { name: "Próxima" }));
+  await user.click(await screen.findByRole("button", { name: "Página 2" }));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
   const requestedUrl = new URL(
     String(fetchMock.mock.calls[1][0]),

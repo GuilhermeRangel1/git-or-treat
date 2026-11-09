@@ -48,16 +48,16 @@ export function currentMeterMessage(meter: UCMeter | null, status?: UCStatus) {
       ? `, retirado em ${formatUCDate(meter.removed_at)}`
       : "";
     if (status === "partial")
-      return `Possível vínculo com o medidor ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}${removed}. As datas disponíveis não confirmam se este é o medidor atual; consulte o histórico.`;
+      return `Possível vínculo com o medidor ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}${removed}. As datas disponíveis não confirmam se este é o medidor atual.`;
     if (meter.removed_at)
       return `O cadastro informa que o medidor ${meter.meter_id} foi instalado em ${formatUCDate(meter.installed_at)} e retirado em ${formatUCDate(meter.removed_at)}.`;
-    return `Medidor indicado como atual no cadastro: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}. Consulte o histórico para ver instalações e retiradas anteriores.`;
+    return `Medidor indicado como atual no cadastro: ${meter.meter_id}, instalado em ${formatUCDate(meter.installed_at)}.`;
   }
   switch (status) {
     case "empty":
       return "O cadastro consultado não informa um medidor atual para esta UC.";
     case "partial":
-      return "Não foi possível identificar com segurança o medidor atual. Consulte o histórico de medidores.";
+      return "Não foi possível identificar com segurança o medidor atual.";
     case "unavailable":
       return "Não foi possível consultar qual medidor está instalado atualmente.";
     case "available":

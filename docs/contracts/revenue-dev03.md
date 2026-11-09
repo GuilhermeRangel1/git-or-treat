@@ -9,6 +9,40 @@ Extensão aditiva Gold v2: `data.window_decomposition` é nulo para fontes anter
 
 ## Operação e tipos
 
+### Extensão de leitura por janelas — 05/11/2026
+
+Implementação da [repaginação](../plans/2026-11-05-receita-repaginacao.md), autorizada pela pessoa usuária. A versão HTTP 1.1.0 permanece compatível; os campos abaixo são aditivos. A comparação mensal e sua elegibilidade não mudam.
+
+- `window_decomposition.initial_amount_brl` e `final_amount_brl`: somas dos campos físicos `faturamento_p0_reais`/`faturamento_p1_reais`. São nulos se alguma base faltar, não for finita ou se P1−P0 não reconciliar com a variação publicada, na tolerância do método V3.
+- `change_percent`: percentual **observado** `100 × total_change_brl / initial_amount_brl`. Desde a revisão de 06/11, exige bases financeiras reconciliadas, P0 positivo e ao menos uma linha com cinco UCs observadas, suficiente para garantir essa base mínima no recorte agregado sem somar contagens potencialmente sobrepostas. Um componente incompleto ou outro subgrupo pequeno não bloqueia a variação financeira conhecida. Essa condição é suficiente, mas conservadora: se todas as linhas forem pequenas, não se presume população distinta pela soma. Não certifica fechamento contábil. Ausência/inconsistência/base insuficiente mantém percentual nulo.
+- `component_percentage_points`: contribuições em pontos percentuais de P0; cada componente exige, adicionalmente, valor conhecido em todas as linhas do seu recorte. A nulidade de um efeito não bloqueia os demais componentes completos. Retorna objeto vazio quando nenhum é elegível. Não representa variação física do consumo nem percentual da variação líquida.
+- `data.window_breakdown`: lista `{key, label, filters, decomposition}`; `decomposition` tem o mesmo schema de `window_decomposition`. Agrupa os fatos V3 publicados por `group_by`, mantendo bairro junto ao município e filtros herdados. Não usa comparação mensal para ordenar efeitos anuais e não executa uma consulta por item. Sem configuração ou com alimentador, a lista é vazia.
+- Componentes monetários conhecidos permanecem disponíveis em base parcial; resíduo nulo não comprova fechamento. Os sete componentes V3 devem permanecer acessíveis, mesmo quando agrupados visualmente como “Demais componentes”.
+
+Na interface, `aba=resumo|investigar|evolucao` e `metrica=volume|preco|receita` são estado de apresentação na URL; não seguem ao endpoint nem alteram a identidade da consulta analítica. Valores desconhecidos usam Resumo/volume; parâmetros repetidos continuam sujeitos à rejeição existente. Filtros e refinamentos permanecem compatíveis. Se as janelas estiverem indisponíveis, a investigação pode apresentar a tabela mensal, identificando explicitamente o período e a mudança de modalidade.
+
+### Achados determinísticos e histórico sob demanda — 06/11/2026
+
+`include_diagnosis=true` é opt-in em `GET /api/v1/revenue`; o padrão falso preserva o custo dos consumidores existentes. A resposta acrescenta `data.diagnosis` (nulo quando não solicitado), com estado, limitações e:
+
+- `volume_offset_percent`: `100 × |volume conhecido negativo| / preço conhecido positivo`; nulo sem esses sinais/denominador. Em decomposição parcial, identifica apenas parcelas conhecidas.
+- `population`: `initial_billed_uc_count` e `final_billed_uc_count` são UCs **distintas com fatura observada** em cada janela, calculadas em `consumo_mensal_uc` no mesmo recorte cadastral. `change_percent` exige contagens ≥ 5 e base inicial positiva. Não representam clientes cadastrados nem prova de completude externa.
+- `concentration`: dimensão municipal, bairro dentro do município ou classe dentro do bairro; até dois grupos com maior contribuição negativa conhecida e participação na soma das contribuições negativas dessa abertura. Altas de outros grupos não compensam o denominador. Preserva filtros e rótulo de dimensão ausente.
+- `gd`: coortes `prior`, `connected_between`, `connected_during`, `no_record` e `unknown`. Pareia a mesma UC/posição mensal nas duas janelas e exige pelo menos seis pares com faturamento/consumo comparáveis e consumo somado positivo nos dois lados. Respeita data/flags de conexão; `no_record` exige ausência em `gd_uc` **e** cadastro negativo. A soma do efeito-volume reconstruído deve reconciliar com a parcela V3 publicada (R$ 0,01/erro relativo 1e-9), senão o achado fica indisponível.
+- Cada coorte publica `uc_count` e `measured_energy_change_percent = 100 × (ΣQ1−ΣQ0)/ΣQ0`; grupos exibidos com menos de cinco UCs têm percentual nulo. `share_negative_volume_percent` calcula a participação das conexões entre as janelas/durante P1 nas parcelas negativas **por classe e coorte**, antes de compensar altas; só depois consolida coortes na tabela. Isso impede que crescimento sem GD de uma classe esconda queda sem GD de outra.
+
+Consultas usam apenas Gold v2 e o snapshot da requisição; não leem Silver nem medem geração/compensação. Nenhum achado é prova causal. A consulta adicional é carregada separadamente pelo Resumo, com decoder, validação do contexto, cache por publicação/recorte, cancelamento e erro próprios: falha no detalhamento preserva o gráfico básico.
+
+A navegação principal passa a `resumo|investigar`. `historico=aberto` abre o diálogo com competências próprias, preservando os recortes. Links antigos `aba=evolucao` continuam abrindo o histórico. O filtro do diagnóstico não edita as janelas publicadas; o formulário do histórico edita competências sem remover refinamentos. Tabela da série expande dentro do diálogo, sem segundo modal.
+
+### Ajustes de navegação e apresentação — 06/11/2026
+
+- O formulário de filtros parte do recorte efetivo exibido, inclusive os refinamentos de município, bairro e classe. Aplicar o formulário consolida esses valores na base e remove refinamentos redundantes. Limpar filtros territoriais preserva as competências quando elas não estão visíveis.
+- Alimentador permanece aceito em links legados por compatibilidade, mas não é uma opção comum. Quando presente, o contexto oferece remoção explícita sem alterar os demais parâmetros.
+- A investigação compara impactos monetários do efeito-volume, efeito-preço ou variação de receita, em ordem crescente. O ranking não representa percentual de variação física de energia. O retorno ao diagnóstico abre o Resumo preservando o recorte.
+- Depois do agrupamento por classe não há nível territorial adicional. Títulos e estados distinguem contribuição negativa, valores não negativos e valores ausentes.
+- O período do histórico afeta somente a série mensal; as janelas publicadas da decomposição permanecem fixas. Rótulos de interface usam R$ e período inicial/final; o código de moeda e chaves do contrato continuam técnicos.
+
 `GET /api/v1/revenue` preserva os parâmetros DEV-01 e acrescenta `group_by`, enum `municipio|bairro|classe`, padrão `municipio`. Competências padrão preservadas: `2025-01` a `2025-02`. Valores desconhecidos, vazios ou parâmetros escalares repetidos retornam 422. Se o tratamento comum precisar mudar para rejeitar repetições, limitar essa mudança a Receita.
 
 Envelope `{data, metadata}`; somente Receita publica `metadata.contract_version = "1.1.0"`. Outros endpoints mantêm sua versão e formato. `metadata` preserva período, filtros efetivos, origem, lote, `is_demo`, atualização e limitações declaradas pela fonte; diagnósticos calculados ficam nos campos de qualidade, cobertura, decomposição e reconciliação correspondentes, sem agregação duplicada em `metadata.limitations`. Não trocar fixtures quando uma fonte real falhar.

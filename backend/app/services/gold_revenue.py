@@ -64,7 +64,7 @@ WINDOW_COMPONENTS = {
 }
 
 
-def window_decomposition(repository, filters):
+def window_decomposition(repository, filters, *, rows=None):
     if getattr(repository, "schema_version", "gold-csv-v1") != "gold-csv-v2":
         return None
     unavailable = {"status": "unavailable", "windows": [], "method": None, "components": {},
@@ -80,7 +80,7 @@ def window_decomposition(repository, filters):
         unavailable["limitations"] = ["A publicação não informa janelas configuradas para a decomposição."]
         return unavailable
     unavailable["windows"] = [windows[k] for k in keys]
-    rows = repository.revenue_decomposition_rows(filters)
+    rows = repository.revenue_decomposition_rows(filters) if rows is None else rows
     if not rows:
         unavailable["limitations"] = ["Não há decomposição publicada para este recorte."]
         return unavailable
@@ -113,12 +113,50 @@ def window_decomposition(repository, filters):
              "Método candidato; dimensões cadastrais atuais e cobertura de extração não comprovam fechamento contábil."]
     if incomplete:
         notes.append("Somas dos componentes apresentam somente grupos com valor conhecido; há grupos sem base comum. Não são um fechamento integral.")
+    def complete_sum(field):
+        values = [row.get(field) for row in rows]
+        return math.fsum(values) if all(value is not None and math.isfinite(value) for value in values) else None
+    initial = complete_sum("faturamento_p0_reais")
+    final = complete_sum("faturamento_p1_reais")
+    bases_match = (initial is not None and final is not None and total is not None
+                   and abs(final - initial - total) <= max(0.000001, abs(total) * 1e-9))
+    eligible = (bases_match and initial > 0
+                and any((row.get("qtd_ucs_observadas") or 0) >= 5 for row in rows))
+    if not eligible:
+        notes.append("Percentual financeiro exige bases reconciliadas, P0 positivo e base mínima de cinco UCs garantida no recorte.")
+    else:
+        notes.append("Percentuais observados sobre o faturamento P0; não certificam fechamento contábil.")
     return {"status": "partial" if incomplete else "available", "windows": unavailable["windows"], "method": method,
             "components": components, "total_change_brl": total, "residual_brl": residual,
+            "initial_amount_brl": initial if bases_match else None,
+            "final_amount_brl": final if bases_match else None,
+            "change_percent": 100 * total / initial if eligible else None,
+            "component_percentage_points": {key: 100 * value / initial for key, value in components.items()
+                                            if value is not None and all(row[WINDOW_COMPONENTS[key]] is not None for row in rows)} if eligible else {},
             "group_count": len(rows), "incomplete_groups": incomplete, "limitations": notes}
 
 
-def build_gold_revenue(repository: GoldAnalyticsRepository, start, end, filters, group_by):
+def window_breakdown(repository, filters, group_by, *, rows=None):
+    """Agrupa os mesmos fatos V3, sem consultas por linha ou médias recalculadas."""
+    if getattr(repository, "schema_version", None) != "gold-csv-v2" or filters.alimentador:
+        return []
+    rows = repository.revenue_decomposition_rows(filters) if rows is None else rows
+    dimensions = ["municipio", "bairro"] if group_by == "bairro" else [group_by]
+    columns = {"municipio": "municipio", "bairro": "bairro", "classe": "classe_consumo"}
+    groups = {}
+    for row in rows:
+        key = tuple(row.get(columns[field]) for field in dimensions)
+        groups.setdefault(key, []).append(row)
+    result = []
+    for key, group in sorted(groups.items(), key=lambda item: str(item[0])):
+        scoped = filters.model_dump()
+        scoped.update({field: value if value is not None else MISSING for field, value in zip(dimensions, key)})
+        result.append({"key": json.dumps(key, ensure_ascii=True), "label": " / ".join(value or "Não informado" for value in key),
+                       "filters": scoped, "decomposition": window_decomposition(repository, filters, rows=group)})
+    return result
+
+
+def build_gold_revenue(repository: GoldAnalyticsRepository, start, end, filters, group_by, *, include_diagnosis=False):
     if (int(end[:4]) - int(start[:4])) * 12 + int(end[5:]) - int(start[5:]) >= 120:
         raise AnalyticsAPIError(422, "invalid_query", "Consulte até 120 competências por vez.")
     months = _month_sequence(start, end)
@@ -161,6 +199,14 @@ def build_gold_revenue(repository: GoldAnalyticsRepository, start, end, filters,
     options = repository.options()
     amounts = [r["amount"] for r in rows if r["amount"] is not None]
     energies = [r["energy"] for r in rows if r["energy"] is not None]
+    decomposition_rows = (repository.revenue_decomposition_rows(filters)
+                          if getattr(repository, "schema_version", None) == "gold-csv-v2" and not filters.alimentador
+                          and (repository.origin.get("preco_volume_configuracao") or {}).get("estado") == "CONFIGURADA" else [])
+    window = window_decomposition(repository, filters, rows=decomposition_rows)
+    diagnosis = None
+    if include_diagnosis:
+        from app.services.revenue_diagnosis import build_revenue_diagnosis
+        diagnosis = build_revenue_diagnosis(repository, filters, window, decomposition_rows)
     return {
         "currency_unit": "BRL", "energy_unit": "kWh",
         "total_billed_amount": number(sum(amounts)) if amounts else None,
@@ -168,7 +214,9 @@ def build_gold_revenue(repository: GoldAnalyticsRepository, start, end, filters,
         "total_measured_energy_kwh": number(sum(energies)) if energies else None,
         "observed_price_brl_per_kwh": observed_price(rows), "series": series,
         "comparison": total_comparison, "quality": quality(total_comparison, v2=getattr(repository, "schema_version", "gold-csv-v1") == "gold-csv-v2"),
-        "window_decomposition": window_decomposition(repository, filters),
+        "window_decomposition": window,
+        "diagnosis": diagnosis,
+        "window_breakdown": window_breakdown(repository, filters, group_by, rows=decomposition_rows),
         "price_volume": {"method": "endpoint_price_volume", "reference_version": getattr(repository, "schema_version", "gold-csv-v1"),
                          "price_effect_brl": None, "volume_effect_brl": None, "interaction_effect_brl": None,
                          "rounding_adjustment_brl": None, "status": "unavailable",

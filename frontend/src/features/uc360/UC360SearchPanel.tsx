@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
 import type { SourceOptions } from "@/shared/analytics/sourceOptions";
-import Button from "@/shared/ui/Button";
+import Pagination from "@/shared/ui/Pagination";
 import type { UCSearchResponse } from "./contract";
 
 const inputClass =
@@ -16,6 +16,7 @@ type Props = {
   optionsLoading: boolean;
   optionsError: Error | null;
   page: number;
+  pageSize: number;
   results: UCSearchResponse | undefined;
   isFetching: boolean;
   error: Error | null;
@@ -25,6 +26,7 @@ type Props = {
     classe: string;
   }) => void;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
   onSelect: (ucId: string) => void;
   onRetry: () => void;
   onRetryOptions: () => void;
@@ -38,11 +40,13 @@ export default function UC360SearchPanel({
   optionsLoading,
   optionsError,
   page,
+  pageSize,
   results,
   isFetching,
   error,
   onSearch,
   onPageChange,
+  onPageSizeChange,
   onSelect,
   onRetry,
   onRetryOptions,
@@ -252,31 +256,15 @@ export default function UC360SearchPanel({
           ))}
         </ul>
       )}
-      {results && results.pagination.total_pages > 1 && (
-        <nav
-          aria-label="Paginação dos resultados da busca"
-          className="flex flex-wrap items-center justify-between gap-3"
-        >
-          <Button
-            variant="outline"
-            leftIcon={<ArrowLeft size={16} aria-hidden="true" />}
-            disabled={page <= 1}
-            onClick={() => onPageChange(page - 1)}
-          >
-            Anterior
-          </Button>
-          <span className="text-sm text-muted">
-            Página {results.pagination.page} de {results.pagination.total_pages}
-          </span>
-          <Button
-            variant="outline"
-            rightIcon={<ArrowRight size={16} aria-hidden="true" />}
-            disabled={page >= results.pagination.total_pages}
-            onClick={() => onPageChange(page + 1)}
-          >
-            Próxima
-          </Button>
-        </nav>
+      {results && results.pagination.total > 0 && (
+        <Pagination
+          label="Paginação dos resultados da busca"
+          page={page}
+          totalPages={results.pagination.total_pages}
+          onPageChange={onPageChange}
+          pageSize={pageSize}
+          onPageSizeChange={onPageSizeChange}
+        />
       )}
     </section>
   );

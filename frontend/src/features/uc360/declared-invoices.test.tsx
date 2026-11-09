@@ -49,7 +49,6 @@ it("apresenta a informação declarada sem afirmá-la como pagamento ou saldo", 
       history={history}
       pending={false}
       error={null}
-      historyPage={1}
       onRetry={vi.fn()}
       onSelectSection={vi.fn()}
       onPageChange={vi.fn()}

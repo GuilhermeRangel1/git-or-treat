@@ -106,11 +106,13 @@ it("preserva e valida a proveniência recebida na busca de UC", () => {
       optionsLoading={false}
       optionsError={null}
       page={1}
+      pageSize={20}
       results={results}
       isFetching={false}
       error={null}
       onSearch={vi.fn()}
       onPageChange={vi.fn()}
+      onPageSizeChange={vi.fn()}
       onSelect={vi.fn()}
       onRetry={vi.fn()}
       onRetryOptions={vi.fn()}
@@ -191,7 +193,7 @@ it("mantém informações úteis da UC sem expor identificadores técnicos", () 
   };
   render(
     <UC360Detail
-      disclosureRef={createRef<HTMLDetailsElement>()}
+      disclosureRef={createRef<HTMLDivElement>()}
       unit={{
         id: "FAKE-A",
         overview: {
@@ -205,7 +207,7 @@ it("mantém informações úteis da UC sem expor identificadores técnicos", () 
         filters: {
           start: period.start,
           end: period.end,
-          section: "consumption",
+          section: "distributed_generation",
           historyPage: 1,
           invalid: false,
           historyOpen: false,
@@ -226,8 +228,8 @@ it("mantém informações úteis da UC sem expor identificadores técnicos", () 
   );
   expect(screen.getAllByText(/3,5 kWp/).length).toBeGreaterThan(0);
   expect(
-    screen.getByText(/Possível vínculo com o medidor M-FAKE/),
-  ).toBeVisible();
+    screen.queryByText(/Possível vínculo com o medidor M-FAKE/),
+  ).not.toBeInTheDocument();
   expect(screen.queryByText("GOLD-ARTIFICIAL:hash")).not.toBeInTheDocument();
   expect(
     screen.queryByText(/Gold CSV · importação local/),

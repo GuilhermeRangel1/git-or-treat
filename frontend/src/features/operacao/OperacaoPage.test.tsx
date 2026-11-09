@@ -368,9 +368,7 @@ it("abre detalhe mensal, mostra alternativa textual e pagina ocorrências sem pe
   expect(
     screen.getByRole("table", { name: "Ocorrências de interrupção" }),
   ).toHaveTextContent("EV-01");
-  await user.click(
-    screen.getByRole("button", { name: "Próxima página de ocorrências" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Página 2" }));
   await waitFor(() =>
     expect(screen.getByLabelText("URL atual")).toHaveTextContent("page=2"),
   );
@@ -853,7 +851,7 @@ it("navega do ranking Gold ao detalhe agregado e retorna preservando filtros", a
   await user.click(
     within(decFoundations).getByRole("button", { name: "Fechar fundamentos" }),
   );
-  const investigate = await screen.findByRole("link", { name: "Detalhes" });
+  const investigate = await screen.findByRole("link", { name: "Ver detalhes" });
   await user.click(investigate);
   expect(
     await screen.findByRole("heading", { level: 1, name: /F-21/ }),
@@ -895,7 +893,9 @@ it("navega do ranking Gold ao detalhe agregado e retorna preservando filtros", a
     "municipio=Recife",
   );
   await user.click(screen.getByRole("button", { name: /Voltar ao ranking/ }));
-  expect(await screen.findByRole("link", { name: "Detalhes" })).toBeVisible();
+  expect(
+    await screen.findByRole("link", { name: "Ver detalhes" }),
+  ).toBeVisible();
   expect(screen.getByLabelText("URL atual")).toHaveTextContent(
     "ranking_page=2",
   );

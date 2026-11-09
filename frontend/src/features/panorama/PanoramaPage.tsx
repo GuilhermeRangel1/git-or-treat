@@ -11,6 +11,7 @@ import PanoramaMetricCard from "./PanoramaMetricCard";
 import PanoramaFoundations from "./PanoramaFoundations";
 import PanoramaStatus from "./PanoramaStatus";
 import AIInsightCard from "./AIInsightCard";
+import PanoramaRevenueDiagnosis from "./PanoramaRevenueDiagnosis";
 import PanoramaSeriesChart from "./PanoramaSeriesChart";
 import { usePanoramaInsight } from "./usePanoramaInsight";
 import { formatCompetenciaLabel } from "../../shared/analytics/syntheticData";
@@ -103,15 +104,13 @@ export default function PanoramaPage() {
   return (
     <div className="relative grid w-full min-w-0 gap-4 pb-12">
       <header className="mb-2">
-        <div>
-          <h1 className="font-heading text-[26px] font-semibold leading-[34px] lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
-            Sua rede, em perspectiva.
-          </h1>
-          <p className="mt-2 text-sm leading-[22px] text-muted">
+        <h1 className="font-heading text-[26px] font-semibold leading-[34px] lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
+          Sua rede, em perspectiva.
+        </h1>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4">
+          <p className="text-sm leading-[22px] text-muted">
             Um panorama da operação comercial, do atendimento e da continuidade.
           </p>
-        </div>
-        <div className="flex justify-end">
           <IndicatorHelp screen="panorama" />
         </div>
       </header>
@@ -206,12 +205,9 @@ export default function PanoramaPage() {
               comparison={filters.comparacao}
             />
             <PanoramaMetricCard
-              metric={data.metricas.ucsAtivas}
-              title={
-                data.origem?.kind === "gold"
-                  ? "UCs cadastradas no lote"
-                  : "Base de UCs"
-              }
+              metric={data.metricas.precoMedioEfetivo}
+              title="Preço observado"
+              subtitle="Receita ÷ consumo · não é tarifa"
               comparison={filters.comparacao}
             />
             <PanoramaMetricCard
@@ -252,6 +248,16 @@ export default function PanoramaPage() {
             />
           </div>
 
+          {canNavigate("revenue:read") && data.origem?.kind === "gold" ? (
+            <PanoramaRevenueDiagnosis
+              municipio={filters.municipio}
+              classe={filters.classe}
+              latestPeriod={
+                data.opcoesFiltros?.competencias.at(-1) ?? filters.periodo
+              }
+            />
+          ) : null}
+
           <footer className="space-y-6">
             <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:flex-wrap sm:items-center">
               {canNavigate("revenue:read") ? (
@@ -286,28 +292,6 @@ export default function PanoramaPage() {
                 onRefresh={() => void refetch()}
               />
             </div>
-            <aside
-              role="note"
-              className="rounded-xl bg-[var(--status-info-bg)] p-4 text-sm text-[var(--status-info-text)]"
-            >
-              <h2 className="font-semibold">Continuidade interna</h2>
-              <p className="mt-1 leading-5">
-                DEC{" "}
-                {data.metricas.continuidadeDec.valorAtual?.toLocaleString(
-                  "pt-BR",
-                  { maximumFractionDigits: 2 },
-                ) ?? "indisponível"}{" "}
-                h/UC
-                <span aria-hidden="true"> · </span>
-                FEC{" "}
-                {data.metricas.continuidadeFec.valorAtual?.toLocaleString(
-                  "pt-BR",
-                  { maximumFractionDigits: 2 },
-                ) ?? "indisponível"}{" "}
-                interrupções/UC. Indicadores simplificados para uso interno, não
-                regulatórios.
-              </p>
-            </aside>
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <div className="flex flex-wrap items-center gap-2">
                 <PanoramaFoundations data={data} />

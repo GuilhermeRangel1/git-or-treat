@@ -1,5 +1,5 @@
 import { it, expect, vi, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import FieldFiles from "./FieldFiles";
@@ -13,9 +13,15 @@ it("mostra apenas exportação em Inspeções e apenas resultados em Ordens", ()
       <FieldFiles mode="export" />
     </QueryClientProvider>,
   );
-  expect(
-    screen.getByRole("button", { name: "Exportar fila" }),
-  ).toBeInTheDocument();
+  const exportButton = screen.getByRole("button", { name: "Exportar fila" });
+  const exportHelp =
+    "Exporte todas as UCs ou escolha um recorte por categoria, município, bairro e classe.";
+  expect(exportButton).toHaveAttribute("title", exportHelp);
+  expect(exportButton).toHaveAccessibleDescription(exportHelp);
+  expect(screen.getByText(exportHelp)).toHaveClass("sr-only");
+  expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  expect(screen.queryByText("Enviar a fila para a equipe")).toBeNull();
+  expect(screen.queryByText(/Prepare a fila de inspeção/)).toBeNull();
   expect(
     screen.queryByRole("button", { name: "Selecionar planilha" }),
   ).not.toBeInTheDocument();
@@ -288,4 +294,95 @@ it("explica filtros incompatíveis sem exibir código HTTP", async () => {
   ).toBeInTheDocument();
   expect(screen.queryByText(/Falha HTTP/)).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Baixar CSV" })).toBeDisabled();
+});
+
+function exportFetch(failOptions = false) {
+  return vi.fn(async (url: string) => {
+    const params = new URL(url, "http://localhost").searchParams;
+    if (params.has("options_only"))
+      return failOptions
+        ? new Response(JSON.stringify({ detail: [] }), { status: 500 })
+        : new Response(
+            JSON.stringify({
+              options: {
+                municipio: ["Recife"],
+                bairro: [],
+                categoria: [],
+                classe: [],
+              },
+            }),
+            { status: 200 },
+          );
+    return new Response(
+      JSON.stringify(
+        params.has("count_only")
+          ? { count: 2 }
+          : { count: 2, csv: "uc_id\nUC-1" },
+      ),
+      { status: 200 },
+    );
+  });
+}
+
+function renderExport(request = "") {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <FieldFiles mode="export" request={request} />
+    </QueryClientProvider>,
+  );
+  return screen.getByRole("button", { name: "Exportar fila" });
+}
+
+it("exporta um recorte pelo botão compacto, devolve o foco e mostra o resultado abaixo do botão", async () => {
+  const fetch = exportFetch();
+  vi.stubGlobal("fetch", fetch);
+  vi.stubGlobal(
+    "URL",
+    Object.assign(URL, {
+      createObjectURL: vi.fn(() => "blob:fila"),
+      revokeObjectURL: vi.fn(),
+    }),
+  );
+  const click = vi
+    .spyOn(HTMLAnchorElement.prototype, "click")
+    .mockImplementation(() => undefined);
+  const trigger = renderExport("order_by=uc_id&direction=asc");
+  const user = userEvent.setup();
+
+  await user.click(trigger);
+  await screen.findByText("2 UC(s) serão incluídas no arquivo.");
+  await user.click(screen.getByLabelText("Escolher filtros"));
+  await user.selectOptions(screen.getByLabelText("Município"), "Recife");
+  await screen.findByText("2 UC(s) serão incluídas no arquivo.");
+  await user.click(screen.getByRole("button", { name: "Baixar CSV" }));
+
+  const status = await screen.findByRole("status");
+  expect(status).toHaveTextContent("2 UC(s) exportada(s).");
+  expect(click).toHaveBeenCalledOnce();
+  expect(
+    trigger.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(trigger).toHaveFocus();
+  const download = new URL(fetch.mock.calls.at(-1)![0], "http://localhost")
+    .searchParams;
+  expect(download.get("municipio")).toBe("Recife");
+  expect(download.get("order_by")).toBe("uc_id");
+  expect(download.get("direction")).toBe("asc");
+  click.mockRestore();
+});
+
+it("mantém o erro da exportação visível ao fechar a janela", async () => {
+  vi.stubGlobal("fetch", exportFetch(true));
+  const trigger = renderExport();
+  const user = userEvent.setup();
+
+  await user.click(trigger);
+  await screen.findByRole("dialog", { name: "Exportar fila de inspeção" });
+  await waitFor(() => expect(trigger).toBeEnabled());
+  await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Não foi possível consultar a fila agora. Tente novamente em instantes.",
+  );
+  expect(trigger).toHaveFocus();
 });

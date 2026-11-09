@@ -224,7 +224,7 @@ Cada time deve responder à pergunta sobre a evolução da receita residencial (
 | ID | Prioridade | Estado | Requisito e critérios de aceite |
 | --- | --- | --- | --- |
 | WEB-01 | Obrigatório | Concluído | **Indicadores gerais.** A diretoria vê métricas principais com definição, unidade, competência, filtros e comparação entre períodos; indicadores reconciliados com Gold v2, banco e API. |
-| WEB-02 | Obrigatório | Concluído | **Diagnóstico explorável da receita.** Comercial investiga a variação por município, bairro e classe, separando preço/tarifa e energia/volume; recortes e totais se reconciliam, com aviso para bases insuficientes. |
+| WEB-02 | Obrigatório | Em validação | **Diagnóstico explorável da receita.** Comercial investiga a variação por município, bairro e classe, separando preço/tarifa e energia/volume; recortes e totais se reconciliam, com aviso para bases insuficientes. A revalidação V3 na publicação local de 08/11 ficou bloqueada por configuração indisponível; repetir na publicação autorizada. |
 | WEB-03 | Obrigatório | Concluído | **Visão 360 da UC.** Busca por número de UC mostra cliente/cadastro, consumo histórico, faturas, medidor instalado/histórico, GD, interrupções e chamados em uma tela coerente; ausência de dado é explícita. |
 | WEB-04 | Obrigatório | Concluído | **Fila de inspeção.** Unidades suspeitas aparecem ordenadas por prioridade, com motivo, indicadores usados e estimativa de energia a recuperar. Critério de priorização é documentado e auditável; estimativa validada na Gold v2 e reconciliada com banco e API. |
 | WEB-05 | Obrigatório | Concluído | **Ordens de inspeção.** A partir da fila, usuário cria ordem, altera status, registra resultado de campo e cancela ordem desnecessária; transições inválidas e repetição indevida são impedidas. |
@@ -470,6 +470,60 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 - Entrada de evidência adicionada abaixo e estado do ID alterado para `Concluído` na mesma mudança.
 
 ## 14. Registro de progresso
+
+### 08/11/2026 — WEB-01 a WEB-07 / ENT-01 / ENT-02 — revisão integrada
+
+- Conferidos os guias de frontend e engenharia contra o PRD e a evidência posterior de Workflow: corrigidas afirmações antigas sobre execução do Job, titular, ordenação e disponibilidade condicional de estimativa. Nenhum estado oficial foi promovido. A [narrativa executiva](apresentacao-diretoria.md) separa resultados totais e residenciais e explicita os limites da demonstração.
+- API: `scripts/validate-dev15-web.py --credentials work/local-auth/credentials.txt --output work/revisao-integrada-20261108/http.json` verificou 53 condições sem falhas, incluindo perfis, autenticação, acessos e identidade de uma publicação Gold v2; relatório sanitizado local/ignorado. A verificação não inclui escrita de ordens, navegador nem reconciliação SQL.
+- Frontend integrado: `npm test -- --maxWorkers=2` passou 729 testes em 90 arquivos; build, lint e fronteiras passaram (lint com dois avisos preexistentes). O ensaio de `check-receita-layout.mjs`, executado com Edge instalado e fixture artificial, passou em quatro combinações de viewport/tema, incluindo modal, drill-down, reload e overflow. Não é prova com Gold real.
+- Backend: cinco suítes de Ordens e autorização em SQLite descartável no container passaram com 99 testes, 1 ignorado e aviso de depreciação Starlette/httpx. A validação não escreveu no banco operacional; não substitui o ensaio das seis jornadas no navegador com a publicação real.
+- Receita: `scripts.check_revenue_windows`, executado no container Backend com conexão e transação somente leitura, parou porque a publicação local não disponibilizou a decomposição configurada V3. Não houve alteração dos dados. WEB-02 volta a `Em validação` até identificar e carregar, por responsável autorizado, a publicação V3 pretendida e repetir os controles de componentes e agrupamentos. A prova histórica de 06/11 segue limitada ao ambiente e publicação nela identificados. Trello não conectado; sincronização pendente.
+
+### 08/11/2026 — Mapa — tentativa de corrigir espaço após o conteúdo
+
+- A lista de municípios contém os textos acessíveis de cobertura parcial dentro da própria área rolável; antes, esses elementos posicionados fora do fluxo podiam ampliar a rolagem da página após a carga. O layout e a barra lateral permanecem inalterados.
+- Em reprodução isolada no navegador, o documento media 1.880 px para uma janela de 720 px antes da correção e 720 px depois. Os 68 testes do mapa, Prettier do arquivo e `git diff --check` passaram. Inspeção da página autenticada pendente; estados dos requisitos preservados.
+
+### 08/11/2026 — WEB-04 / WEB-05 / WEB-06 — paginação e ajuda
+
+- Operação posiciona a ajuda junto ao subtítulo e usa a paginação compartilhada no ranking e nas ocorrências; alterar a quantidade reinicia a página. Inspeções e Ordens unem listas e paginação na mesma superfície; em Inspeções a ação de investigar fica abaixo do bloco. Sem mudança de estado dos requisitos.
+- Verificações: 234 testes direcionados de Operação, Inspeções, Ordens, UC 360 e paginação passaram; após unir as superfícies, 69 testes de Inspeções e Ordens e build passaram. Lint, fronteiras, formatação e `git diff --check` passaram antes do ajuste visual final, com dois avisos preexistentes de lint. Sem nova inspeção visual ou jornada com API real.
+
+### 08/11/2026 — WEB-01 — alinhamento da ajuda no Panorama
+
+- O acesso “Entenda os indicadores” acompanha a linha do subtítulo do Panorama, com quebra em telas estreitas. Alteração de apresentação em `frontend/src/features/panorama/PanoramaPage.tsx`, sem mudança de dados ou estado do requisito.
+- Verificações: `npm test -- --run src/features/panorama/PanoramaPage.test.tsx` (24 testes) e Prettier do arquivo passaram. Sem nova inspeção visual no navegador.
+
+### 08/11/2026 — WEB-03 / WEB-04 / WEB-05 — paginação das jornadas
+
+- UC 360, Inspeções e Ordens usam navegação numérica à esquerda e seleção de quantidade por página à direita. A busca e o histórico da UC passam a enviar o tamanho escolhido à API; trocar a quantidade retorna à primeira página e preserva os filtros. Em Ordens, a quantidade não é repetida no resumo de filtros. Sem mudança de estado dos requisitos.
+- Arquivos: `frontend/src/shared/ui/Pagination.tsx` e features `uc360`, `inspecoes` e `ordens`. Verificações: 174 testes direcionados, `npm run build`, `npm run lint`, `npm run check:boundaries`, `npm run format:check` e `git diff --check` passaram; lint com dois avisos preexistentes. Sem inspeção visual no navegador nem jornada com API real nesta alteração.
+
+### 08/11/2026 — WEB-03 — simplificação dos estados nas tabelas
+
+- A coluna Situação do histórico de consumo foi retirada. Estados parciais ou indisponíveis continuam identificados junto às competências afetadas; a coluna Dados do resumo e outras situações de negócio permanecem nas respectivas tabelas. Sem mudança de contrato ou estado do requisito.
+- Verificações: `npm test -- --run src/features/uc360` (38 testes), `npm run build`, `npm run lint`, `npm run check:boundaries` e `npm run format:check` passaram; lint com dois avisos preexistentes. Sem nova inspeção visual ou jornada com API real.
+
+### 08/11/2026 — WEB-03 — alinhamento da comparação anual
+
+- Os períodos da comparação anual foram deslocados para a altura do texto explicativo em telas largas, sem alterar cálculos, dados ou estado do requisito. Arquivo: `frontend/src/features/uc360/UC360Detail.tsx`.
+- Verificação: formatação do arquivo e `git diff --check`; sem nova inspeção visual no navegador ou jornada com API real.
+
+### 08/11/2026 — WEB-03 — refinamentos da UC 360
+
+- A comparação mantém valores sem fundo colorido; a ajuda acompanha o subtítulo da busca e o cadastro no detalhe, e remove texto redundante. A busca e o histórico usam paginação numérica; o aviso sobre medidor aparece na seção de medidores e preserva a incerteza de vigência. Alterações de apresentação, sem mudança de contrato ou de estado do requisito.
+- Verificações: `npm test -- --run src/features/uc360 src/shared/help` (43 testes), `npm run build`, `npm run lint`, `npm run check:boundaries` e `npm run format:check` passaram; lint com dois avisos preexistentes. Sem inspeção visual no navegador ou jornada com API real.
+
+### 08/11/2026 — WEB-03 — apresentação da comparação e do histórico
+
+- Os valores da comparação anual usam rótulos e destaque consistentes; o histórico apresenta os registros antes dos avisos, preservando o estado e as limitações da fonte. Alteração visual em `UC360Detail.tsx` e `UC360History.tsx`, sem mudança de dados ou do estado do requisito.
+- Verificações: `npm test -- --run src/features/uc360` (37 testes), `npm run build`, `npm run lint`, `npm run check:boundaries` e `npm run format:check` passaram; lint com dois avisos preexistentes. Não houve inspeção visual no navegador nem validação com API real nesta alteração.
+
+### 06/11/2026 — WEB-03 — organização da UC 360 para atendimento
+
+- Estado preservado: WEB-03 `Concluído`; alteração de apresentação, sem mudança de dados ou contrato.
+- A identificação do titular ganhou destaque, o consumo é comparado no topo com o mesmo mês do ano anterior quando há dados, e o histórico paginado por fonte fica visível na página. Os cartões comparativos redundantes foram retirados; a tabela de consumo permanece. O período usa o seletor compartilhado de mês e ano.
+- Verificações e limites: `npm test -- src/features/uc360` passou com 37 testes; `npm run build`, `npm run lint`, `npm run check:boundaries` e `npm run format:check` passaram; lint apresentou dois avisos preexistentes fora da UC. Não houve revisão visual nem jornada autenticada com API real nesta alteração. A interface distingue ausência de evidência e não infere variação de fatura a partir do consumo.
 
 ### 2026-11-08 — IA-01 / TSQL-12 — envelope de ticket médio
 
@@ -4191,6 +4245,44 @@ Os refinamentos autorizados foram commitados nesta branch: abaf0fd (modal e leit
 
 O catálogo Gold v2 permite contar e ordenar UCs com GD registrada por município no lote. A API autenticada local retornou Recife, 1.420 UCs, reconciliadas com uma agregação SQL independente usando o leitor restrito. A suíte de linguagem de GD e continuidade passou com 18 testes, incluindo confirmação de GD e do limiar de queda sem perder o município. A métrica cadastral não descreve vigência histórica nem comprova origem solar.
 
+### 2026-11-05 — WEB-02 / WEB-07 / ENT-01 — repaginação comercial de Receita
+
+- Aplicação autorizada do [plano de Receita](plans/2026-11-05-receita-repaginacao.md): abas Resumo, Investigar queda e Evolução mensal; três indicadores centrais, preço/volume com demais parcelas sob demanda, diagnóstico de Henrique e investigação município → bairro → classe. Aba e métrica persistem na URL; comparação mensal permanece explicitamente separada das janelas publicadas.
+- Arquivos centrais: `frontend/src/features/receita/ReceitaPage.tsx`, `RevenueOverview.tsx`, `RevenueInvestigation.tsx`, decoder compartilhado, `backend/app/services/gold_revenue.py` e schema analítico. O [contrato](contracts/revenue-dev03.md#extensão-de-leitura-por-janelas--05112026) publica bases P0/P1 e agrupamentos V3, preservando nulidade, componentes e elegibilidade conservadora de percentuais observados. Não altera a fórmula Gold, nem a elegibilidade mensal anterior.
+- Verificações: 58 testes Backend de Receita/cobertura/Mapa passaram; Ruff dirigido passou. Build, lint com avisos preexistentes, formatação e fronteiras passaram. Quatro jornadas Chromium artificiais em desktop/mobile e claro/escuro passaram com modal, drill-down, reload e sem overflow; não são prova Gold. Revisão independente apontou três regressões de contexto/navegação, corrigidas com testes.
+- **Revisão em validação integrada:** o PostgreSQL local disponível não contém decomposição V3 configurada; o controle somente leitura `python -m scripts.check_revenue_windows` parou por indisponibilidade da configuração. Falta reconciliar os novos agrupamentos/bases e validar a jornada autenticada com publicação autorizada V3. A tabela mensal continua acessível nesse cenário. Estado histórico de WEB-02 preservado, sem novo aceite Gold; ENT-01 não é concluído por essa interface. Resultados completos e limites no plano.
+- Regressão final Frontend: `npm.cmd test -- --maxWorkers=2` passou em 560 testes. Processo local 8001 ainda serve contrato anterior, confirmado por ausência de `window_breakdown` no OpenAPI; precisa reiniciar para usar a nova investigação, sem inferir ausência de dados a partir dessa resposta antiga.
+- Trello: quadro canônico não encontrado/acessível pela conexão atual; busca WEB-02 sem resultados. Sincronização pendente. Alterações locais sem commit/push.
+
+### 2026-11-05 — ENT-01 — investigação complementar de GD e volume
+
+- A pedido da pessoa usuária, investigação somente leitura na publicação Gold v2 usada pela API, sem alterar implementação ou fórmulas. Pares UC/mês e piso de seis pares reconstruíram o efeito-volume e reconciliaram com a decomposição publicada a R$ 0,01. Cruzamento com data de conexão e cadastro de GD identificou forte associação temporal; controles dentro de município/classe e sensibilidade de três/nove pares mantiveram o resultado.
+- Método, percentuais agregados, distinção de denominadores e limites em [diagnóstico, seção 11](revenue-diagnosis.md#11-investigação-complementar--gd-e-redução-de-volume-05112026). A associação não mede energia gerada/compensada, não prova causalidade e não classifica GD como perda recuperável. ENT-01 permanece com seu estado anterior; não é novo aceite. Sincronização Trello segue pendente pelo acesso indisponível ao quadro canônico nesta conexão.
+- Continuação com acesso exclusivamente Gold: comparação das mesmas UCs nos seis meses antes/depois da conexão, excluindo o mês da conexão e usando referência sem registro de GD do mesmo município/classe/calendário. Resultados, cobertura, tendência anterior e sensibilidade a quatro/cinco competências válidas em [diagnóstico, seção 12](revenue-diagnosis.md#12-aprofundamento-usando-exclusivamente-gold--antesdepois-da-conexão-05112026). Ambas as execuções concluíram em transação somente leitura. A comparação monolítica anterior excedeu o prazo e foi descartada. Não foram inferidos valores de energia injetada/compensada ausentes na Gold, nem alterada a implementação; estado ENT-01 preservado.
+
+### 2026-11-06 — WEB-02 / WEB-07 / ENT-01 — achados objetivos no Resumo
+
+- Revisão autorizada pela pessoa usuária: remove cartões que duplicavam o gráfico e o texto genérico de Henrique; Resumo recebe achados determinísticos do recorte atual (concentração, parcela de preço anulada pelo volume, UCs faturadas e comparação de consumo por conexão de GD). Histórico mensal deixa a navegação principal e passa a diálogo de apoio, com competências próprias e recortes preservados. Datas do diagnóstico representam as janelas publicadas; primeiro ano/últimos 12 meses só são rotulados assim quando coincidem com o catálogo.
+- `backend/app/services/revenue_diagnosis.py`, repositório Gold, schema e decoder estendem `include_diagnosis` sem custo extra para consumidores padrão. Achados carregam separados dos números básicos; erro não apaga o gráfico. Percentual financeiro conhecido deixa de ser bloqueado por efeito incompleto em outro subgrupo; efeitos só publicam percentuais completos se todas as suas parcelas forem conhecidas. [Método, campos e limites](contracts/revenue-dev03.md#achados-determinísticos-e-histórico-sob-demanda--06112026).
+- Evidência: 64 testes Backend dirigidos e 564 Frontend completos passaram; 51 Frontend dirigidos passaram após o refinamento de rótulos. Build, lint (avisos preexistentes), formatação e fronteiras passaram; quatro jornadas Chromium artificiais em claro/escuro e desktop/mobile passaram com histórico, tabela, recortes e reload. API autenticada total/residencial respondeu na mesma publicação v2, conferida contra o baseline independente já registrado; consumidor padrão preservou diagnóstico nulo. Não foram publicadas tarifas homologadas, energia gerada/compensada ou causa identificada.
+- Limites, comandos e revisão em [plano de execução](plans/2026-11-06-receita-achados-gold.md). A revisão independente não executou por limite do serviço; houve revisão própria e regressão adicional para impedir compensação indevida entre classes no denominador da participação de GD. Sem novo aceite ENT-01 ou alteração de estado oficial. Trello permanece pendente: quadro canônico indisponível à conexão atual. Alterações locais, sem commit/push.
+
+### 2026-11-06 — WEB-02 / WEB-07 — ajustes de filtros e percurso da Receita
+
+- Barra identifica “Comparação” e “Recorte”; o formulário abre com o recorte efetivo, consolida a edição na URL e limpa apenas os campos de escopo visível. Competências do histórico são preservadas quando ocultas. Alimentador não é opção comum; links legados exibem remoção explícita.
+- Investigação esclarece que o ranking compara impacto monetário, não variação percentual de energia; diferencia queda, crescimento/zero e falta de valores; encerra o drill-down na classe e volta aos achados do mesmo recorte com foco. Aba ativa usa token com contraste adequado. Histórico informa que seus meses não recalculam as janelas publicadas. A interface usa R$ e períodos inicial/final.
+- Gold expõe um par de janelas P0/P1 por publicação, apresentado como contexto da comparação principal. O histórico mensal mantém período próprio.
+- Evidências locais: suíte frontend completa 564/564; suíte Receita após os ajustes 50/50; build, lint, Prettier, fronteiras e quatro jornadas Playwright artificiais (1440/390 px, claro/escuro) aprovados. Fixture visual não substitui a jornada autenticada Gold. Nenhum cálculo ou contrato API foi alterado nesta etapa; ENT-01 e estados oficiais preservados. Sincronização Trello depende do acesso ao quadro canônico.
+
+### 2026-11-07 — WEB-02 — leitura do gráfico de Receita
+
+- A pedido da pessoa usuária, o resumo troca os textos extensos por “Dados parciais” quando aplicável. A distinção entre preço observado, tarifa homologada e energia faturada e a quantidade de grupos incompletos ficam no modal de fundamentos; cálculos e estados oficiais não mudaram.
+- Evidências: `npm.cmd test -- --run src/features/receita --maxWorkers=2` (50 passaram); `npm.cmd run build` e `npm.cmd run check:boundaries` passaram; `npm.cmd run lint` passou com dois avisos preexistentes. Não houve nova inspeção visual ou reconciliação Gold nesta alteração.
+
+### 2026-11-07 — WEB-01 / WEB-02 / WEB-03 / WEB-06 / IA-05 — alinhamento da ajuda
+
+- Ajuda de indicadores alinhada ao subtítulo dos cabeçalhos, inclusive no detalhe de UC; removido texto redundante sob o resumo de filtros de Receita. Os estados oficiais e cálculos permanecem iguais.
+- Testes dirigidos de Receita, UC 360, Panorama, Operação e ajuda: 202 passaram. Build, formatação e fronteiras passaram; lint passou com dois avisos preexistentes. Esta alteração não inclui nova validação visual ou reconciliação Gold.
 ### 05/11/2026 — IA-01/02/03/05/06/07/08 e ENT-01 — conferência detalhada do diagnóstico
 
 - Branch `feat/genai-diagnostico-final`, base `origin/develop` em `0511232`; entrega de preparação/diagnóstico, sem alteração dos estados oficiais dos requisitos.

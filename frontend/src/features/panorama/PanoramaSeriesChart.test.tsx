@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PanoramaSeriesChart from "./PanoramaSeriesChart";
@@ -28,7 +28,87 @@ const data = [
   },
 ];
 
+function monthlyHistory(length: number) {
+  return Array.from({ length }, (_, index) => {
+    const date = new Date(Date.UTC(2022, 6 + index, 1));
+    const competencia = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+    return { ...data[0], competencia, receitaFaturada: 1000 + index };
+  });
+}
+
+/** Faixa ocupada por cada rótulo do eixo X, com folga sobre a largura medida no navegador. */
+function monthLabelRanges(container: HTMLElement) {
+  const labelWidth = 56;
+  return Array.from(container.querySelectorAll("svg text"))
+    .filter((label) => /^[A-Z][a-z]{2}\/\d{4}$/.test(label.textContent ?? ""))
+    .map((label) => {
+      const x = Number(label.getAttribute("x"));
+      const anchor = label.getAttribute("text-anchor");
+      const start =
+        anchor === "start"
+          ? x
+          : anchor === "end"
+            ? x - labelWidth
+            : x - labelWidth / 2;
+      return {
+        text: label.textContent,
+        start,
+        end: start + labelWidth,
+      };
+    });
+}
+
 describe("PanoramaSeriesChart", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([360, 560, 640, 720, 784, 900, 1100, 1300, 1600])(
+    "não sobrepõe rótulos do eixo X em nenhuma janela com %ipx",
+    async (width) => {
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
+        width,
+      } as DOMRect);
+      const user = userEvent.setup();
+      const { container } = render(
+        <PanoramaSeriesChart
+          data={monthlyHistory(48)}
+          selectedPeriod="2026-06"
+        />,
+      );
+
+      for (const name of ["12 meses", "24 meses", "Todo o histórico"]) {
+        await user.click(screen.getByRole("button", { name }));
+        const ranges = monthLabelRanges(container);
+        expect(ranges.at(-1)?.text).toBe("Jun/2026");
+        ranges.slice(1).forEach((range, index) => {
+          expect(
+            range.start,
+            `${name}: ${ranges[index].text} colide com ${range.text}`,
+          ).toBeGreaterThanOrEqual(ranges[index].end);
+        });
+      }
+    },
+  );
+
+  it("mantém um ponto por mês ao esconder o rótulo que colidiria", () => {
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
+      width: 784,
+    } as DOMRect);
+    const { container } = render(
+      <PanoramaSeriesChart
+        data={monthlyHistory(48)}
+        selectedPeriod="2026-06"
+      />,
+    );
+
+    const labels = monthLabelRanges(container).map((range) => range.text);
+    expect(labels).toContain("Jun/2026");
+    expect(labels).not.toContain("Mai/2026");
+    expect(screen.getAllByRole("img", { name: /^Exibir / })).toHaveLength(12);
+    expect(
+      screen.getByRole("img", { name: /^Exibir Mai\/2026/ }),
+    ).toBeInTheDocument();
+  });
+
   it("explora janelas de 12, 24 e todo o histórico sem alterar a competência limite", async () => {
     const user = userEvent.setup();
     const history = Array.from({ length: 48 }, (_, index) => {
