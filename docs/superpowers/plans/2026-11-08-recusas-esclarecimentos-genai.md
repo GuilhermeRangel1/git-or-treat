@@ -10,7 +10,7 @@
 
 **Spec:** solicitação de 08/11/2026 registrada em “Escopo e comportamento proposto” abaixo; [PRD — IA-01, IA-02, IA-03, IA-06 e avaliação IA-08](../../PRD.md); [contrato F1](../../contracts/text-to-sql-f1.md); [ADR-0025](../../decisions/0025-text-to-sql-generativo.md).
 
-**Estado (08/11/2026):** Tasks 1 a 7 implementadas na branch, sem commit; itens que dependem de ambiente, de revisão humana ou de autorização estão listados em “Pendências finais” e seguem abertos. Estado anterior: proposta para revisão; somente branch e plano criados. Base `7561a10`, branch `feat/genai-recusas-esclarecimentos`, derivada de `feat/genai-text-to-sql`. Nenhum requisito promovido, nenhuma alteração de runtime ou chamada paga autorizada por este documento.
+**Estado (08/11/2026):** Tasks 1 a 7 implementadas na branch, sem commit. Revalidação pontual adicional registrada em “Pendências finais”; ela não equivale ao benchmark completo nem promove requisito. Base `7561a10`, branch `feat/genai-recusas-esclarecimentos`, derivada de `feat/genai-text-to-sql`.
 
 ## Global Constraints
 
@@ -196,14 +196,27 @@
 - Arquivos e interfaces atuais conferidos por leitura; relato UFC registrado como evidência fornecida pela pessoa, sem inventar execução real adicional.
 - Comandos de teste nas tarefas são instruções futuras; não foram executados nesta entrega. Não houve alteração de código, dataset ou configuração dos containers.
 
-## Pendências finais (08/11/2026)
+## Revalidação pontual e pendências finais (08/11/2026)
 
-1. **Rótulos e reserva:** revisão humana dos rótulos contra o catálogo (os de desenvolvimento ainda estão como `draft_pending_catalog_review`) e uma reserva humana inédita de pelo menos 12 casos; a reserva autoral não foi executada nem deve ajustar prompt.
-2. **Aceite do conjunto de desenvolvimento não atingido** (7 de 47 avaliados divergem; lista na Task 6) e decisão sobre o que é falha do modelo × rótulo: FB-EXT-11, FB-AMB-11, FB-LIM-09, FB-LEG-05/08.
-3. **Mensagem pública com “Gold”:** erros técnicos 503/409 de `ai.py` citam “Gold” (FB-LIM-08/12). Mantido sem alteração por ser vocabulário do produto; recomendo reescrever e atualizar `test_genai_sql_public_route.py:348`, sob confirmação.
-4. **Falhas anteriores à mudança no Backend/portal:** `test_ai_chat` (6), `test_wrong_recuts_are_not_promoted_to_review`, testes de pedidos/analytics e `mostra a resposta F1, tabela decimal exata…` no portal; não foram tratadas aqui.
-5. **Latência e tokens:** comparação de p95 base × candidata sob mesmas condições não foi feita; o coletor de uso registrou zero tokens (não confiável).
-6. **Implantação e reversão:** reconstruir containers com a branch, conferir versões efetivas e validar na tela (os dois UFC, legítimos próximos, resposta curta, capacidade ausente, erro técnico, histórico). Registrar a janela em que conversas salvas com campos novos ficam ilegíveis para o Backend antigo.
-7. **Conferência visual:** navegador desktop/mobile, temas claro e escuro, conversa reaberta; as escolhas ficam desabilitadas após o primeiro clique mesmo se o envio falhar (decisão de simplicidade a rever).
-8. **Cartões do Trello** dos IDs IA/TSQL e promoção de requisitos: não atualizados (sem autorização e sem evidência de aceite).
-9. **Commit/push:** nada foi commitado; formatador do hook reformatou arquivos novos do portal, e os existentes foram editados por script para evitar diff ruidoso.
+### Concluído nesta revalidação
+
+- Ajustado o prompt para o acompanhamento “detalhe o maior deles por município”: município permanece resolvido e a pergunta pede a classe faltante, sem inventar qual liderou. A versão atual é `text-to-sql-f1-37`.
+- Reexecutado `FB-AMB-11` com o gerador Gemini real após o ajuste: passou na resposta esperada de esclarecimento, sem SQL.
+- Executados os outros quatro casos focados (`FB-EXT-11`, `FB-LEG-05`, `FB-LEG-08` e `FB-LIM-09`) com o prompt v37: **4/4 passaram**. Foram 4 chamadas, 39.343 tokens; p50 2.093 ms e p95 2.309 ms. Essa avaliação do gerador não executou SQL nem consultou/enviou dados Gold.
+- Sondagem adicional das entradas: 8 casos processados pelo Gemini — perguntas usuais de faturamento e consumo, GD, período parcial de 2026, ambiguidade, assunto externo/injeção e uma paráfrase cotidiana (“Me diz a receita faturada…”): **8/8 passaram**. Foram 8 chamadas, 79.449 tokens; p50 2.479 ms e p95 3.021 ms. O caso externo de pizza foi barrado pela regra determinística antes do modelo; inicialmente faltava seu `reason_code`. Corrigido para `out_of_domain` e repetido: **1/1 passou com zero chamadas e zero tokens**. Nenhum caso executou SQL ou consultou/enviou dados Gold.
+- Somando as avaliações reais desta etapa e as revalidações anteriores registradas acima: 18 chamadas e 187.315 tokens. Não há medição confiável de custo monetário no relatório; não atribuir valor em dólares. A repetição do bloqueio determinístico não gerou chamada adicional.
+- `observe_sql_generation` agora aplica a decisão de escopo normalizada antes da revisão/admissão. Candidatos sem avaliação de assunto ou contraditórios falham fechados como resposta inválida, antes de qualquer SQL; testes específicos cobrem a decisão ausente e a contradição `out_of_domain` com candidato SQL.
+- Mensagens públicas técnicas atualizadas para não expor o nome interno “Gold”.
+- Fixtures dos testes Backend atualizados para informar o escopo dos candidatos artificiais, sem enfraquecer a checagem de runtime.
+- Verificações: Backend focal, incluindo a rota legada e exemplos explícitos de miojo/bolo/hambúrguer/clima — **94 passaram, 2 ignorados** (`test_genai_sql_observation.py`, `test_genai_sql_public_route.py`, `test_genai_question_feedback.py`, `test_ai_chat.py`); agente — **142 passaram** (`test_sql_generator.py`, `test_genai_feedback_evaluation.py`); `git diff --check` passou.
+
+### Ainda pendente
+
+1. **Revisão de rótulos e holdout:** os casos seguem `draft_pending_catalog_review`; ainda falta revisão humana dos rótulos contra o catálogo e uma reserva inédita de pelo menos 12 casos. Os casos avaliados acima não substituem esse aceite nem podem ser usados para ajustar o holdout.
+2. **Benchmark integral e decisão de promoção:** as duas rodadas foram amostras direcionadas, não o conjunto de desenvolvimento completo. A avaliação anterior registrou 7 divergências em 47 casos; as amostras posteriores corrigiram/revalidaram FB-AMB-11, os quatro IDs focados e a sondagem de entradas, mas não recalcularam a taxa integral nem promovem requisitos.
+3. **Perfil real para `FB-LIM-11`:** o fixture especifica acesso negado antes do modelo e de consultas à fonte. Não foi possível validar isso com um usuário/perfil restrito real nesta etapa; não contornar grants para obter o aceite.
+4. **Cobertura de testes ampla e portal:** `test_ai_chat.py` e os testes focados acima passaram; não foram rodados todos os testes de pedidos/analytics nem a jornada visual do portal. Também não foram reavaliados todos os erros históricos da Task 6.
+5. **Latência comparável e custo:** os números de p50/p95 acima são somente da rodada pontual de quatro casos. Falta comparação base × candidata em condições equivalentes e custo monetário medido de forma confiável; não extrapolar esses resultados.
+6. **Implantação, aceite visual e reversão:** ainda falta reconstruir/levantar os containers desta branch e testar no Assistente os casos externos, legítimos próximos, resposta curta, capacidade ausente, erro técnico e histórico; conferir desktop/mobile, temas claro/escuro e conversa reaberta; documentar e exercitar o rollback e a compatibilidade do histórico.
+7. **Cartões e promoção de requisitos:** cartões Trello dos IDs IA/TSQL e requisitos não foram atualizados/promovidos; fazer somente com evidência de aceite correspondente.
+8. **Commit/push:** as alterações continuam sem commit ou push.
