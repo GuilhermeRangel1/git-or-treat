@@ -193,7 +193,9 @@ async def observe_sql_generation(
                 unsupported_reason={
                     "code": "metric_outside_f1",
                     "message": OUT_OF_DOMAIN_MESSAGE,
+                    "reason_code": "out_of_domain",
                 },
+                scope_assessment={"status": "out_of_domain"},
             ),
             None,
             model_calls=0,
@@ -263,7 +265,12 @@ async def observe_sql_generation(
                 payload, correlation_id=correlation_id
             ),
         )
-    candidate = response.candidate
+    try:
+        candidate = enforce_scope_decision(response.candidate)
+    except ScopeDecisionRejected:
+        # A decisão de escopo é entrada não confiável do modelo; falha fechada
+        # antes de qualquer revisão semântica ou admissão de SQL.
+        raise GenAIResponseInvalid from None
     if candidate.status != "sql_candidate":
         deadline.remaining_seconds(stage_seconds)
         record_sql_stage(

@@ -80,6 +80,7 @@ def test_customer_service_public_route_recognizes_satisfaction_contract(client, 
                     "generation_contract_version": "text-to-sql-f1-v7",
                     "context_version": payload.context_version,
                     "status": "unsupported",
+                    "scope_assessment": {"status": "in_domain"},
                     "semantic_intent": {"metric_id": "service.satisfaction"},
                     "unsupported_reason": {
                         "code": "operation_outside_f1",
@@ -159,6 +160,7 @@ def test_customer_service_public_route_recognizes_accumulated_satisfaction(clien
                     "generation_contract_version": "text-to-sql-f1-v9",
                     "context_version": payload.context_version,
                     "status": "unsupported",
+                    "scope_assessment": {"status": "in_domain"},
                     "semantic_intent": {
                         "metric_id": "service.accumulated_satisfaction",
                     },
@@ -242,6 +244,7 @@ def test_commercial_public_route_recognizes_gd_registry_snapshot(client, monkeyp
                     "generation_contract_version": "text-to-sql-f1-v8",
                     "context_version": payload.context_version,
                     "status": "unsupported",
+                    "scope_assessment": {"status": "in_domain"},
                     "semantic_intent": {"metric_id": "energy.gd_units"},
                     "unsupported_reason": {
                         "code": "operation_outside_f1",
@@ -896,6 +899,7 @@ def test_public_route_domain_policy_without_sql(
                 "generation_contract_version": context["generation_contract_version"],
                 "context_version": payload.context_version,
                 "status": expected,
+                "scope_assessment": {"status": "in_domain"},
             }
             if expected == "unsupported":
                 candidate["semantic_intent"] = {"metric_id": "energy.consumption"}
