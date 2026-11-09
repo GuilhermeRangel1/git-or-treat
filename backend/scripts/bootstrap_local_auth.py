@@ -16,7 +16,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.core.config import settings
-from app.core.passwords import hash_password
+from app.core.passwords import hash_password, verify_password
 from app.core.platform_access import PlatformProfile
 from app.models.auth import AuthUser
 
@@ -81,10 +81,16 @@ def main() -> int:
                 username = raw_username.strip().casefold()
                 if not 1 <= len(username) <= 128:
                     raise ValueError("Username deve ter entre 1 e 128 caracteres.")
-                existing = db.scalar(select(AuthUser.id).where(AuthUser.username == username))
-                if existing is not None:
+                existing = db.scalar(select(AuthUser).where(AuthUser.username == username))
+                if existing is not None and not presentation:
                     continue
                 password = presentation_password if presentation else secrets.token_urlsafe(32)
+                if existing is not None:
+                    if verify_password(password, existing.password_hash):
+                        continue
+                    existing.password_hash = hash_password(password)
+                    entries.append((role, username, password))
+                    continue
                 db.add(AuthUser(
                     id=str(uuid4()),
                     username=username,

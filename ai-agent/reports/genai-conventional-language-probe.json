@@ -1,0 +1,79 @@
+{
+  "scope": "sonda observacional do interpretador Gemini; 3 perguntas; sem execução SQL/dados",
+  "model": "gemini-3.5-flash-lite",
+  "requests": 3,
+  "retry_attempts": 1,
+  "max_output_tokens_per_request": 512,
+  "cases": [
+    {
+      "id": "CONV-API-01",
+      "question": "Quanto foi o faturamento total em janeiro de 2024?",
+      "expected": {
+        "status": "ready",
+        "metric_id": "billing.revenue",
+        "period_month": "2024-01",
+        "groups": []
+      },
+      "error_type": "ServerError",
+      "provider_status": 503,
+      "matches_expected": false,
+      "elapsed_ms": 1917.66,
+      "usage": []
+    },
+    {
+      "id": "CONV-API-02",
+      "question": "Qual foi o faturamento em janeiro de 2024, dividido por setores?",
+      "expected": {
+        "status": "ready",
+        "metric_id": "billing.revenue",
+        "period_month": "2024-01",
+        "groups": [
+          "customer.consumption_class"
+        ]
+      },
+      "error_type": "ServerError",
+      "provider_status": 503,
+      "matches_expected": false,
+      "elapsed_ms": 2186.32,
+      "usage": []
+    },
+    {
+      "id": "CONV-API-03",
+      "question": "Qual bairro mais perdeu volume residencial no último ano?",
+      "expected": {
+        "status": "needs_clarification",
+        "clarification_fragments": [
+          "energia faturada",
+          "consumo medido"
+        ]
+      },
+      "actual": {
+        "status": "ready",
+        "metric_id": "energy.consumption",
+        "period_phrase": "no último ano",
+        "group_by_dimension_ids": [],
+        "clarification_question": null
+      },
+      "matches_expected": false,
+      "elapsed_ms": 1921.15,
+      "usage": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "model": null,
+          "prompt_version": null,
+          "elapsed_ms": null,
+          "context_bytes": null,
+          "max_output_tokens": null,
+          "temperature": null,
+          "attempts": null,
+          "prompt_tokens": 6317,
+          "output_tokens": 112,
+          "thought_tokens": null,
+          "cached_tokens": null,
+          "total_tokens": 6429
+        }
+      ]
+    }
+  ]
+}

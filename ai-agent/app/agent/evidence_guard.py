@@ -26,6 +26,7 @@ from app.schemas.evidence import (
     GoldBatchRef,
 )
 from app.schemas.read_plan import LogicalReadPlan, WindowKind
+from app.schemas.sql_evidence import SqlEvidence
 
 _PERIOD = re.compile(r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$")
 _BATCH_REF = TypeAdapter(GoldBatchRef)
@@ -359,3 +360,93 @@ class EvidenceGuard:
             ),
             limitations=result.limitations,
         )
+
+    def validate_sql_evidence(
+        self,
+        evidence: SqlEvidence,
+        *,
+        expected_batch_ref: str,
+        expected_context_version: str,
+        allowed_metric_ids: frozenset[str],
+        allowed_dimension_ids: frozenset[str],
+    ) -> SqlEvidence:
+        """Revalida evidência SQL F1 sem projetá-la para um plano legado.
+
+        Os parâmetros `expected_*` precisam vir do contexto autenticado e da
+        publicação resolvida pelo Backend. O digest do envelope detecta
+        corrupção, mas não concede autorização nem prova a semântica da pergunta.
+        """
+        try:
+            checked = SqlEvidence.model_validate(evidence.model_dump(mode="json"))
+            expected_batch_ref = _BATCH_REF.validate_python(expected_batch_ref)
+        except (ValidationError, TypeError, ValueError):
+            raise EvidenceContractInvalid("evidência SQL inválida") from None
+
+        catalog = self._profile.physical_catalog
+        metric = next(
+            (item for item in self._profile.metrics if item.id == checked.metric_id), None
+        )
+        if (
+            self._profile.profile_id != "v-energy-grid-360-gold"
+            or catalog is None
+            or catalog.physical_schema != "gold_v2"
+            or metric is None
+            or checked.source_id != "gold.local"
+            or checked.source_table != (
+                "gold_v2.atendimentos_uc"
+                if checked.metric_id == "service.attendance"
+                else "gold_v2.visao_360_uc"
+                if checked.metric_id == "service.accumulated_attendance"
+                else "gold_v2.indicadores_dec_fec"
+                if checked.metric_id in {
+                    "network.equivalent_interruption_duration",
+                    "network.equivalent_interruption_frequency",
+                }
+                else checked.source_table
+                if checked.metric_id == "billing.revenue"
+                and checked.source_table == "gold_v2.consumo_receita_bairro"
+                else "gold_v2.diagnostico_receita"
+            )
+            or checked.batch_ref != expected_batch_ref
+            or checked.context_version != expected_context_version
+            or checked.metric_id not in allowed_metric_ids
+            or metric.unit != (
+                "protocolos" if checked.metric_id in {
+                    "service.attendance", "service.accumulated_attendance",
+                }
+                else "horas por UC"
+                if checked.metric_id == "network.equivalent_interruption_duration"
+                else "interrupções por UC"
+                if checked.metric_id == "network.equivalent_interruption_frequency"
+                else "kWh" if checked.metric_id == "energy.consumption" else "R$"
+            )
+            or checked.mapping_version != catalog.mapping_version
+            or checked.dictionary_version != catalog.dictionary_version
+        ):
+            raise EvidenceContractInvalid("publicação, catálogo ou escopo da evidência SQL diverge")
+
+        dimension_ids = {
+            "municipality": "geography.municipality",
+            "neighborhood": "geography.neighborhood",
+            "consumption_class": "customer.consumption_class",
+            "feeder": "network.feeder",
+        }
+        used_dimensions = {
+            dimension_ids[item] for item in checked.interpretation.group_by
+            if item in dimension_ids
+        } | {item.dimension_id for item in checked.interpretation.filters}
+        profile_dimensions = {item.id for item in self._profile.dimensions}
+        if (
+            not used_dimensions <= allowed_dimension_ids
+            or not used_dimensions <= profile_dimensions
+        ):
+            raise EvidenceContractInvalid("dimensão da evidência SQL fora do escopo")
+
+        try:
+            size = len(json.dumps(checked.model_dump(mode="json"), ensure_ascii=False,
+                                  allow_nan=False, separators=(",", ":")).encode("utf-8"))
+        except (TypeError, ValueError, UnicodeError):
+            raise EvidenceContractInvalid("evidência SQL não serializável") from None
+        if size > self._max_bytes:
+            raise EvidenceContractInvalid("evidência SQL excede o limite")
+        return checked

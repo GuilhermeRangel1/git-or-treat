@@ -67,6 +67,24 @@ def test_variation_between_two_explicit_months_still_plans_the_comparison():
     assert result["plan"]["comparison_periods"] == ["2025-02", "2025-03"]
 
 
+def test_measured_consumption_neighborhood_ranking_does_not_treat_metric_as_location():
+    result = _plan(
+        "Qual bairro de Lumenia teve a maior queda no consumo medido residencial entre "
+        "janeiro de 2001 e abril de 2001?",
+        dimension_values=[
+            {"dimension_id": "geography.municipality", "values": ["Lumenia"]},
+            {"dimension_id": "geography.neighborhood", "values": ["Quadra A", "Quadra B"]},
+            {"dimension_id": "customer.consumption_class", "values": ["RESIDENCIAL"]},
+        ],
+        competencies=["2001-01", "2001-04"],
+    )
+
+    assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == "energy.consumption"
+    assert result["plan"]["group_by_dimension_ids"] == ["geography.neighborhood"]
+    assert result["plan"]["comparison_periods"] == ["2001-01", "2001-04"]
+
+
 @pytest.mark.parametrize("question,expected", [
     ("Qual foi a receita faturada em Recife em jun/26?",
      "Qual foi a receita faturada em Recife em março de 2025?"),
@@ -333,7 +351,7 @@ def test_follow_up_cannot_drop_comparison_when_switching_to_consumption():
 
 def test_metric_switch_cannot_silently_remove_a_previous_grouped_comparison():
     result = _plan("E a receita?", [
-        {"role": "user", "content": "Qual bairro de Olinda mais perdeu volume residencial "
+        {"role": "user", "content": "Qual bairro de Olinda mais perdeu consumo medido residencial "
          "entre janeiro de 2025 e março de 2025?"},
         {"role": "assistant", "content": "Resultado da comparação."},
     ])
@@ -543,9 +561,8 @@ def test_new_case_question_does_not_inherit_an_unresolved_solar_indicator(with_c
     question = "Qual bairro mais perdeu volume residencial no último ano?"
     result = _plan(question, context)
     assert result["status"] == "needs_clarification", result
-    assert result["response"]["message"].split("\n\nExemplo de pergunta:")[0] == (
-        "Qual período deve servir de base para essa comparação?"
-    )
+    assert "Gold v2 não publica essa medida" in result["response"]["message"]
+    assert "consumo medido é outro indicador" in result["response"]["message"]
     assert result == _plan(question)
 
 
@@ -594,7 +611,6 @@ def test_explicit_follow_up_still_preserves_period_and_class():
 @pytest.mark.parametrize("question", [
     "Receita e consumo em março de 2025?",
     "Qual foi a receita?",
-    "Qual bairro mais perdeu volume residencial no último ano?",
     "Quantas UCs com solar em Olinda tiveram queda de consumo acima de 30%?",
 ])
 def test_clarification_has_a_complete_example_that_is_accepted_in_the_same_scope(question):
@@ -616,6 +632,16 @@ def test_clarification_has_a_complete_example_that_is_accepted_in_the_same_scope
     if "solar" in question:
         assert "GD" in example and "solar" not in example
         assert follow_up["plan"]["metric_id"] == "energy.gd_consumption_drop"
+
+
+def test_billed_residential_volume_clarification_does_not_silently_suggest_measured_kwh():
+    question = "Qual bairro mais perdeu volume residencial no último ano?"
+    result = _plan(question)
+    assert result["status"] == "needs_clarification", result
+    message = result["response"]["message"]
+    assert "Gold v2 não publica essa medida" in message
+    assert "consumo medido é outro indicador" in message
+    assert "Exemplo de pergunta:" not in message
 
 
 def test_example_uses_published_months_and_does_not_break_a_short_period_reply():

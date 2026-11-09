@@ -13,11 +13,12 @@ from sqlalchemy.engine import make_url
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.core.config import settings
 from app.core.genai_gold_access import GOLD_DIMENSIONS, GOLD_METRICS
+from app.models.gold_v2 import TABLES
 from app.repositories.gold_publication import current_publication
 from app.schemas.genai_audit import BackendAuditEvent
 from app.services.genai_audit import AuditStore
+from app.services.genai_sql_live_catalog import assert_live_f1_catalog
 from app.services.gold_catalog import gold_physical_catalog, load_gold_catalog
-from app.models.gold_v2 import TABLES
 
 
 async def check_runtime() -> dict[str, str]:
@@ -94,6 +95,10 @@ async def check_runtime() -> dict[str, str]:
                 return checks
             checks["publication"] = "ready"
             catalog = load_gold_catalog()
+            assert_live_f1_catalog(
+                connection,
+                frozenset({"geography.municipality", "customer.consumption_class"}),
+            )
             inspector = inspect(connection)
             observed = {}
             for metric in catalog.metrics:

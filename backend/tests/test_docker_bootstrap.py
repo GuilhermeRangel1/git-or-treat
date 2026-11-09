@@ -48,3 +48,54 @@ def test_presentation_requires_explicit_docker_opt_in(monkeypatch, tmp_path):
     monkeypatch.delenv("DOCKER_BOOTSTRAP", raising=False)
     assert bootstrap_local_auth.main() == 1
     assert not (tmp_path / "credentials.txt").exists()
+
+
+def test_presentation_bootstrap_resets_only_selected_local_password(tmp_path, monkeypatch, capsys):
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import Session
+
+    from app.core.database import Base
+    from app.core.passwords import hash_password, verify_password
+    from app.core.platform_access import PlatformProfile
+    from app.models.auth import AuthUser
+
+    database_url = f"sqlite:///{(tmp_path / 'presentation.sqlite').as_posix()}"
+    engine = create_engine(database_url, execution_options={
+        "schema_translate_map": {"gold": None, "gold_v2": None, "gold_cadastro": None}
+    })
+    Base.metadata.create_all(bind=engine)
+    with Session(engine) as db, db.begin():
+        db.add(AuthUser(
+            id="existing-commercial", username="comercial-demo", password_hash=hash_password("old-password"),
+            permissions=["orders:write"], is_active=True, profile=PlatformProfile.COMMERCIAL.value,
+        ))
+    engine.dispose()
+
+    credentials_path = tmp_path / "credentials.txt"
+    monkeypatch.setattr(sys, "argv", [
+        "bootstrap_local_auth.py", "--database-url", database_url,
+        "--output", str(credentials_path), "--commercial-username", "comercial-demo",
+    ])
+    monkeypatch.setattr(bootstrap_local_auth.settings, "APP_ENV", "development")
+    monkeypatch.setenv("DOCKER_BOOTSTRAP", "true")
+    monkeypatch.setenv("LOCAL_PRESENTATION_ACCOUNTS", "true")
+    monkeypatch.setenv("LOCAL_PRESENTATION_PASSWORD", "senha123")
+
+    assert bootstrap_local_auth.main() == 0
+    assert "commercial username: comercial-demo" in credentials_path.read_text(encoding="utf-8")
+    assert "commercial password: senha123" in credentials_path.read_text(encoding="utf-8")
+    assert "senha123" not in capsys.readouterr().out
+
+    verify = create_engine(database_url, execution_options={
+        "schema_translate_map": {"gold": None, "gold_v2": None, "gold_cadastro": None}
+    })
+    try:
+        with Session(verify) as db:
+            account = db.scalar(select(AuthUser).where(AuthUser.username == "comercial-demo"))
+            assert account is not None
+            assert verify_password("senha123", account.password_hash)
+            assert account.profile == PlatformProfile.COMMERCIAL.value
+            assert account.permissions == ["orders:write"]
+            assert account.is_active is True
+    finally:
+        verify.dispose()

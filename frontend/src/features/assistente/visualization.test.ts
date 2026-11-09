@@ -1,8 +1,89 @@
 import { describe, expect, it } from "vitest";
-import { decodeAIQuestionResponse } from "./contract";
+import {
+  decodeAIQuestionResponse,
+  type SqlAnalysisPresentation,
+} from "./contract";
 import { visualResponse, points } from "./visualization.test-support";
-import { chatChartPoints } from "./visualization";
+import { chatChartPoints, sqlAnalysisVisualization } from "./visualization";
 describe("visualização do chat", () => {
+  it("omite gráfico temporal quando a série tem lacunas ou não está ordenada", () => {
+    const presentation: SqlAnalysisPresentation = {
+      contract_version: "text-to-sql-f1-presentation-v1",
+      state: "ready",
+      operation: "monthly_series",
+      answer: "Série mensal.",
+      period: "2026-01 a 2026-03",
+      filters: [],
+      universe: [],
+      limitations: [],
+      columns: [
+        {
+          key: "competency",
+          label: "Competência",
+          role: "dimension",
+          semantic_id: "competency",
+          unit: null,
+        },
+        {
+          key: "revenue",
+          label: "Faturamento",
+          role: "measure",
+          semantic_id: "revenue_total",
+          unit: "R$",
+        },
+      ],
+      rows: [
+        { observation_id: "row_1", cells: ["2026-01-01", "1.00"] },
+        { observation_id: "row_2", cells: ["2026-03-01", "3.00"] },
+      ],
+      evidence_digest: "a".repeat(64),
+    };
+    expect(sqlAnalysisVisualization(presentation)).toBeUndefined();
+    expect(
+      sqlAnalysisVisualization({
+        ...presentation,
+        rows: [...presentation.rows].reverse(),
+      }),
+    ).toBeUndefined();
+  });
+
+  it("omite gráficos quando a precisão excede o limite seguro do navegador", () => {
+    const presentation: SqlAnalysisPresentation = {
+      contract_version: "text-to-sql-f1-presentation-v1",
+      state: "ready",
+      operation: "grouped_total",
+      answer: "Faturamento por município.",
+      period: "2026-01",
+      filters: [],
+      universe: ["Municípios: todos os valores disponíveis no recorte"],
+      limitations: [],
+      columns: [
+        {
+          key: "municipality",
+          label: "Município",
+          role: "dimension",
+          semantic_id: "municipality",
+          unit: null,
+        },
+        {
+          key: "revenue",
+          label: "Faturamento",
+          role: "measure",
+          semantic_id: "revenue_total",
+          unit: "R$",
+        },
+      ],
+      rows: [
+        {
+          observation_id: "row_1",
+          cells: ["Recife", "9007199254740993.00"],
+        },
+      ],
+      evidence_digest: "a".repeat(64),
+    };
+    expect(sqlAnalysisVisualization(presentation)).toBeUndefined();
+  });
+
   it("preserva os 14 grupos na tabela e agrupa a rosca em seis setores", () => {
     const all = Array.from({ length: 14 }, (_, i) => ({
       observation_id: `row_${i + 1}`,

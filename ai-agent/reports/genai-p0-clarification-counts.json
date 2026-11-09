@@ -1,0 +1,20 @@
+{
+  "scope": "Expected planned is a business oracle, not proof of executable capability; counts are not security refusals.",
+  "datasets": {
+    "gold_p0_diagnostic.json": {
+      "total": 46,
+      "expected_planned": 26,
+      "planned_but_clarified": 3
+    },
+    "gold_p0_user_reported.json": {
+      "total": 7,
+      "expected_planned": 5,
+      "planned_but_clarified": 1
+    },
+    "gold_p0_noncanonical.json": {
+      "total": 2,
+      "expected_planned": 2,
+      "planned_but_clarified": 2
+    }
+  }
+}

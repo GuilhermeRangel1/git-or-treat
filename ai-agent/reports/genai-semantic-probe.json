@@ -1,0 +1,173 @@
+{
+  "scope": "development probe, not quality acceptance",
+  "model": "gemini-3.5-flash-lite",
+  "application_requests": 7,
+  "retry_attempts": 1,
+  "cases": [
+    {
+      "id": "REAL-01",
+      "status": "ready",
+      "intent": {
+        "contract_version": "v1",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "comparison_period_phrases": null,
+        "ranking_direction": "desc",
+        "ranking_limit": 1,
+        "metric_phrase": "faturamento",
+        "period_phrase": "maio de 2025",
+        "geography_phrase": null,
+        "class_phrase": null,
+        "filters": {}
+      },
+      "elapsed_ms": 1886.23,
+      "usage": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "prompt_tokens": 4531,
+          "output_tokens": 122,
+          "thought_tokens": null,
+          "cached_tokens": null,
+          "total_tokens": 4653
+        }
+      ],
+      "cost": null,
+      "cost_unavailable_reason": "pricing_not_configured"
+    },
+    {
+      "id": "REAL-01A",
+      "error_type": "ServerError",
+      "status": 503,
+      "elapsed_ms": 1351.92,
+      "usage": [],
+      "cost": null,
+      "cost_unavailable_reason": "pricing_not_configured"
+    },
+    {
+      "id": "REAL-01B",
+      "status": "ready",
+      "intent": {
+        "contract_version": "v1",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "group_by_dimension_ids": [],
+        "comparison_period_phrases": null,
+        "ranking_direction": null,
+        "ranking_limit": null,
+        "metric_phrase": "faturamento total",
+        "period_phrase": "maio de 2025",
+        "geography_phrase": null,
+        "class_phrase": null,
+        "filters": {}
+      },
+      "elapsed_ms": 1713.44,
+      "usage": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "prompt_tokens": 4529,
+          "output_tokens": 69,
+          "thought_tokens": null,
+          "cached_tokens": null,
+          "total_tokens": 4598
+        }
+      ],
+      "cost": null,
+      "cost_unavailable_reason": "pricing_not_configured"
+    },
+    {
+      "id": "REAL-02",
+      "error_type": "ServerError",
+      "status": 503,
+      "elapsed_ms": 16002.42,
+      "usage": [],
+      "cost": null,
+      "cost_unavailable_reason": "pricing_not_configured"
+    },
+    {
+      "id": "REAL-02A",
+      "status": "ready",
+      "intent": {
+        "contract_version": "v1",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "group_by_dimension_ids": [],
+        "comparison_period_phrases": null,
+        "ranking_direction": null,
+        "ranking_limit": null,
+        "metric_phrase": "faturamento total",
+        "period_phrase": "janeiro de 2024",
+        "geography_phrase": null,
+        "class_phrase": null,
+        "filters": {}
+      },
+      "elapsed_ms": 1082.5,
+      "usage": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "prompt_tokens": 4529,
+          "output_tokens": 40,
+          "thought_tokens": null,
+          "cached_tokens": null,
+          "total_tokens": 4569
+        }
+      ],
+      "cost": null,
+      "cost_unavailable_reason": "pricing_not_configured"
+    },
+    {
+      "id": "REAL-02B",
+      "status": "ready",
+      "intent": {
+        "contract_version": "v1",
+        "domain": "revenue",
+        "metric_id": "billing.revenue",
+        "dimension_ids": [],
+        "group_by_dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "comparison_period_phrases": null,
+        "ranking_direction": null,
+        "ranking_limit": null,
+        "metric_phrase": "faturamento",
+        "period_phrase": "janeiro de 2024",
+        "geography_phrase": null,
+        "class_phrase": "classe de consumo",
+        "filters": {}
+      },
+      "elapsed_ms": 1418.87,
+      "usage": [
+        {
+          "correlation_id": null,
+          "provider": "gemini",
+          "prompt_tokens": 4532,
+          "output_tokens": 104,
+          "thought_tokens": null,
+          "cached_tokens": null,
+          "total_tokens": 4636
+        }
+      ],
+      "cost": null,
+      "cost_unavailable_reason": "pricing_not_configured"
+    },
+    {
+      "id": "REAL-02C",
+      "error_type": "ServerError",
+      "status": 503,
+      "elapsed_ms": 812.99,
+      "usage": [],
+      "cost": null,
+      "cost_unavailable_reason": "pricing_not_configured"
+    }
+  ]
+}

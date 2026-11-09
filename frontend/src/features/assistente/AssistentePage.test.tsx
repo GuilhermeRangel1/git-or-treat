@@ -51,7 +51,111 @@ function renderPage() {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   resetGoldPublication();
+});
+
+it("mostra a resposta F1, tabela decimal exata e gráfico derivado da mesma resposta", async () => {
+  vi.stubEnv("VITE_GENAI_SQL_ANALYSIS_ENABLED", "true");
+  const response = {
+    correlation_id: "0123456789abcdef0123456789abcdef",
+    audit_reference: "abcdef0123456789abcdef0123456789",
+    status: "answered",
+    evidence: {
+      batch_ref:
+        "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+      evidence_digest: "a".repeat(64),
+      evidence_contract_version: "text-to-sql-f1-evidence-v1",
+      source_table: "gold_v2.diagnostico_receita",
+      metric_id: "billing.revenue",
+      coverage_quality: "certified",
+      columns: [
+        { name: "municipality", role: "dimension", unit: null },
+        { name: "revenue", role: "measure", unit: "R$" },
+      ],
+      rows: [
+        ["Recife", "1234.50"],
+        ["Olinda", "975.25"],
+      ],
+    },
+    presentation: {
+      contract_version: "text-to-sql-f1-presentation-v1",
+      state: "ready",
+      operation: "grouped_total",
+      answer: "O faturamento por município está detalhado na tabela.",
+      period: "2025-01 a 2025-12",
+      filters: ["Classe de consumo: Residencial"],
+      universe: ["Municípios: todos os valores disponíveis no recorte"],
+      limitations: [
+        "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
+      ],
+      columns: [
+        {
+          key: "municipality",
+          label: "Município",
+          role: "dimension",
+          semantic_id: "municipality",
+          unit: null,
+        },
+        {
+          key: "revenue",
+          label: "Faturamento",
+          role: "measure",
+          semantic_id: "revenue_total",
+          unit: "R$",
+        },
+      ],
+      rows: [
+        { observation_id: "row_1", cells: ["Recife", "1234.50"] },
+        { observation_id: "row_2", cells: ["Olinda", "975.25"] },
+      ],
+      evidence_digest: "a".repeat(64),
+    },
+  };
+  const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(response));
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderPage();
+
+  expect(
+    screen.queryByRole("checkbox", { name: "Testar análise F1" }),
+  ).not.toBeInTheDocument();
+  await user.type(
+    screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+    "Quanto foi o faturamento por município em 2025?",
+  );
+  await user.keyboard("{Enter}");
+
+  expect(await screen.findByText(response.presentation.answer)).toBeVisible();
+  const resultTable = screen.getByRole("table");
+  expect(resultTable).toBeVisible();
+  expect(within(resultTable).getByText("R$ 1.234,50")).toBeVisible();
+  expect(within(resultTable).getByText("R$ 975,25")).toBeVisible();
+  expect(screen.getAllByText(/Universo: Municípios: todos/)).toHaveLength(2);
+  expect(
+    screen.getByText(/não confirma recebimento ou pagamento/),
+  ).toBeVisible();
+  expect(
+    screen.getByLabelText("Resultados em tabela; use as setas para rolar"),
+  ).toHaveAttribute("tabindex", "0");
+  expect(screen.getByText("Fonte: dados internos da Grid 360")).toBeVisible();
+  expect(screen.getByText(/Detalhes da fonte/)).toBeVisible();
+  expect(
+    screen.getByText(/Gold v2, publicação de 06\/11\/2026/),
+  ).not.toBeVisible();
+  await user.click(screen.getByText("Detalhes da fonte"));
+  expect(screen.getByText(/Gold v2, publicação de 06\/11\/2026/)).toBeVisible();
+  expect(screen.getByText(/Registro de auditoria:/)).toBeVisible();
+  expect(
+    screen.getByRole("region", { name: "Faturamento por município" }),
+  ).toBeVisible();
+  const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+  expect(url).toBe("/api/v1/ai/sql-analyses");
+  expect(JSON.parse(String(options.body))).toEqual({
+    contract_version: "v1",
+    question: "Quanto foi o faturamento por município em 2025?",
+    conversation_id: expect.any(String),
+  });
 });
 
 it.each(["success", "model_failure", "denied"])(
@@ -365,7 +469,7 @@ describe("Assistente Grid 360", () => {
     expect(
       screen.queryByText(`Referência para conferência: ${reference}`),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Fonte de dados interna")).toBeVisible();
+    expect(screen.getByText("Fonte: dados internos da Grid 360")).toBeVisible();
     expect(screen.getByText(": Mai/2026")).toBeVisible();
     expect(screen.queryByText(/Referência para conferência/)).toBeNull();
     expect(screen.queryByText(/Lote consultado/)).toBeNull();
@@ -577,7 +681,7 @@ describe("Assistente Grid 360", () => {
   it.each([
     [
       "refused",
-      "Solicitação recusada",
+      "Posso ajudar com dados de energia",
       "Não posso responder a esse pedido.",
       { code: "out_of_scope", retryable: false },
     ],
@@ -1066,4 +1170,161 @@ it("apresenta gráfico de pontos autorizados e tabela junto à resposta", async 
   expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(4);
   expect(screen.getByRole("button", { name: /PNG/ })).toBeVisible();
   expect(screen.getByRole("button", { name: /CSV/ })).toBeVisible();
+});
+
+describe("recusas e esclarecimentos do Assistente F1", () => {
+  const ids = {
+    correlation_id: "0123456789abcdef0123456789abcdef",
+    audit_reference: "abcdef0123456789abcdef0123456789",
+    evidence: null,
+    presentation: null,
+  };
+  const clarification = (extra: Record<string, unknown>) => ({
+    ...ids,
+    status: "needs_clarification",
+    clarification: {
+      question: "Junho de qual ano?",
+      missing_fields: ["period"],
+      reason_code: "missing_context",
+      ...extra,
+    },
+    unsupported_reason: null,
+  });
+  const refusal = (reason: string | undefined, message: string) => ({
+    ...ids,
+    status: "unsupported",
+    clarification: null,
+    unsupported_reason: {
+      code: "metric_outside_f1",
+      message,
+      ...(reason ? { reason_code: reason } : {}),
+    },
+  });
+
+  async function ask(question: string) {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      question,
+    );
+    await user.keyboard("{Enter}");
+    return user;
+  }
+
+  it("envia a opção escolhida como nova pergunta, uma única vez", async () => {
+    vi.stubEnv("VITE_GENAI_SQL_ANALYSIS_ENABLED", "true");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          clarification({
+            options: [
+              { label: "2025", question: "Qual a receita em junho de 2025?" },
+              { label: "2026", question: "Qual a receita em junho de 2026?" },
+            ],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(refusal(undefined, "Fim do teste.")));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = await ask("Qual a receita em junho?");
+
+    expect(await screen.findByText("Junho de qual ano?")).toBeVisible();
+    const option = screen.getByRole("button", { name: "2025" });
+    await user.click(option);
+    await user.click(option);
+
+    expect(await screen.findByText("Fim do teste.")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const second = JSON.parse(
+      String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body),
+    );
+    expect(second.question).toBe("Qual a receita em junho de 2025?");
+    expect(second.conversation_id).toEqual(expect.any(String));
+    expect(second).not.toHaveProperty("sql");
+    expect(
+      within(screen.getByRole("log")).getByText(
+        "Qual a receita em junho de 2025?",
+      ),
+    ).toBeVisible();
+  });
+
+  it("só mantém ativas as opções da última resposta", async () => {
+    vi.stubEnv("VITE_GENAI_SQL_ANALYSIS_ENABLED", "true");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          clarification({
+            options: [
+              { label: "2025", question: "Qual a receita em junho de 2025?" },
+            ],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          refusal("out_of_domain", "Não tenho dados de eventos esportivos."),
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = await ask("Qual a receita em junho?");
+    await screen.findByText("Junho de qual ano?");
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "Qual a receita da luta de UFC em janeiro de 2024?",
+    );
+    await user.keyboard("{Enter}");
+
+    expect(
+      await screen.findByText("Não tenho dados de eventos esportivos."),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "2025" })).toBeDisabled();
+    expect(
+      screen.getByRole("heading", {
+        name: "Posso ajudar com dados de energia",
+      }),
+    ).toBeVisible();
+  });
+
+  it("mostra cobertura insuficiente e capacidade ausente com títulos próprios, sem tabela", async () => {
+    vi.stubEnv("VITE_GENAI_SQL_ANALYSIS_ENABLED", "true");
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            refusal(
+              "insufficient_coverage",
+              "Faltam julho a dezembro de 2026.",
+            ),
+          ),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(
+            refusal("unsupported_capability", "A previsão ainda não existe."),
+          ),
+        ),
+    );
+    const user = await ask("Qual a receita de 2026 fechado?");
+    expect(
+      await screen.findByRole("heading", {
+        name: "Os dados não cobrem todo o período",
+      }),
+    ).toBeVisible();
+    await user.type(
+      screen.getByRole("textbox", { name: "Escreva sua pergunta" }),
+      "Faça uma previsão para 2027.",
+    );
+    await user.keyboard("{Enter}");
+    expect(
+      await screen.findByRole("heading", {
+        name: "Essa análise ainda não está disponível",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Solicitação recusada")).not.toBeInTheDocument();
+  });
 });

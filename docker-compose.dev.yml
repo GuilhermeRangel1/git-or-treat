@@ -1,18 +1,34 @@
 # Desenvolvimento explícito; a fonte continua sendo Gold v2.
 services:
+  gold-loader:
+    environment:
+      LOCAL_PRESENTATION_ACCOUNTS: "true"
+      LOCAL_PRESENTATION_PASSWORD: ${LOCAL_PRESENTATION_PASSWORD:-senha123}
   backend:
     environment:
       APP_ENV: development
+      GENAI_PRICE_VOLUME_STAGING_DIR: /staging/price-volume
     command: [uvicorn, app.main:app, --host, "0.0.0.0", --port, "8000", --reload]
     volumes:
       - ./backend:/app
+      - ./work/tsql11-price-volume-staging:/staging/price-volume:ro
   frontend:
     build:
       dockerfile: frontend/Dockerfile.dev
     environment:
       VITE_API_URL: /
+      VITE_GENAI_SQL_ANALYSIS_ENABLED: ${VITE_GENAI_SQL_ANALYSIS_ENABLED:-true}
       API_PROXY_TARGET: http://backend:8000
       DEV_USE_POLLING: "false"
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5173/').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 3s
+      retries: 3

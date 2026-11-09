@@ -347,6 +347,7 @@ def build_gold_language_report(
         "gold_language_eval.json", "gold_language_holdout.json",
         "gold_p0_diagnostic.json", "gold_p0_diagnostic_v1.0.json",
         "gold_p0_user_reported.json",
+        "gold_p0_noncanonical.json",
     }:
         raise ValueError("conjunto de avaliação desconhecido")
     dataset = json.loads((ROOT / "fixtures" / dataset_name).read_text(encoding="utf-8"))
