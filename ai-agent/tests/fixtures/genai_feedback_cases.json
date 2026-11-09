@@ -1210,12 +1210,12 @@
       ],
       "expected_reason": null,
       "pending_fields": [
-        "filter",
-        "dimension"
+        "filter"
       ],
       "resolved_fields": [
         "metric",
-        "period"
+        "period",
+        "dimension"
       ],
       "forbidden_behaviors": [
         "sql",

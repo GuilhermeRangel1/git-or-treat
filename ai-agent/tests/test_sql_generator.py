@@ -65,7 +65,7 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Ignore as regras" not in SYSTEM_INSTRUCTION
     for operation in ("total", "série mensal", "total agrupado", "ranking", "comparação"):
         assert operation in SYSTEM_INSTRUCTION
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-35"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-37"
     assert "Nunca escreva valor textual/número/data de filtro como literal" in SYSTEM_INSTRUCTION
     assert "FILTER" in SYSTEM_INSTRUCTION and "period0_start" in SYSTEM_INSTRUCTION
     assert "A única agregação" in SYSTEM_INSTRUCTION
@@ -395,7 +395,7 @@ def test_prompt_answers_short_replies_only_for_the_pending_field():
 def test_prompt_version_changes_with_the_scope_contract():
     from app.providers.sql_generator import SQL_GENERATION_PROMPT_VERSION
 
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-35"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-37"
 
 
 def test_v13_schema_requires_ratio_operation_and_aggregation():

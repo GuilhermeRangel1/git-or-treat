@@ -958,7 +958,7 @@ async def ask_genai_question(
             status_code=503,
             code="service_unavailable",
             retryable=True,
-            message="A consulta Gold está temporariamente indisponível.",
+            message="Não foi possível consultar os dados agora. Tente novamente em instantes.",
         )
     except GoldCoverageUnavailable:
         return _question_error(
@@ -1065,7 +1065,7 @@ async def generate_panorama_insight(
             status_code=503,
             code="service_unavailable",
             retryable=False,
-            message="A interpretação Gold está temporariamente indisponível.",
+            message="Não foi possível gerar a interpretação agora. Tente novamente em instantes.",
         )
     except GenAITimeout:
         return _question_error(

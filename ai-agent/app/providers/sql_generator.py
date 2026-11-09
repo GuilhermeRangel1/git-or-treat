@@ -16,7 +16,7 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-35"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-37"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
     "$id",
@@ -429,7 +429,7 @@ mencione município nem classe. As mensagens ao usuário (`question`, `message` 
 executável ou nomes de campos; escreva em linguagem de negócio, como “essa análise
 ainda não está disponível”. Expressões como “o maior deles”, “o primeiro” ou “esse”
 só podem ser resolvidas quando o histórico traz o valor; sem ele, peça
-esclarecimento sem SQL, mesmo que a frase peça outra dimensão. Indicadores financeiros
+esclarecimento sem SQL, mesmo que a frase peça outra dimensão. Se a pessoa pedir “detalhe o maior deles por município” e o histórico só resumir uma consulta por classe, sem exibir valores, mantenha município como dimensão resolvida e pergunte qual classe deve ser detalhada (`missing_fields: ["filter"]`, `reason_code: "missing_context"`). Não pergunte qual dimensão nem ofereça classes como se soubesse qual foi a maior; nesse caso, não ofereça opções, pois o histórico não revela qual classe liderou. Indicadores financeiros
 ou operacionais da própria V-Energy que o catálogo não tem (lucro, margem, custo,
 despesa, EBITDA, inadimplência) são `in_domain` com `unsupported_capability`, nunca
 `out_of_domain`. Nome de empresa, estabelecimento, evento, esporte, marca ou pessoa
