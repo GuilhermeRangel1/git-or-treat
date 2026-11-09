@@ -2,6 +2,7 @@
 
 import copy
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -198,7 +199,7 @@ print(json.dumps({'accepted': accepted, 'rejected': rejected}))
 """
     document = json.loads(SCOPE_EXAMPLES.read_text(encoding="utf-8"))
     result = subprocess.run(
-        [str(ROOT / "backend/.venv/Scripts/python.exe"), "-X", "utf8", "-c", code],
+        [sys.executable, "-X", "utf8", "-c", code],
         input=json.dumps(document),
         cwd=ROOT / "backend",
         capture_output=True,
