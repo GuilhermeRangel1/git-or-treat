@@ -10,6 +10,8 @@ import {
   periodLabel,
 } from "./revenue-diagnosis-format";
 import { usePanoramaRevenueDiagnosis } from "./usePanoramaRevenueDiagnosis";
+import PanoramaDiagnosisInsight from "./PanoramaDiagnosisInsight";
+import { buildRevenueDiagnosisSummary } from "./revenue-diagnosis-summary";
 
 function PeriodTag({
   label,
@@ -57,6 +59,10 @@ export default function PanoramaRevenueDiagnosis({
   const known =
     window && window.status !== "unavailable" && window.status !== "empty";
   const filtered = municipio !== "todos" || classe !== "todas";
+  // A resposta ao Diretor só aparece quando preço > 0, volume < 0 e saldo > 0.
+  const summary = known
+    ? buildRevenueDiagnosisSummary(window, diagnosis)
+    : null;
   const hasRightPanel =
     diagnosis &&
     (diagnosis.concentration ||
@@ -117,15 +123,35 @@ export default function PanoramaRevenueDiagnosis({
 
       {query.data && known ? (
         <>
-          <div
-            className={`grid min-w-0 gap-3 ${hasRightPanel ? "md:grid-cols-2" : ""}`}
-          >
-            <PriceVolumePanel
-              window={window}
-              offset={diagnosis?.volume_offset_percent ?? null}
-            />
-            {diagnosis ? <ConcentrationPanel diagnosis={diagnosis} /> : null}
-          </div>
+          {summary ? (
+            // Telas largas: sub-blocos empilhados à esquerda (2/3) e resposta à
+            // direita (1/3), com a altura da coluna da esquerda. Telas estreitas:
+            // a resposta vem logo depois do título do bloco.
+            <div className="grid min-w-0 gap-3 lg:grid-cols-3">
+              <div className="min-w-0 lg:order-2">
+                <PanoramaDiagnosisInsight summary={summary} />
+              </div>
+              <div className="grid min-w-0 content-start gap-3 lg:order-1 lg:col-span-2">
+                <PriceVolumePanel
+                  window={window}
+                  offset={diagnosis?.volume_offset_percent ?? null}
+                />
+                {diagnosis ? (
+                  <ConcentrationPanel diagnosis={diagnosis} />
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div
+              className={`grid min-w-0 gap-3 ${hasRightPanel ? "md:grid-cols-2" : ""}`}
+            >
+              <PriceVolumePanel
+                window={window}
+                offset={diagnosis?.volume_offset_percent ?? null}
+              />
+              {diagnosis ? <ConcentrationPanel diagnosis={diagnosis} /> : null}
+            </div>
+          )}
           <p className="text-xs leading-4 text-muted">
             {window.status === "partial" ? (
               <>
