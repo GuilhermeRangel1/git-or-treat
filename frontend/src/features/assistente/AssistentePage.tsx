@@ -602,6 +602,51 @@ function AssistantResult({
           </ul>
         </section>
       )}
+      {answered && response.sql_continuity_pair_analysis && (
+        <section
+          aria-label="Resultados de DEC e FEC"
+          className="overflow-hidden rounded-xl border border-divider bg-surface"
+        >
+          <div className="border-b border-divider px-4 py-3">
+            <h3 className="font-semibold text-content">DEC e FEC</h3>
+            <p className="mt-1 text-sm text-muted">
+              Período: {response.sql_continuity_pair_analysis.dec.presentation.period}
+            </p>
+          </div>
+          <div className="grid gap-3 p-4 md:grid-cols-2">
+            <article className="rounded-lg border border-divider p-3">
+              <h4 className="font-semibold text-content">DEC</h4>
+              <p className="mt-2 text-sm text-content">
+                {response.sql_continuity_pair_analysis.dec.presentation.answer}
+              </p>
+            </article>
+            <article className="rounded-lg border border-divider p-3">
+              <h4 className="font-semibold text-content">FEC</h4>
+              <p className="mt-2 text-sm text-content">
+                {response.sql_continuity_pair_analysis.fec.presentation.answer}
+              </p>
+            </article>
+          </div>
+          <details className="border-t border-divider px-4 py-3 text-xs text-muted">
+            <summary className="min-h-9 cursor-pointer py-2 font-medium text-content focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+              Origem e limitações
+            </summary>
+            <div className="space-y-1 break-words pb-2">
+              <p>
+                Publicação Gold: {formatSqlPublication(
+                  response.sql_continuity_pair_analysis.active_gold_batch,
+                )}
+              </p>
+              <p>
+                Evidência: {response.sql_continuity_pair_analysis.evidence_digest}
+              </p>
+              {response.sql_continuity_pair_analysis.limitations.map((limitation) => (
+                <p key={limitation}>{limitation}</p>
+              ))}
+            </div>
+          </details>
+        </section>
+      )}
       {answered &&
         response.sql_presentation?.state === "ready" &&
         !response.visualization &&

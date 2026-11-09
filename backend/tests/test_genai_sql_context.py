@@ -1,11 +1,12 @@
 import json
 
 import pytest
-
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
     build_sql_generation_context,
+    continuity_metric_question,
+    is_explicit_dec_fec_question,
     is_explicit_multi_metric_question,
     is_gd_consumption_drop_question,
     requested_sql_metric_id,
@@ -170,10 +171,10 @@ def test_explicit_gd_consumption_adds_only_the_cadastral_filter_dimension():
     context = build(payload)
     body = json.loads(context.contents)
     assert body["dimensions"]["generation.distributed"] == "possui_gd"
-    assert body["dimension_values"][-1] == {
-        "dimension_id": "generation.distributed",
-        "values": ["Não", "Sim"],
-    }
+    assert {
+        item["dimension_id"]: item["values"]
+        for item in body["dimension_values"]
+    }["generation.distributed"] == ["Não", "Sim"]
     assert "possui_gd" in body["source"]["columns"]
 
 
@@ -519,6 +520,40 @@ def test_continuity_context_exposes_only_feeder_month_measure(
     assert body["metric"]["unit"] == unit
     assert body["source"]["table"] == "indicadores_dec_fec"
     assert set(body["source"]["columns"]) == {"competencia", column, "id_alimentador"}
+
+
+def test_dec_fec_range_in_one_year_uses_weighted_contract():
+    payload = request_payload()
+    metric_id = "network.equivalent_interruption_duration"
+    payload["question"] = "Qual foi o DEC do alimentador ALIM-01 de janeiro a junho de 2026?"
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = ["network.feeder"]
+    payload["temporal_coverage"] = [{
+        "metric_id": metric_id,
+        "kind": "monthly",
+        "competencies": [f"2026-{month:02d}" for month in range(1, 7)],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "network.feeder",
+        "values": ["ALIM-01"],
+    }]
+
+    body = json.loads(build(payload).contents)
+
+    assert body["generation_contract_version"] == "text-to-sql-f1-v12"
+    assert body["rules"]["continuity_operations"] == ["weighted_continuity"]
+
+
+def test_explicit_dec_fec_pair_splits_into_unambiguous_metric_requests():
+    question = "Como ficaram o DEC e o FEC do alimentador ALM-01 de janeiro a junho de 2026?"
+
+    assert is_explicit_dec_fec_question(question)
+    dec_question = continuity_metric_question(question, "DEC")
+    fec_question = continuity_metric_question(question, "FEC")
+    assert "FEC" not in dec_question
+    assert "DEC" not in fec_question
+    assert requested_sql_metric_id(dec_question) == "network.equivalent_interruption_duration"
+    assert requested_sql_metric_id(fec_question) == "network.equivalent_interruption_frequency"
 
 
 def test_explicit_metric_overrides_followup_metric():

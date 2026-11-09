@@ -33,6 +33,8 @@ def assert_live_f1_catalog(
         "service.accumulated_satisfaction",
         "energy.gd_units",
         "energy.gd_consumption_drop",
+        "customer.units_by_class",
+        "inspection.units_by_priority",
         "network.equivalent_interruption_duration",
         "network.equivalent_interruption_frequency",
     }:

@@ -28,6 +28,7 @@ _GROUPS = {
     "neighborhood": "bairro",
     "consumption_class": "classe_consumo",
     "feeder": "id_alimentador",
+    "inspection_priority": "prioridade_inspecao",
 }
 _MONTH = re.compile(r"[0-9]{4}-(0[1-9]|1[0-2])\Z")
 GROWTH_PERCENT_COLUMN = "period_0_growth_percent"
@@ -465,7 +466,11 @@ def review_sql_semantics(
             and intent.aggregation == "sum"
             and not intent.periods
             and not intent.filters
-            and not intent.group_by
+            and intent.group_by in (
+                (),
+                ("consumption_class",) if intent.metric_id == "customer.units_by_class"
+                else ("inspection_priority",),
+            )
             and intent.ranking_direction is None
             and intent.ranking_limit is None,
             "Atendimento acumulado aceita somente o histórico total sem período.",
@@ -660,6 +665,128 @@ def review_sql_semantics(
                     for item in candidate.result_columns
                     if item.role == "measure"
                 ],
+            ),
+            measure_value_type="integer",
+        )
+    if intent.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}:
+        dimension_id = (
+            "customer.consumption_class"
+            if intent.metric_id == "customer.units_by_class"
+            else "inspection.priority"
+        )
+        dimension_column = context["dimensions"][dimension_id]
+        source_table = context["source"]["table"]
+        expected_source = (
+            "visao_360_uc"
+            if intent.metric_id == "customer.units_by_class"
+            else "fila_inspecao"
+        )
+        _require(
+            source_table == expected_source
+            and intent.operation == "snapshot_total"
+            and intent.aggregation == "count_distinct"
+            and not intent.periods
+            and intent.group_by in (
+                (),
+                ("consumption_class",)
+                if intent.metric_id == "customer.units_by_class"
+                else ("inspection_priority",),
+            )
+            and intent.ranking_direction is None
+            and intent.ranking_limit is None
+            and all(item.dimension_id == dimension_id for item in intent.filters),
+            "Contagem cadastral exige retrato Gold e somente o recorte aprovado.",
+        )
+        allowed = next(
+            (item["values"] for item in context["dimension_values"]
+             if item["dimension_id"] == dimension_id),
+            [],
+        )
+        requested = {value.casefold() for item in intent.filters for value in item.values}
+        if intent.metric_id == "inspection.units_by_priority":
+            # The category is approved by the Gold semantic vocabulary. Its
+            # absence in this publication is a valid zero, not missing coverage.
+            allowed = [*allowed, "ALTA - CONSUMO ZERO"]
+            normalized_question = unicodedata.normalize(
+                "NFKD", request.question.casefold()
+            )
+            normalized_question = "".join(
+                char for char in normalized_question
+                if not unicodedata.combining(char)
+            )
+            if re.search(r"\bconsumo\s+zero\b", normalized_question):
+                _require(
+                    requested == {"alta - consumo zero"},
+                    "Consumo zero exige a categoria Gold ALTA - CONSUMO ZERO.",
+                )
+        _require(
+            requested <= {value.casefold() for value in allowed},
+            "Filtro cadastral fora do vocabulário observado na Gold.",
+        )
+        expected = {
+            dimension_column: frozenset(
+                value for item in intent.filters for value in item.values
+            )
+        } if intent.filters else {}
+        where = tree.args.get("where")
+        actual = _selection(where.this, dict(reviewed.parameter_items)) if where else {}
+        _require(actual == expected, "Filtro SQL diverge do retrato cadastral solicitado.")
+        groups = tree.args.get("group")
+        actual_groups = {item.name for item in groups.expressions} if groups else set()
+        expected_groups = {dimension_column} if intent.group_by else set()
+        order = tree.args.get("order")
+        dimension_aliases = {
+            item.name
+            for item in candidate.result_columns
+            if item.role == "dimension"
+        }
+        order_is_dimension_ascending = (
+            order is None
+            or (
+                intent.group_by
+                and len(order.expressions) == 1
+                and type(order.expressions[0]) is exp.Ordered
+                and type(order.expressions[0].this) is exp.Column
+                and order.expressions[0].this.name
+                in ({dimension_column} | dimension_aliases)
+                and not order.expressions[0].args.get("desc")
+            )
+        )
+        measure_outputs = [
+            (output, declared)
+            for output, declared in zip(tree.expressions, candidate.result_columns, strict=True)
+            if declared.role == "measure"
+        ]
+        dimension_outputs = [
+            (output, declared)
+            for output, declared in zip(tree.expressions, candidate.result_columns, strict=True)
+            if declared.role == "dimension"
+        ]
+        _require(
+            actual_groups == expected_groups
+            and order_is_dimension_ascending
+            and not tree.args.get("limit")
+            and len(measure_outputs) == 1
+            and len(dimension_outputs) == (1 if intent.group_by else 0)
+            and measure_outputs[0][1].value_type == "integer"
+            and measure_outputs[0][1].unit == "UCs"
+            and type(measure_outputs[0][0].this) is exp.Count
+            and type(measure_outputs[0][0].this.this) is exp.Distinct
+            and len(measure_outputs[0][0].this.this.expressions) == 1
+            and type(measure_outputs[0][0].this.this.expressions[0]) is exp.Column
+            and measure_outputs[0][0].this.this.expressions[0].name == "id_uc"
+            and all(
+                type(output.this) is exp.Column
+                and output.this.name == dimension_column
+                and declared.role == "dimension"
+                for output, declared in dimension_outputs
+            ),
+            "Contagem cadastral deve contar UCs distintas no retrato e grupo autorizado.",
+        )
+        return replace(
+            _semantic_review(
+                reviewed,
+                [(output.alias, "units_count") for output, _ in measure_outputs],
             ),
             measure_value_type="integer",
         )

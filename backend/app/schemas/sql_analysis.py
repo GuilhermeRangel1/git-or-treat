@@ -123,6 +123,7 @@ class SqlPresentationColumn(BaseModel):
         "municipality",
         "neighborhood",
         "consumption_class",
+        "inspection_priority",
         "revenue_total",
         "energy_total",
         "attendance_total",
@@ -138,6 +139,7 @@ class SqlPresentationColumn(BaseModel):
         "average_consumption_per_uc",
         "average_ticket",
         "effective_tariff",
+        "units_count",
         "period_0_total",
         "period_1_total",
         "period_0_minus_period_1",
@@ -197,6 +199,119 @@ class SqlAnalysisPresentation(BaseModel):
     evidence_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
+class SqlContinuityMetricResult(BaseModel):
+    """One independently validated DEC or FEC result in a paired answer."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    evidence: SqlEvidence
+    presentation: SqlAnalysisPresentation
+
+    @model_validator(mode="after")
+    def validate_metric_presentation(self):
+        from app.services.genai_sql_presentation import present_sql_evidence
+
+        if (
+            self.evidence.metric_id
+            not in {
+                "network.equivalent_interruption_duration",
+                "network.equivalent_interruption_frequency",
+            }
+            or self.evidence.interpretation.operation
+            not in {"weighted_continuity", "grain_read"}
+            or self.presentation != present_sql_evidence(self.evidence)
+        ):
+            raise ValueError("resultado DEC/FEC exige evidência e apresentação compatíveis")
+        return self
+
+
+class SqlContinuityPairAnalysis(BaseModel):
+    """Two separate DEC/FEC calculations over the same publication and scope."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    contract_version: Literal["text-to-sql-f1-continuity-pair-v1"]
+    answer: PresentationText
+    active_gold_batch: str = Field(min_length=1, max_length=200)
+    dec: SqlContinuityMetricResult
+    fec: SqlContinuityMetricResult
+    limitations: tuple[str, ...] = Field(max_length=10)
+    evidence_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def validate_pair(self):
+        dec, fec = self.dec.evidence, self.fec.evidence
+        warning = "Valores observados; cobertura do alimentador não certificada."
+        expected_answer = " ".join(
+            item.removesuffix(f" {warning}")
+            for item in (self.dec.presentation.answer, self.fec.presentation.answer)
+        )
+        expected_limitations = ()
+        if "observed_uncertified" in {dec.coverage_quality, fec.coverage_quality}:
+            expected_answer = f"{expected_answer} {warning}"
+            expected_limitations = (warning,)
+        if (
+            dec.metric_id != "network.equivalent_interruption_duration"
+            or fec.metric_id != "network.equivalent_interruption_frequency"
+            or dec.batch_ref != self.active_gold_batch
+            or fec.batch_ref != self.active_gold_batch
+            or dec.interpretation != fec.interpretation.model_copy(
+                update={"metric_id": dec.metric_id}
+            )
+            or dec.coverage_quality != fec.coverage_quality
+            or self.answer != expected_answer
+            or self.limitations != expected_limitations
+        ):
+            raise ValueError("DEC e FEC devem compartilhar publicação e recorte")
+        base = self.model_dump(mode="json", exclude={"evidence_digest"})
+        actual = hashlib.sha256(
+            json.dumps(
+                base,
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        if actual != self.evidence_digest:
+            raise ValueError("digest da evidência DEC/FEC divergente")
+        return self
+
+    @classmethod
+    def from_evidence(cls, dec: SqlEvidence, fec: SqlEvidence):
+        from app.services.genai_sql_presentation import present_sql_evidence
+
+        dec_presentation = present_sql_evidence(dec)
+        fec_presentation = present_sql_evidence(fec)
+        warning = "Valores observados; cobertura do alimentador não certificada."
+        answer = " ".join(
+            item.removesuffix(f" {warning}")
+            for item in (dec_presentation.answer, fec_presentation.answer)
+        )
+        limitations = []
+        if "observed_uncertified" in {dec.coverage_quality, fec.coverage_quality}:
+            answer = f"{answer} {warning}"
+            limitations.append(warning)
+        payload = {
+            "contract_version": "text-to-sql-f1-continuity-pair-v1",
+            "answer": answer,
+            "active_gold_batch": dec.batch_ref,
+            "dec": {"evidence": dec.model_dump(mode="json"), "presentation": dec_presentation.model_dump(mode="json")},
+            "fec": {"evidence": fec.model_dump(mode="json"), "presentation": fec_presentation.model_dump(mode="json")},
+            "limitations": limitations,
+        }
+        digest = hashlib.sha256(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        return cls(**payload, evidence_digest=digest)
+
+
 class SqlAnalysisResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -208,6 +323,7 @@ class SqlAnalysisResponse(BaseModel):
     evidence: SqlEvidence | None = None
     presentation: SqlAnalysisPresentation | None = None
     compound_analysis: SqlCompoundAnalysis | None = None
+    continuity_pair_analysis: SqlContinuityPairAnalysis | None = None
     clarification: SqlClarification | None = None
     unsupported_reason: SqlUnsupported | None = None
     continuation_token: (
@@ -217,6 +333,16 @@ class SqlAnalysisResponse(BaseModel):
     @model_validator(mode="after")
     def validate_result_shape(self):
         if self.status == "answered":
+            if self.continuity_pair_analysis is not None:
+                if (
+                    self.compound_analysis is not None
+                    or self.evidence is not None
+                    or self.presentation is not None
+                    or self.clarification is not None
+                    or self.unsupported_reason is not None
+                ):
+                    raise ValueError("DEC/FEC composto não pode misturar envelopes")
+                return self
             if self.compound_analysis is not None:
                 if self.evidence is not None or self.presentation is not None or self.clarification is not None or self.unsupported_reason is not None:
                     raise ValueError("evidência composta não pode misturar o envelope de métrica única")
@@ -253,7 +379,7 @@ class SqlAnalysisResponse(BaseModel):
                     or row.cells != self.evidence.rows[index - 1]
                 ):
                     raise ValueError("tabela de apresentação diverge da evidência")
-        elif self.evidence is not None or self.presentation is not None or self.compound_analysis is not None:
+        elif self.evidence is not None or self.presentation is not None or self.compound_analysis is not None or self.continuity_pair_analysis is not None:
             raise ValueError(
                 "estado não respondido não pode incluir resultado quantitativo"
             )
@@ -292,6 +418,15 @@ class SqlAnalysisResponse(BaseModel):
             audit_reference=audit_reference,
             status="answered",
             compound_analysis=analysis,
+        )
+
+    @classmethod
+    def from_continuity_pair(cls, correlation_id, analysis, *, audit_reference):
+        return cls(
+            correlation_id=correlation_id,
+            audit_reference=audit_reference,
+            status="answered",
+            continuity_pair_analysis=analysis,
         )
 
 

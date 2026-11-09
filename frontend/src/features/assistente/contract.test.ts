@@ -814,6 +814,111 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
     expect(result.limitations).toContain(warning);
   });
 
+  it("decodifica a resposta conjunta de DEC e FEC com o mesmo recorte", () => {
+    const warning =
+      "Valores observados; cobertura do alimentador não certificada.";
+    const metricResult = (
+      metricId: string,
+      key: string,
+      meaning: "dec_value" | "fec_value",
+      unit: string,
+      value: string,
+      label: string,
+      answer: string,
+    ) => ({
+      evidence: {
+        ...sqlResponse.evidence,
+        evidence_contract_version: "text-to-sql-f1-evidence-v12",
+        source_table: "gold_v2.indicadores_dec_fec",
+        metric_id: metricId,
+        coverage_quality: "observed_uncertified",
+        status: "available",
+        interpretation: {
+          metric_id: metricId,
+          operation: "weighted_continuity",
+          aggregation: "weighted_ratio",
+          periods: [{ start: "2026-01-01", end: "2026-06-30" }],
+          filters: [
+            {
+              dimension_id: "network.feeder",
+              operator: "eq",
+              values: ["ALM-ABR-001"],
+            },
+          ],
+          group_by: [],
+          ranking_direction: null,
+          ranking_limit: null,
+        },
+        columns: [
+          { name: key, role: "measure", value_type: "decimal", unit },
+          { name: "feeders_included", role: "measure", value_type: "integer", unit: "alimentadores" },
+          { name: "feeders_excluded", role: "measure", value_type: "integer", unit: "alimentadores" },
+        ],
+        measure_semantics: {
+          [key]: meaning,
+          feeders_included: "feeders_included",
+          feeders_excluded: "feeders_excluded",
+        },
+        dimension_semantics: {},
+        rows: [[value, "1", "0"]],
+      },
+      presentation: {
+        ...sqlResponse.presentation,
+        contract_version: "text-to-sql-f1-presentation-v11",
+        state: "ready",
+        operation: "weighted_continuity",
+        answer,
+        period: "2026-01 a 2026-06",
+        filters: ["Alimentador: ALM-ABR-001"],
+        universe: [],
+        limitations: [warning],
+        columns: [
+          { key, label, role: "measure", semantic_id: meaning, unit },
+          { key: "feeders_included", label: "Alimentadores elegíveis", role: "measure", semantic_id: "feeders_included", unit: "alimentadores" },
+          { key: "feeders_excluded", label: "Alimentadores observados excluídos", role: "measure", semantic_id: "feeders_excluded", unit: "alimentadores" },
+        ],
+        rows: [{ observation_id: "row_1", cells: [value, "1", "0"] }],
+      },
+    });
+    const dec = metricResult(
+      "network.equivalent_interruption_duration",
+      "dec_value",
+      "dec_value",
+      "horas por UC",
+      "0.538505",
+      "DEC",
+      `DEC ponderado: 0,538505 horas por UC. ${warning}`,
+    );
+    const fec = metricResult(
+      "network.equivalent_interruption_frequency",
+      "fec_value",
+      "fec_value",
+      "interrupções por UC",
+      "0.299645",
+      "FEC",
+      `FEC ponderado: 0,299645 interrupções por UC. ${warning}`,
+    );
+    const response = decodeSqlAnalysisResponse({
+      correlation_id: sqlResponse.correlation_id,
+      audit_reference: sqlResponse.audit_reference,
+      status: "answered",
+      continuation_token: null,
+      continuity_pair_analysis: {
+        contract_version: "text-to-sql-f1-continuity-pair-v1",
+        answer: `${dec.presentation.answer} ${fec.presentation.answer} ${warning}`,
+        active_gold_batch: sqlResponse.evidence.batch_ref,
+        dec,
+        fec,
+        limitations: [warning],
+        evidence_digest: "d".repeat(64),
+      },
+    });
+
+    expect(response.sql_continuity_pair_analysis).toBeDefined();
+    expect(response.evidence).toHaveLength(2);
+    expect(response.limitations).toContain(warning);
+  });
+
   it("recusa divergência entre a tabela de apresentação e a evidência", () => {
     expect(() =>
       decodeSqlAnalysisResponse({

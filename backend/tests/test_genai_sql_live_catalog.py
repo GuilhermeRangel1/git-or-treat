@@ -45,6 +45,54 @@ def test_live_catalog_accepts_matching_schema_without_reading_gold_rows():
         engine.dispose()
 
 
+@pytest.mark.parametrize(
+    ("metric_id", "capability", "table", "dimension"),
+    [
+        (
+            "customer.units_by_class", "cadastro.ucs_por_classe",
+            "visao_360_uc", "customer.consumption_class",
+        ),
+        (
+            "inspection.units_by_priority", "apoio.fila_inspecao",
+            "fila_inspecao", "inspection.priority",
+        ),
+    ],
+)
+def test_live_catalog_accepts_cadastral_control_sources(
+    metric_id, capability, table, dimension,
+):
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        connection.exec_driver_sql("ATTACH DATABASE ':memory:' AS gold_v2")
+        metadata = MetaData()
+        expected = TABLES[table]
+        Table(
+            expected.name,
+            metadata,
+            *[
+                Column(
+                    column.name,
+                    column.type,
+                    nullable=column.nullable,
+                    primary_key=column.primary_key,
+                )
+                for column in expected.columns
+            ],
+            schema="gold_v2",
+        )
+        metadata.create_all(connection)
+    try:
+        with engine.connect() as connection:
+            assert_live_f1_catalog(
+                connection,
+                frozenset({dimension}),
+                metric_ids=frozenset({metric_id}),
+                source_capability_ids={metric_id: capability},
+            )
+    finally:
+        engine.dispose()
+
+
 @pytest.mark.parametrize("mutation", ["type", "grain"])
 def test_live_catalog_rejects_schema_and_grain_drift(mutation):
     engine = _engine_with_live_table(

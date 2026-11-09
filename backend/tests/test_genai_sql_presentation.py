@@ -5,8 +5,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
-
-from app.schemas.sql_analysis import SqlAnalysisResponse
+from app.schemas.sql_analysis import SqlAnalysisResponse, SqlContinuityPairAnalysis
 from app.schemas.sql_evidence import SqlEvidence, sql_evidence_digest
 from app.schemas.sql_generation import SqlInterpretation, SqlResultColumn
 from app.services.genai_sql_presentation import present_sql_evidence
@@ -237,6 +236,76 @@ def test_weighted_continuity_presents_weighted_value_and_included_excluded_feede
     assert presentation.rows[0].cells == evidence.rows[0]
     assert presentation.columns[1].unit == "alimentadores"
     assert presentation.limitations == ("Valores observados; cobertura do alimentador não certificada.",)
+
+
+def _continuity_evidence(metric_id, value):
+    dec = metric_id.endswith("duration")
+    meaning = "dec_value" if dec else "fec_value"
+    value_name = meaning
+    unit = "horas por UC" if dec else "interrupções por UC"
+    columns = (
+        SqlResultColumn(name=value_name, role="measure", value_type="decimal", unit=unit),
+        SqlResultColumn(name="feeders_included", role="measure", value_type="integer", unit="alimentadores"),
+        SqlResultColumn(name="feeders_excluded", role="measure", value_type="integer", unit="alimentadores"),
+    )
+    row = (value, "1", "0")
+    result = {
+        "columns": [item.name for item in columns],
+        "measure_semantics": [[item.name, item.name] for item in columns],
+        "rows": (row,),
+        "status": "available",
+    }
+    payload = {
+        "evidence_contract_version": "text-to-sql-f1-evidence-v12",
+        "source_id": "gold.local",
+        "source_table": "gold_v2.indicadores_dec_fec",
+        "metric_id": metric_id,
+        "coverage_quality": "observed_uncertified",
+        "batch_ref": "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        "context_version": "a" * 64,
+        "admission_digest": "b" * 64,
+        "execution_digest": "c" * 64,
+        "result_digest": hashlib.sha256(json.dumps(result, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest(),
+        "mapping_version": "gold-catalog-v2",
+        "dictionary_version": "gold-dictionary-v2",
+        "interpretation": SqlInterpretation.model_validate({
+            "metric_id": metric_id,
+            "operation": "weighted_continuity",
+            "aggregation": "weighted_ratio",
+            "periods": [{"start": "2026-01-01", "end": "2026-06-30"}],
+            "filters": [{"dimension_id": "network.feeder", "operator": "eq", "values": ["ALM-ABR-001"]}],
+            "group_by": [], "ranking_direction": None, "ranking_limit": None,
+        }),
+        "columns": columns,
+        "measure_semantics": {item.name: item.name for item in columns},
+        "dimension_semantics": {},
+        "rows": (row,),
+        "status": "available",
+    }
+    provisional = SqlEvidence.model_construct(**payload, evidence_digest="0" * 64)
+    payload["evidence_digest"] = sql_evidence_digest(
+        provisional.model_dump(mode="json", exclude={"evidence_digest"})
+    )
+    return SqlEvidence.model_validate(payload)
+
+
+def test_dec_fec_pair_contains_independent_evidence_and_keeps_coverage_warning():
+    analysis = SqlContinuityPairAnalysis.from_evidence(
+        _continuity_evidence("network.equivalent_interruption_duration", "0.538505"),
+        _continuity_evidence("network.equivalent_interruption_frequency", "0.299645"),
+    )
+    response = SqlAnalysisResponse.from_continuity_pair(
+        "0" * 32, analysis, audit_reference="1" * 32
+    )
+
+    assert response.status == "answered"
+    assert analysis.dec.evidence.metric_id == "network.equivalent_interruption_duration"
+    assert analysis.fec.evidence.metric_id == "network.equivalent_interruption_frequency"
+    assert "0,538505" in analysis.answer
+    assert "0,299645" in analysis.answer
+    assert "Foi incluído 1 alimentador elegível" in analysis.answer
+    assert "nenhum alimentador observado foi excluído" in analysis.answer
+    assert "Valores observados; cobertura do alimentador não certificada." in analysis.limitations
 
 
 def test_neighborhood_dimension_is_presented_as_bairro():

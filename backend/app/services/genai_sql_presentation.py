@@ -15,6 +15,7 @@ _DIMENSIONS = {
     "neighborhood": "Bairro",
     "consumption_class": "Classe de consumo",
     "feeder": "Alimentador",
+    "inspection_priority": "Prioridade de inspeção",
 }
 _MEASURES = {
     "revenue_total": "Faturamento",
@@ -30,6 +31,7 @@ _MEASURES = {
     "feeders_excluded": "Alimentadores observados excluídos",
     "gd_units_total": "UCs com GD",
     "gd_consumption_drop_units": "UCs com GD e queda de consumo >30%",
+    "units_count": "Unidades consumidoras",
     "satisfaction_accumulated_average": "Nota média de satisfação no histórico",
     "period_0_total": "Faturamento no período 1",
     "period_1_total": "Faturamento no período 2",
@@ -42,6 +44,7 @@ _FILTER_DIMENSIONS = {
     "customer.consumption_class": "Classe de consumo",
     "network.feeder": "Alimentador",
     "generation.distributed": "Geração distribuída (cadastro)",
+    "inspection.priority": "Prioridade de inspeção",
 }
 _F1_LIMITATIONS = (
     "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
@@ -81,6 +84,10 @@ def _period(evidence: SqlEvidence) -> str:
     if evidence.metric_id == "energy.gd_consumption_drop":
         return "jul/2022–jun/2023 vs. jul/2025–jun/2026"
     if evidence.interpretation.operation == "snapshot_total":
+        if evidence.metric_id == "inspection.units_by_priority":
+            return "Fila de inspeção no lote"
+        if evidence.metric_id == "customer.units_by_class":
+            return "Cadastro de UCs no lote"
         return "Cadastro de GD no lote"
     windows = evidence.interpretation.periods
     if evidence.interpretation.operation in {
@@ -134,12 +141,14 @@ def _universe(evidence: SqlEvidence) -> tuple[str, ...]:
         "municipality": "Municípios",
         "neighborhood": "Bairros",
         "consumption_class": "Classes de consumo",
+        "inspection_priority": "Prioridades de inspeção",
     }
     ids = {
         "competency": "time.competency",
         "municipality": "geography.municipality",
         "neighborhood": "geography.neighborhood",
         "consumption_class": "customer.consumption_class",
+        "inspection_priority": "inspection.priority",
     }
     return tuple(
         f"{labels[item]}: "
@@ -177,7 +186,11 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
     if filters:
         scope += " (" + "; ".join(filters) + ")"
     metric_label = (
-        "protocolos de atendimento"
+        "unidades consumidoras por classe"
+        if evidence.metric_id == "customer.units_by_class"
+        else "unidades consumidoras por prioridade de inspeção"
+        if evidence.metric_id == "inspection.units_by_priority"
+        else "protocolos de atendimento"
         if evidence.metric_id
         in {
             "service.attendance",
@@ -204,7 +217,9 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         else "faturamento"
     )
     measure_unit = (
-        "pontos"
+        "UCs"
+        if evidence.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}
+        else "pontos"
         if evidence.metric_id == "service.satisfaction"
         else "protocolos"
         if evidence.metric_id
@@ -293,6 +308,26 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         )
 
     if operation == "snapshot_total":
+        if evidence.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}:
+            if evidence.interpretation.group_by:
+                grouping = (
+                    "classe de consumo"
+                    if evidence.metric_id == "customer.units_by_class"
+                    else "prioridade de inspeção"
+                )
+                return f"A quantidade de UCs por {grouping}{scope} está detalhada na tabela."
+            column = next(
+                name for name, meaning in evidence.measure_semantics.items()
+                if meaning == "units_count"
+            )
+            value = evidence.rows[0][next(
+                index for index, item in enumerate(evidence.columns) if item.name == column
+            )]
+            if value is None:
+                return f"A contagem de {metric_label}{scope} está indisponível."
+            if value == "0" and evidence.metric_id == "inspection.units_by_priority":
+                return f"Não há UCs nessa prioridade{scope}; a contagem consultada é zero."
+            return f"Foram identificadas {formatted(value)}{scope}."
         column = next(
             name
             for name, meaning in evidence.measure_semantics.items()
@@ -404,8 +439,20 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
             else "FEC"
         )
         value = values.get("dec_value" if indicator == "DEC" else "fec_value")
-        included = values["feeders_included"] or "0"
-        excluded = values["feeders_excluded"] or "0"
+        included = int(Decimal(str(values["feeders_included"] or "0")))
+        excluded = int(Decimal(str(values["feeders_excluded"] or "0")))
+        included_text = (
+            "Foi incluído 1 alimentador elegível"
+            if included == 1
+            else f"Foram incluídos {included} alimentadores elegíveis"
+        )
+        excluded_text = (
+            "nenhum alimentador observado foi excluído"
+            if excluded == 0
+            else "1 alimentador observado foi excluído"
+            if excluded == 1
+            else f"{excluded} alimentadores observados foram excluídos"
+        )
         window = _period_phrase(
             evidence.interpretation.periods[0].start,
             evidence.interpretation.periods[0].end,
@@ -414,12 +461,12 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
         if value is None:
             return (
                 f"Não houve alimentadores elegíveis para calcular {indicator} em {window}{scope_text}. "
-                f"Foram incluídos {included} e excluídos {excluded} alimentadores observados."
+                f"{included_text}; {excluded_text}."
             )
         return (
             f"{indicator} ponderado em {window}{scope_text}: {formatted(value)}. "
-            f"Foram incluídos {included} alimentadores elegíveis e excluídos {excluded} "
-            "alimentadores observados sem a janela completa, numerador válido ou denominador constante."
+            f"{included_text}; {excluded_text} por falta da janela completa, "
+            "do numerador válido ou do denominador constante."
         )
 
     if operation == "grain_read":
@@ -549,6 +596,10 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
 
 
 def _metric_measure_label(evidence: SqlEvidence, meaning: str) -> str:
+    if evidence.metric_id == "customer.units_by_class":
+        return "Unidades consumidoras"
+    if evidence.metric_id == "inspection.units_by_priority":
+        return "Unidades na fila de inspeção"
     if evidence.metric_id == "service.accumulated_satisfaction":
         return "Nota média de satisfação no histórico"
     if evidence.metric_id == "energy.gd_units":

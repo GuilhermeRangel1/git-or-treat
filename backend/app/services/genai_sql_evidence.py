@@ -28,6 +28,8 @@ _DIMENSIONS = {
     "municipio": "municipality",
     "bairro": "neighborhood",
     "classe_consumo": "consumption_class",
+    "classe": "consumption_class",
+    "prioridade_inspecao": "inspection_priority",
 }
 
 
@@ -183,6 +185,9 @@ def build_sql_evidence(
 
     payload = {
         "evidence_contract_version": (
+            "text-to-sql-f1-evidence-v14"
+            if candidate.interpretation.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}
+            else
             "text-to-sql-f1-evidence-v7"
             if candidate.interpretation.metric_id == "service.satisfaction"
             else "text-to-sql-f1-evidence-v8"
@@ -255,6 +260,7 @@ def build_sql_evidence(
         "text-to-sql-f1-evidence-v11",
         "text-to-sql-f1-evidence-v12",
         "text-to-sql-f1-evidence-v13",
+        "text-to-sql-f1-evidence-v14",
     }:
         digest_payload.pop("coverage_quality", None)
     evidence = SqlEvidence.model_validate(

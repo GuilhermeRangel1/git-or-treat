@@ -39,6 +39,7 @@ Dimension = Literal[
     "customer.consumption_class",
     "network.feeder",
     "generation.distributed",
+    "inspection.priority",
 ]
 
 
@@ -183,6 +184,8 @@ class SqlInterpretation(ClosedModel):
         "energy.gd_consumption_drop",
         "network.equivalent_interruption_duration",
         "network.equivalent_interruption_frequency",
+        "customer.units_by_class",
+        "inspection.units_by_priority",
     ]
     operation: Literal[
         "total",
@@ -199,13 +202,13 @@ class SqlInterpretation(ClosedModel):
         "weighted_continuity",
     ]
     aggregation: Literal[
-        "sum", "count_non_null", "count_gd_drop", "key_grain_read", "average_non_null", "ratio_of_sums", "weighted_ratio"
+        "sum", "count_non_null", "count_distinct", "count_gd_drop", "key_grain_read", "average_non_null", "ratio_of_sums", "weighted_ratio"
     ]
     periods: tuple[SqlPeriod, ...] = Field(max_length=2)
     filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=2)
     group_by: tuple[
         Literal[
-            "competency", "municipality", "neighborhood", "consumption_class", "feeder"
+            "competency", "municipality", "neighborhood", "consumption_class", "feeder", "inspection_priority"
         ],
         ...,
     ] = Field(default=(), max_length=4)
@@ -290,6 +293,27 @@ class SqlInterpretation(ClosedModel):
         ):
             raise ValueError("razão de somas exige métrica F1 compatível sem grupos")
         if self.operation == "snapshot_total":
+            if self.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}:
+                expected_dimension = (
+                    "customer.consumption_class"
+                    if self.metric_id == "customer.units_by_class"
+                    else "inspection.priority"
+                )
+                dimension = (
+                    "consumption_class"
+                    if self.metric_id == "customer.units_by_class"
+                    else "inspection_priority"
+                )
+                if (
+                    self.aggregation != "count_distinct"
+                    or any(item.dimension_id != expected_dimension for item in self.filters)
+                    or len(self.filters) > 1
+                    or self.group_by not in ((), (dimension,))
+                    or self.ranking_direction is not None
+                    or self.ranking_limit is not None
+                ):
+                    raise ValueError("retrato de cadastro admite somente contagem por sua dimensão")
+                return self
             gd_filters = [
                 item
                 for item in self.filters
@@ -503,6 +527,7 @@ GenerationContractVersion = Literal[
     "text-to-sql-f1-v11",
     "text-to-sql-f1-v12",
     "text-to-sql-f1-v13",
+    "text-to-sql-f1-v14",
 ]
 
 
@@ -519,6 +544,7 @@ GenerationContractVersion = Literal[
     "text-to-sql-f1-v11",
     "text-to-sql-f1-v12",
     "text-to-sql-f1-v13",
+    "text-to-sql-f1-v14",
 ]
 
 
@@ -635,6 +661,10 @@ class SqlGenerationCandidate(ClosedModel):
                 )
             ):
                 raise ValueError("F1 v13 só admite ticket médio e preço observado")
+            if self.generation_contract_version == "text-to-sql-f1-v14" and self.interpretation.metric_id not in {
+                "customer.units_by_class", "inspection.units_by_priority"
+            }:
+                raise ValueError("F1 v14 só admite contagens cadastrais C05-C07")
         else:
             if (
                 self.sql is not None

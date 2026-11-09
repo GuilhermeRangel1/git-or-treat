@@ -1,12 +1,14 @@
 """Opt-in HTTP integration against the currently configured Gold v2 reader.
 
-Set TSQL11_LIVE_GOLD_URL explicitly to run. Candidates are fixed; no generation
-model call is made. The authenticated route, admission, restricted SQL executor,
-evidence and audit run normally. Readiness is real for the TSQL-11 cases.
+Set TSQL11_LIVE_GOLD_URL explicitly to run. Candidates are fixed by default;
+TSQL11_LIVE_GEMINI_ROUTE=1 exercises real generation for the released-control
+cases. The authenticated route, admission, restricted SQL executor, evidence,
+audit and Gold readiness run normally.
 """
 
 import json
 import os
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -30,6 +32,15 @@ from tests.test_genai_sql_semantics import (
     weighted_continuity_candidate,
 )
 from tests.test_genai_sql_structure import candidate as candidate_envelope
+
+_CONTROL_CASES = json.loads(
+    (Path(__file__).parent / "fixtures" / "genai_gold_released_controls_c05_c09.json")
+    .read_text(encoding="utf-8")
+)["cases"]
+_CONTROL_CASES_BY_ID = {case["id"]: case for case in _CONTROL_CASES}
+_CADASTRAL_CONTROL_CASES = [
+    case for case in _CONTROL_CASES if case["control"] in {"C05", "C06", "C07"}
+]
 
 
 def _gd_consumption_total_candidate(request):
@@ -350,7 +361,7 @@ def test_public_http_route_executes_gd_drop_against_active_gold(
     )
 
     response = client.post("/api/v1/ai/sql-analyses", json={
-        "question": "Quantas UCs com GD tiveram queda de consumo superior a 30%?",
+        "question": _CONTROL_CASES_BY_ID["CTL-006"]["question"],
     })
 
     assert response.status_code == 200, response.text
@@ -362,10 +373,7 @@ def test_public_http_route_executes_gd_drop_against_active_gold(
     assert len(body["evidence"]["rows"]) == 1
     with live_gold_engine.connect() as connection:
         expected = connection.execute(text(
-            "SELECT COUNT(queda_consumo_superior_30_pct) "
-            "FROM gold_v2.variacao_consumo_uc WHERE possui_gd='Sim' "
-            "AND queda_consumo_superior_30_pct IS TRUE "
-            "AND meses_com_leitura_p1>=6 AND meses_com_leitura_p2>=6"
+            _CONTROL_CASES_BY_ID["CTL-006"]["reference_sql"]
         )).scalar_one()
     assert body["evidence"]["rows"] == [[str(expected)]]
 
@@ -464,7 +472,7 @@ def test_public_http_route_executes_gd_registry_against_active_gold(
     )
 
     response = client.post("/api/v1/ai/sql-analyses", json={
-        "question": "Quantas UCs têm GD?",
+        "question": _CONTROL_CASES_BY_ID["CTL-005"]["question"],
     })
 
     assert response.status_code == 200, response.text
@@ -476,8 +484,7 @@ def test_public_http_route_executes_gd_registry_against_active_gold(
     assert len(body["evidence"]["rows"]) == 1
     with live_gold_engine.connect() as connection:
         expected = connection.execute(text(
-            "SELECT COUNT(possui_gd) FROM gold_v2.variacao_consumo_uc "
-            "WHERE possui_gd='Sim'"
+            _CONTROL_CASES_BY_ID["CTL-005"]["reference_sql"]
         )).scalar_one()
     assert body["evidence"]["rows"] == [[str(expected)]]
 
@@ -747,3 +754,110 @@ def test_public_http_route_executes_tsql11_capabilities_against_active_gold(
         assert int(body["evidence"]["rows"][0][1]) == oracle_row[1]
         assert int(body["evidence"]["rows"][0][2]) == oracle_row[2]
         assert "Valores observados; cobertura do alimentador não certificada." in body["presentation"]["limitations"]
+
+
+@pytest.mark.parametrize(
+    ("case_id", "question", "metric_id", "source_table", "oracle_sql", "expected_groups"),
+    [
+        (
+            case["id"], case["question"], case["metric_id"],
+            case["source_table"], case["reference_sql"], bool(case["group_by"]),
+        )
+            for case in _CADASTRAL_CONTROL_CASES
+    ],
+    ids=[case["id"] for case in _CADASTRAL_CONTROL_CASES],
+)
+def test_public_http_route_executes_c05_c06_c07_against_active_gold(
+    client, monkeypatch, live_gold_engine, case_id, question, metric_id,
+    source_table, oracle_sql, expected_groups,
+):
+    """The authenticated route must match independent SQL on the actual Gold lot.
+
+    With TSQL11_LIVE_GEMINI_ROUTE=1 this bypasses the local count compiler so the
+    same request traverses the real Gemini candidate path as well.
+    """
+    from app.api.v1.endpoints import ai as endpoint
+    from app.services import genai_sql_observation as observation
+
+    batch_ref = GoldPublicationContext.capture(live_gold_engine).batch_ref
+    scope = AccessScope.model_validate({
+        "caller_ref": "session:" + "d" * 64,
+        "profile_id": "v-energy-grid-360-gold", "source_id": "gold.local",
+        "allowed_operations": ["read"],
+        "allowed_metric_ids": [metric_id],
+        "allowed_dimension_ids": [
+            "customer.consumption_class"
+            if metric_id == "customer.units_by_class"
+            else "inspection.priority"
+        ],
+    })
+
+    class ReadinessOnlyClient:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("C05-C07 devem usar a interpretação/consulta determinística")
+
+        async def evaluate_readiness(self, engine, **kwargs):
+            assert kwargs["expected_batch_ref"] == batch_ref
+            assert engine is live_gold_engine
+            async with httpx.AsyncClient(timeout=45, trust_env=False) as transport:
+                return await evaluate_domain_readiness(
+                    live_gold_engine,
+                    http_client=transport,
+                    base_url=str(settings.AI_AGENT_BASE_URL),
+                    service_token=settings.AI_AGENT_SERVICE_API_TOKEN.get_secret_value(),
+                    **kwargs,
+                )
+
+    monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
+    monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", True)
+    monkeypatch.setattr(
+        settings,
+        "GENAI_GOLD_APPROVED_CONTROLS",
+        sorted(set(settings.GENAI_GOLD_APPROVED_CONTROLS) | {"C05", "C06", "C07"}),
+    )
+    monkeypatch.setitem(
+        client.app.dependency_overrides,
+        get_question_gold_resources,
+        lambda: (live_gold_engine, lambda: scope),
+    )
+    if os.getenv("TSQL11_LIVE_GEMINI_ROUTE") == "1":
+        monkeypatch.setattr(
+            observation, "_explicit_control_count_candidate", lambda *_args: None
+        )
+    else:
+        monkeypatch.setitem(
+            client.app.dependency_overrides,
+            endpoint.get_sql_genai_question_client,
+            lambda: ReadinessOnlyClient(),
+        )
+    case = _CONTROL_CASES_BY_ID[case_id]
+    login_as_profile(
+        client, monkeypatch, case.get("profile", "admin"),
+        username=f"sql-live-controls-{uuid4().hex[:10]}",
+    )
+
+    client._transport.raise_server_exceptions = True
+    response = client.post("/api/v1/ai/sql-analyses", json={"question": question})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "answered"
+    evidence = body["evidence"]
+    assert evidence["metric_id"] == metric_id
+    assert evidence["source_table"] == source_table
+    assert evidence["batch_ref"] == batch_ref
+
+    with live_gold_engine.connect() as connection:
+        oracle_rows = connection.execute(text(oracle_sql)).all()
+    actual_rows = evidence["rows"]
+    if expected_groups:
+        expected = {str(row[0]): int(row[1]) for row in oracle_rows}
+        actual = {str(row[0]): int(row[1]) for row in actual_rows}
+        assert actual == expected
+    else:
+        assert len(oracle_rows) == len(actual_rows) == 1
+        assert int(actual_rows[0][-1]) == int(oracle_rows[0][0])
+    if case_id == "CTL-004":
+        assert int(actual_rows[0][-1]) == 0
+        answer = body["presentation"]["answer"].casefold()
+        assert "não há ucs" in answer
+        assert "sem histórico" not in answer

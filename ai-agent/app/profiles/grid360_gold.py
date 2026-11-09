@@ -52,6 +52,7 @@ _DIMENSION_FIELDS = {
     "generation.distributed": "distributed_generation",
     "network.feeder": "feeder",
     "customer.consumer_unit": "consumer_unit",
+    "inspection.priority": "inspection_priority",
 }
 
 
@@ -141,6 +142,19 @@ _DIMENSIONS = (
         ),
     ),
     _dimension("network.feeder", "Alimentador", "other", ("alimentador", "alimentadores")),
+    _dimension(
+        "inspection.priority",
+        "Prioridade de inspeção",
+        "classification",
+        ("prioridade", "prioridades", "prioridade de inspeção", "fila de inspeção"),
+        (
+            {"value": "ALTA - HISTORICO IRREGULAR", "aliases": ("alta por histórico irregular",)},
+            {"value": "ALTA - CONSUMO ZERO", "aliases": ("alta por consumo zero", "consumo zero")},
+            {"value": "BAIXA", "aliases": ("baixa prioridade",)},
+            {"value": "MEDIA - NUNCA INSPECIONADO", "aliases": ("média, nunca inspecionado",)},
+            {"value": "REVISAR - SEM HISTORICO DE CONSUMO", "aliases": ("revisar sem histórico de consumo",)},
+        ),
+    ),
     # Identificador da unidade: interno, não anônimo; acesso real depende de GENAI-06/07.
     _dimension(
         "customer.consumer_unit",
@@ -272,6 +286,14 @@ _BUSINESS_METRICS["energy.gd_units"] = (
         "não informa vigência histórica nem origem solar."
     ),
 )
+_BUSINESS_METRICS["customer.units_by_class"] = (
+    "Unidades consumidoras por classe",
+    "Conta UCs distintas no cadastro publicado, agrupadas pela classe atual; não informa vigência histórica.",
+)
+_BUSINESS_METRICS["inspection.units_by_priority"] = (
+    "Unidades na fila por prioridade",
+    "Conta UCs distintas na fila publicada por prioridade; prioridade de inspeção não é ocorrência confirmada.",
+)
 
 def _metric(
     id_: str,
@@ -303,7 +325,9 @@ def _metric(
             if id_ == "billing.revenue" else
             ("geography.neighborhood", "geography.municipality",
              "customer.consumption_class", "generation.distributed")
-            if id_ == "energy.consumption" else ()
+            if id_ == "energy.consumption" else
+            ("customer.consumption_class",) if id_ == "customer.units_by_class" else
+            ("inspection.priority",) if id_ == "inspection.units_by_priority" else ()
         ),
         "comparison_grouping_dimension_ids": (
             ("geography.neighborhood", "geography.municipality", "customer.consumption_class")
@@ -322,6 +346,26 @@ def _metric(
 
 
 _METRICS = (
+    {
+        **_metric(
+            "customer.units_by_class", "consumption",
+            ("quantidade de ucs por classe", "ucs por classe", "unidades consumidoras por classe", "unidades por classe de consumo"),
+            "UCs", ("count",), ("customer.consumption_class",),
+            ("Retrato do cadastro atual; sem competência histórica." ,), accumulated=True,
+        ),
+        "default_period_phrase": "cadastro atual do lote Gold",
+        "accumulated_period_phrases": ("cadastro atual do lote Gold",),
+    },
+    {
+        **_metric(
+            "inspection.units_by_priority", "consumption",
+            ("quantidade de ucs por prioridade", "ucs por prioridade", "unidades na fila de inspeção", "fila de inspeção por prioridade"),
+            "UCs", ("count",), ("inspection.priority",),
+            ("Retrato da fila publicada; não confirma irregularidade nem consumo zero." ,), accumulated=True,
+        ),
+        "default_period_phrase": "fila de inspeção do lote Gold",
+        "accumulated_period_phrases": ("fila de inspeção do lote Gold",),
+    },
     _metric(
         "billing.revenue",
         "revenue",

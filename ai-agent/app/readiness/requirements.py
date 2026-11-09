@@ -154,7 +154,14 @@ CAPABILITY_REQUIREMENTS: tuple[CapabilityRequirement, ...] = (
         domain=CaseDomain.APOIO,
         tables=(GoldTable.FILA_INSPECAO,),
         required_controls=("C06", "C07"),
-        definition_approved=False,
+        definition_approved=True,
+    ),
+    CapabilityRequirement(
+        id="cadastro.ucs_por_classe",
+        domain=CaseDomain.CONSUMO,
+        tables=(GoldTable.VISAO_360_UC,),
+        required_controls=("C05",),
+        definition_approved=True,
     ),
     # P9: nenhuma tabela de medidor.
     CapabilityRequirement(

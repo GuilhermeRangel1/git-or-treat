@@ -177,6 +177,23 @@ export type AIQuestionResponse = {
   sql_analysis_mode?: boolean;
   sql_presentation?: SqlAnalysisPresentation;
   sql_compound_analysis?: SqlCompoundAnalysis;
+  sql_continuity_pair_analysis?: SqlContinuityPairAnalysis;
+};
+
+export type SqlContinuityPairAnalysis = {
+  contract_version: "text-to-sql-f1-continuity-pair-v1";
+  answer: string;
+  active_gold_batch: string;
+  dec: { evidence: SqlContinuityEvidence; presentation: SqlAnalysisPresentation };
+  fec: { evidence: SqlContinuityEvidence; presentation: SqlAnalysisPresentation };
+  limitations: string[];
+  evidence_digest: string;
+};
+
+type SqlContinuityEvidence = {
+  metric_id: string;
+  batch_ref: string;
+  interpretation: { periods: unknown; filters: unknown };
 };
 
 export type SqlCompoundAnalysis = {
@@ -924,6 +941,7 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           "unsupported_reason",
           "continuation_token",
           "compound_analysis",
+          "continuity_pair_analysis",
         ].includes(key),
     ) ||
     !/^[a-f0-9]{32}$/.test(String(value.correlation_id))
@@ -949,6 +967,7 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
             "clarification",
             "unsupported_reason",
             "compound_analysis",
+            "continuity_pair_analysis",
             "continuation_token",
           ].includes(key),
       ) ||
@@ -1055,6 +1074,104 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
       ...base,
       sql_analysis_mode: true,
       sql_compound_analysis: compound as SqlCompoundAnalysis,
+    };
+  }
+  if (value.status === "answered" && isRecord(value.continuity_pair_analysis)) {
+    const pair = value.continuity_pair_analysis;
+    const digest = /^[a-f0-9]{64}$/;
+    if (
+      Object.keys(value).some(
+        (key) =>
+          ![
+            "correlation_id",
+            "audit_reference",
+            "status",
+            "evidence",
+            "presentation",
+            "clarification",
+            "unsupported_reason",
+            "continuity_pair_analysis",
+            "continuation_token",
+          ].includes(key),
+      ) ||
+      value.evidence != null ||
+      value.presentation != null ||
+      value.clarification != null ||
+      value.unsupported_reason != null ||
+      pair.contract_version !== "text-to-sql-f1-continuity-pair-v1" ||
+      !isText(pair.answer, 4000) ||
+      !isText(pair.active_gold_batch, 200) ||
+      !String(pair.active_gold_batch).startsWith("gold-csv-v2:") ||
+      !digest.test(String(pair.evidence_digest)) ||
+      !Array.isArray(pair.limitations) ||
+      pair.limitations.some((item) => !isText(item, 1000)) ||
+      !isRecord(pair.dec) ||
+      !isRecord(pair.fec)
+    )
+      return fail();
+    const dec = decodeSqlAnalysisResponse({
+      correlation_id: value.correlation_id,
+      audit_reference: value.audit_reference,
+      status: "answered",
+      evidence: pair.dec.evidence,
+      presentation: pair.dec.presentation,
+    });
+    const fec = decodeSqlAnalysisResponse({
+      correlation_id: value.correlation_id,
+      audit_reference: value.audit_reference,
+      status: "answered",
+      evidence: pair.fec.evidence,
+      presentation: pair.fec.presentation,
+    });
+    if (
+      dec.sql_presentation == null ||
+      fec.sql_presentation == null ||
+      !isRecord(pair.dec.evidence) ||
+      !isRecord(pair.fec.evidence) ||
+      pair.dec.evidence.metric_id !== "network.equivalent_interruption_duration" ||
+      pair.fec.evidence.metric_id !== "network.equivalent_interruption_frequency" ||
+      pair.dec.evidence.batch_ref !== pair.active_gold_batch ||
+      pair.fec.evidence.batch_ref !== pair.active_gold_batch ||
+      dec.sql_presentation.period !== fec.sql_presentation.period ||
+      JSON.stringify(
+        (pair.dec.evidence.interpretation as Record<string, unknown>)?.periods,
+      ) !==
+        JSON.stringify(
+          (pair.fec.evidence.interpretation as Record<string, unknown>)?.periods,
+        ) ||
+      JSON.stringify(
+        (pair.dec.evidence.interpretation as Record<string, unknown>)?.filters,
+      ) !==
+        JSON.stringify(
+          (pair.fec.evidence.interpretation as Record<string, unknown>)?.filters,
+        )
+    )
+      return fail();
+    const base = decodeAIQuestionResponse({
+      contract_version: "v1",
+      correlation_id: value.correlation_id,
+      audit_reference: value.audit_reference,
+      status: "answered",
+      answer: pair.answer,
+      evidence: [
+        {
+          source: "gold.local",
+          description: "DEC calculado na publicação Gold v2 ativa.",
+          is_demo: false,
+        },
+        {
+          source: "gold.local",
+          description: "FEC calculado na publicação Gold v2 ativa.",
+          is_demo: false,
+        },
+      ],
+      limitations: pair.limitations,
+      continuation_token: continuationToken as string | null | undefined,
+    });
+    return {
+      ...base,
+      sql_analysis_mode: true,
+      sql_continuity_pair_analysis: pair as SqlContinuityPairAnalysis,
     };
   }
   if (value.status === "answered") {

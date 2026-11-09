@@ -1,0 +1,104 @@
+{
+  "fixture_version": "genai-gold-released-controls-v1",
+  "status": "route_and_independent_sql_acceptance_required",
+  "gold_version": "v2",
+  "profile": "admin",
+  "cases": [
+    {
+      "id": "CTL-001",
+      "control": "C05",
+      "question": "Quantas UCs há por classe de consumo?",
+      "metric_id": "customer.units_by_class",
+      "operation": "snapshot_total",
+      "filters": {},
+      "group_by": [
+        "customer.consumption_class"
+      ],
+      "unit": "UCs",
+      "source_table": "gold_v2.visao_360_uc",
+      "reference_sql": "SELECT classe, COUNT(DISTINCT id_uc) FROM gold_v2.visao_360_uc GROUP BY classe ORDER BY classe",
+      "expected": "Cada classe do lote atual, com contagem distinta reconciliada à consulta independente.",
+      "case_id": "MGC-211"
+    },
+    {
+      "id": "CTL-002",
+      "control": "C05",
+      "question": "Quantas UCs residenciais?",
+      "metric_id": "customer.units_by_class",
+      "operation": "snapshot_total",
+      "filters": {
+        "customer.consumption_class": "RESIDENCIAL"
+      },
+      "group_by": [],
+      "unit": "UCs",
+      "source_table": "gold_v2.visao_360_uc",
+      "reference_sql": "SELECT COUNT(DISTINCT id_uc) FROM gold_v2.visao_360_uc WHERE classe = 'RESIDENCIAL'",
+      "expected": "Contagem de UCs residenciais distintas no cadastro atual, reconciliada à consulta independente.",
+      "case_id": "MGC-212"
+    },
+    {
+      "id": "CTL-003",
+      "control": "C06",
+      "question": "Quantas UCs há em cada prioridade de inspeção?",
+      "metric_id": "inspection.units_by_priority",
+      "operation": "snapshot_total",
+      "filters": {},
+      "group_by": [
+        "inspection.priority"
+      ],
+      "unit": "UCs",
+      "source_table": "gold_v2.fila_inspecao",
+      "reference_sql": "SELECT prioridade_inspecao, COUNT(DISTINCT id_uc) FROM gold_v2.fila_inspecao GROUP BY prioridade_inspecao ORDER BY prioridade_inspecao",
+      "expected": "Contagem distinta por rótulo publicado; prioridade é triagem, não confirmação de irregularidade.",
+      "case_id": "MGC-221"
+    },
+    {
+      "id": "CTL-004",
+      "control": "C07",
+      "question": "Quantas UCs tiveram consumo zero?",
+      "metric_id": "inspection.units_by_priority",
+      "operation": "snapshot_total",
+      "filters": {
+        "inspection.priority": "ALTA - CONSUMO ZERO"
+      },
+      "group_by": [],
+      "unit": "UCs",
+      "source_table": "gold_v2.fila_inspecao",
+      "reference_sql": "SELECT COUNT(DISTINCT id_uc) FROM gold_v2.fila_inspecao WHERE prioridade_inspecao = 'ALTA - CONSUMO ZERO'",
+      "expected": "Contagem zero válida quando a categoria não aparece neste lote; o resultado não é ausência de evidência.",
+      "case_id": "MGC-222"
+    },
+    {
+      "id": "CTL-005",
+      "control": "C08",
+      "question": "Quantas UCs têm GD?",
+      "metric_id": "energy.gd_units",
+      "operation": "snapshot_total",
+      "filters": {
+        "generation.distributed": "Sim"
+      },
+      "group_by": [],
+      "unit": "UCs",
+      "source_table": "gold_v2.variacao_consumo_uc",
+      "reference_sql": "SELECT COUNT(possui_gd) FROM gold_v2.variacao_consumo_uc WHERE possui_gd = 'Sim'",
+      "expected": "Contagem de UCs com GD cadastrada no lote atual; não implica geração efetiva nem causalidade.",
+      "case_id": "MGC-004"
+    },
+    {
+      "id": "CTL-006",
+      "control": "C09",
+      "question": "Quantas UCs com GD tiveram queda de consumo superior a 30%?",
+      "metric_id": "energy.gd_consumption_drop",
+      "operation": "snapshot_total",
+      "filters": {
+        "generation.distributed": "Sim"
+      },
+      "group_by": [],
+      "unit": "UCs",
+      "source_table": "gold_v2.variacao_consumo_uc",
+      "reference_sql": "SELECT COUNT(queda_consumo_superior_30_pct) FROM gold_v2.variacao_consumo_uc WHERE possui_gd = 'Sim' AND queda_consumo_superior_30_pct IS TRUE AND meses_com_leitura_p1 >= 6 AND meses_com_leitura_p2 >= 6",
+      "expected": "Contagem das UCs com GD cuja flag de queda acima de 30% é verdadeira e que têm ao menos seis meses lidos em cada janela; não atribuir causalidade à GD.",
+      "case_id": "MGC-005"
+    }
+  ]
+}

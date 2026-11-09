@@ -44,6 +44,7 @@ from app.schemas.sql_analysis import (
     SqlAnalysisRequest,
     SqlAnalysisResponse,
     SqlCompoundAnalysis,
+    SqlContinuityPairAnalysis,
 )
 from app.services.analytics import AnalyticsAPIError
 from app.services.genai_audit import AuditStore
@@ -84,6 +85,8 @@ from app.services.genai_sql_compound_route import (
 )
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
+    continuity_metric_question,
+    is_explicit_dec_fec_question,
     requested_sql_metric_id,
 )
 from app.services.genai_sql_continuation import (
@@ -177,6 +180,8 @@ async def _run_f1_sql_analysis_impl(
                     "service.accumulated_satisfaction",
                     "energy.gd_units",
                     "energy.gd_consumption_drop",
+                    "customer.units_by_class",
+                    "inspection.units_by_priority",
                     "network.equivalent_interruption_duration",
                     "network.equivalent_interruption_frequency",
                 },
@@ -187,6 +192,7 @@ async def _run_f1_sql_analysis_impl(
                     "geography.neighborhood",
                     "network.feeder",
                     "generation.distributed",
+                    "inspection.priority",
                 },
             }
         )
@@ -265,8 +271,17 @@ async def _run_f1_sql_analysis_impl(
                 retryable=False,
                 message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
             )
+    continuity_pair_requested = is_explicit_dec_fec_question(payload.question)
     requested_metric_id = requested_sql_metric_id(payload.question, sql_context)
-    if requested_metric_id not in scope.allowed_metric_ids:
+    required_metrics = (
+        {
+            "network.equivalent_interruption_duration",
+            "network.equivalent_interruption_frequency",
+        }
+        if continuity_pair_requested
+        else {requested_metric_id}
+    )
+    if not required_metrics <= scope.allowed_metric_ids:
         raise HTTPException(403, "Métrica fora do acesso atual.")
     remaining_ms = min(
         int(GOLD_REQUEST_TIMEOUT_SECONDS * 1000),
@@ -297,6 +312,7 @@ async def _run_f1_sql_analysis_impl(
         model_calls=0,
         source_calls=0,
         sql_f1_artifact=None,
+        metric_id_override=None,
     ):
         event = BackendAuditEvent(
             correlation_id=request.state.correlation_id,
@@ -309,7 +325,7 @@ async def _run_f1_sql_analysis_impl(
             source_calls=source_calls,
             batch_ref=publication.batch_ref,
             caller_ref=scope.caller_ref,
-            metric_id=requested_metric_id,
+            metric_id=metric_id_override or requested_metric_id,
             source_id=scope.source_id,
             evidence_ref=evidence_ref,
             sql_f1_artifact=sql_f1_artifact,
@@ -425,93 +441,179 @@ async def _run_f1_sql_analysis_impl(
                 if token is not None:
                     response = response.model_copy(update={"continuation_token": token})
             return response
-        run = await run_sql_question(
-            plan_request,
-            engine=engine,
-            readiness_engine=engine,
-            publication=publication,
-            client=genai,
-            resolve_scope=resolve_f1_scope,
-            approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
-            deadline=deadline,
-            correlation_id=request.state.correlation_id,
-        )
-        publication.assert_current(engine)
-        current_scope = resolve_f1_scope()
-        if current_scope != scope:
-            raise GoldExecutionDenied
-        if run.evidence is not None:
-            await record_audit(
-                "source",
-                "completed",
-                "success",
-                row_count=len(run.evidence.rows),
-                evidence_ref=run.evidence.evidence_digest,
-                source_calls=1,
-            )
-            outcome, code = "success", "available"
-        elif run.candidate.status == "needs_clarification":
-            outcome, code = "success", "clarification"
+        if continuity_pair_requested:
+            pair_runs = {}
+            for indicator, expected_metric in (
+                ("DEC", "network.equivalent_interruption_duration"),
+                ("FEC", "network.equivalent_interruption_frequency"),
+            ):
+                single_question = continuity_metric_question(payload.question, indicator)
+                single_request = plan_request.model_copy(
+                    update={"question": single_question}
+                )
+                if requested_sql_metric_id(single_question, sql_context) != expected_metric:
+                    raise GenAIResponseInvalid
+                current_scope = resolve_f1_scope()
+                if current_scope != scope:
+                    raise GoldExecutionDenied
+                publication.assert_current(engine)
+                pair_runs[indicator] = await run_sql_question(
+                    single_request,
+                    engine=engine,
+                    readiness_engine=engine,
+                    publication=publication,
+                    client=genai,
+                    resolve_scope=resolve_f1_scope,
+                    approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+                    deadline=deadline,
+                    correlation_id=request.state.correlation_id,
+                )
+                current_scope = resolve_f1_scope()
+                if current_scope != scope:
+                    raise GoldExecutionDenied
+                publication.assert_current(engine)
+                if pair_runs[indicator].evidence is None:
+                    failed = pair_runs[indicator]
+                    audit_reference = await record_audit(
+                        "response",
+                        "clarification" if failed.candidate.status == "needs_clarification" else "refused",
+                        "success" if failed.candidate.status == "needs_clarification" else "refused",
+                        model_calls=failed.model_calls,
+                        sql_f1_artifact=failed.audit_artifact,
+                        metric_id_override=expected_metric,
+                    )
+                    response = SqlAnalysisResponse.from_run(
+                        request.state.correlation_id,
+                        failed,
+                        audit_reference=audit_reference,
+                    )
+                    break
+            else:
+                dec_evidence = pair_runs["DEC"].evidence
+                fec_evidence = pair_runs["FEC"].evidence
+                if dec_evidence is None or fec_evidence is None:
+                    raise GenAIResponseInvalid
+                continuity_pair = SqlContinuityPairAnalysis.from_evidence(
+                    dec_evidence, fec_evidence
+                )
+                for indicator, metric_id in (
+                    ("DEC", "network.equivalent_interruption_duration"),
+                    ("FEC", "network.equivalent_interruption_frequency"),
+                ):
+                    evidence = pair_runs[indicator].evidence
+                    await record_audit(
+                        "source",
+                        "completed",
+                        "success",
+                        row_count=len(evidence.rows),
+                        evidence_ref=evidence.evidence_digest,
+                        source_calls=1,
+                        sql_f1_artifact=pair_runs[indicator].audit_artifact,
+                        metric_id_override=metric_id,
+                    )
+                audit_reference = await record_audit(
+                    "response",
+                    "available",
+                    "success",
+                    row_count=2,
+                    evidence_ref=continuity_pair.evidence_digest,
+                    model_calls=sum(run.model_calls for run in pair_runs.values()),
+                    source_calls=2,
+                )
+                response = SqlAnalysisResponse.from_continuity_pair(
+                    request.state.correlation_id,
+                    continuity_pair,
+                    audit_reference=audit_reference,
+                )
+            publication.assert_current(engine)
+            if resolve_f1_scope() != scope:
+                raise GoldExecutionDenied
         else:
-            outcome, code = "refused", "refused"
-        audit_reference = await record_audit(
-            "response",
-            code,
-            outcome,
-            row_count=len(run.evidence.rows) if run.evidence is not None else 0,
-            evidence_ref=run.evidence.evidence_digest
-            if run.evidence is not None
-            else None,
-            model_calls=run.model_calls,
-            sql_f1_artifact=run.audit_artifact,
-        )
+            run = await run_sql_question(
+                plan_request,
+                engine=engine,
+                readiness_engine=engine,
+                publication=publication,
+                client=genai,
+                resolve_scope=resolve_f1_scope,
+                approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+                deadline=deadline,
+                correlation_id=request.state.correlation_id,
+            )
+            publication.assert_current(engine)
+            if resolve_f1_scope() != scope:
+                raise GoldExecutionDenied
+            if run.evidence is not None:
+                await record_audit(
+                    "source", "completed", "success",
+                    row_count=len(run.evidence.rows),
+                    evidence_ref=run.evidence.evidence_digest,
+                    source_calls=1,
+                )
+                outcome, code = "success", "available"
+            elif run.candidate.status == "needs_clarification":
+                outcome, code = "success", "clarification"
+            else:
+                outcome, code = "refused", "refused"
+            audit_reference = await record_audit(
+                "response", code, outcome,
+                row_count=len(run.evidence.rows) if run.evidence is not None else 0,
+                evidence_ref=run.evidence.evidence_digest
+                if run.evidence is not None else None,
+                model_calls=run.model_calls,
+                sql_f1_artifact=run.audit_artifact,
+            )
+            with sql_stage(
+                request.state.correlation_id,
+                "presentation",
+                context_version=(
+                    run.evidence.context_version if run.evidence is not None else None
+                ),
+                contract_version=(
+                    "text-to-sql-f1-presentation-v12"
+                    if run.evidence is not None
+                    and run.evidence.metric_id in {"billing.average_ticket", "billing.effective_tariff"}
+                    else "text-to-sql-f1-presentation-v11"
+                    if run.evidence is not None
+                    and run.evidence.interpretation.operation == "weighted_continuity"
+                    else "text-to-sql-f1-presentation-v10"
+                    if run.evidence is not None
+                    and run.evidence.metric_id == "energy.average_consumption_per_uc"
+                    else
+                    "text-to-sql-f1-presentation-v6"
+                    if run.evidence is not None
+                    and run.evidence.metric_id == "service.satisfaction"
+                    else "text-to-sql-f1-presentation-v3"
+                    if run.evidence is not None
+                    and run.evidence.metric_id == "service.attendance"
+                    else "text-to-sql-f1-presentation-v5"
+                    if run.evidence is not None
+                    and run.evidence.metric_id == "service.accumulated_attendance"
+                    else "text-to-sql-f1-presentation-v4"
+                    if run.evidence is not None
+                    and run.evidence.metric_id
+                    in {
+                        "network.equivalent_interruption_duration",
+                        "network.equivalent_interruption_frequency",
+                    }
+                    else "text-to-sql-f1-presentation-v1"
+                ),
+            ):
+                response = SqlAnalysisResponse.from_run(
+                    request.state.correlation_id,
+                    run,
+                    audit_reference=audit_reference,
+                )
         publication.assert_current(engine)
         if resolve_f1_scope() != scope:
             raise GoldExecutionDenied
-        with sql_stage(
-            request.state.correlation_id,
-            "presentation",
-            context_version=(
-                run.evidence.context_version if run.evidence is not None else None
-            ),
-            contract_version=(
-                "text-to-sql-f1-presentation-v12"
-                if run.evidence is not None
-                and run.evidence.metric_id in {"billing.average_ticket", "billing.effective_tariff"}
-                else "text-to-sql-f1-presentation-v11"
-                if run.evidence is not None
-                and run.evidence.interpretation.operation == "weighted_continuity"
-                else "text-to-sql-f1-presentation-v10"
-                if run.evidence is not None
-                and run.evidence.metric_id == "energy.average_consumption_per_uc"
-                else
-                "text-to-sql-f1-presentation-v6"
-                if run.evidence is not None
-                and run.evidence.metric_id == "service.satisfaction"
-                else "text-to-sql-f1-presentation-v3"
-                if run.evidence is not None
-                and run.evidence.metric_id == "service.attendance"
-                else "text-to-sql-f1-presentation-v5"
-                if run.evidence is not None
-                and run.evidence.metric_id == "service.accumulated_attendance"
-                else "text-to-sql-f1-presentation-v4"
-                if run.evidence is not None
-                and run.evidence.metric_id
-                in {
-                    "network.equivalent_interruption_duration",
-                    "network.equivalent_interruption_frequency",
-                }
-                else "text-to-sql-f1-presentation-v1"
-            ),
-        ):
-            response = SqlAnalysisResponse.from_run(
-                request.state.correlation_id,
-                run,
-                audit_reference=audit_reference,
-            )
         if payload.conversation_id is not None and secret and session:
             if response.status == "answered":
-                response_text = response.presentation.answer
+                response_text = (
+                    response.continuity_pair_analysis.answer
+                    if response.continuity_pair_analysis is not None
+                    else response.presentation.answer
+                )
             elif response.status == "needs_clarification":
                 response_text = response.clarification.question
             else:

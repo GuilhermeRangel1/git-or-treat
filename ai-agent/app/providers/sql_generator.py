@@ -16,7 +16,7 @@ from app.providers.protocols import (
 from app.schemas.sql_generation import SqlGenerationCandidate
 from app.telemetry import record_provider_failure, record_usage
 
-SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-37"
+SQL_GENERATION_PROMPT_VERSION = "text-to-sql-f1-38"
 
 _GEMINI_JSON_SCHEMA_KEYS = {
     "$id",
@@ -197,6 +197,28 @@ declare `result_columns` com `name="average_consumption_per_uc"`.
 Os dois componentes têm de pertencer à mesma população; não calcule AVG, nem média
 simples de médias ou razões por grupo. Preserve filtros autorizados e os meses
 completos. O Backend valida a expressão e a prontidão dos controles antes de executar.
+Exceção estrita para contagens cadastrais no contrato v14: aceite somente
+`snapshot_total`, `aggregation="count_distinct"`, períodos vazios e sem ranking.
+Para `customer.units_by_class`, consulte `gold_v2.visao_360_uc`, conte
+`COUNT(DISTINCT id_uc)` como `units_count` e use a coluna física `classe` para
+`customer.consumption_class` (não use `classe_consumo` nesta fonte). Para
+`inspection.units_by_priority`, consulte `gold_v2.fila_inspecao`, conte
+`COUNT(DISTINCT id_uc)` como `units_count` e use `prioridade_inspecao` para
+`inspection.priority`. Siga essas fontes e colunas exatas que também aparecem no
+contexto do catálogo.
+Processe somente valores de filtro presentes em `dimension_values`; um valor não
+reconhecido exige esclarecimento e nunca deve ser convertido em filtro vazio.
+Sem filtro e sem grupo, retorne o total do cadastro atual. Se a pergunta pedir
+distribuição, “por classe”, “por prioridade” ou “cada”, agrupe pela dimensão
+solicitada. Não invente período: cadastro e fila são retratos do lote atual.
+Prioridade de inspeção descreve triagem, não comprova irregularidade, inspeção
+realizada ou consumo zero. Se a pergunta disser “consumo zero”, filtre exatamente
+`ALTA - CONSUMO ZERO`; nunca use `REVISAR - SEM HISTORICO DE CONSUMO` como
+substituto. Esse rótulo aprovado pode aparecer em `dimension_values` mesmo quando
+não há nenhuma linha publicada para ele. Nesse caso, a consulta deve retornar zero,
+um resultado válido, não ausência de evidência.
+O Backend revalida métrica, operação, filtro, fonte, controle e contagem antes de
+executar.
 Exceção estrita para queda de consumo de UCs com GD no contrato v10: aceite somente
 `snapshot_total`, `aggregation="count_gd_drop"`, períodos vazios e filtro fixo
 `generation.distributed eq ["Sim"]`; admita município como filtro e/ou agrupamento
@@ -515,6 +537,19 @@ class GeminiSqlGenerator:
                     ]
                     interpretation["operation"]["enum"] = ["ratio_of_sums"]
                     interpretation["aggregation"]["enum"] = ["ratio_of_sums"]
+                if (
+                    isinstance(generation_context, dict)
+                    and generation_context.get("generation_contract_version")
+                    == "text-to-sql-f1-v14"
+                ):
+                    interpretation = response_schema["$defs"]["SqlInterpretation"][
+                        "properties"
+                    ]
+                    interpretation["metric_id"]["enum"] = [
+                        "customer.units_by_class", "inspection.units_by_priority"
+                    ]
+                    interpretation["operation"]["enum"] = ["snapshot_total"]
+                    interpretation["aggregation"]["enum"] = ["count_distinct"]
                 # Keep the additive field optional in the internal contract, while
                 # requiring the provider to make its semantic decision explicit.
                 response_schema["required"] = sorted(

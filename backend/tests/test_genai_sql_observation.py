@@ -4,7 +4,6 @@ import logging
 
 import httpx
 import pytest
-
 from app.services.genai_client import (
     GenAIQuestionClient,
     GenAIResponseInvalid,
@@ -15,6 +14,7 @@ from app.services.genai_deadline import GenAIRequestDeadline
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
     build_sql_generation_context,
+    continuity_metric_question,
     is_gd_consumption_drop_question,
     is_periodized_accumulated_attendance_question,
 )
@@ -23,10 +23,120 @@ from app.services.genai_sql_observation import (
     log_sql_context_unavailable,
     observe_sql_generation,
 )
+
 from tests.test_genai_sql_semantics import consumption_request, query
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
 sql_request = fixture_sql_request
+
+
+@pytest.mark.parametrize(
+    ("question", "indicator", "metric_id", "alias", "add_directive"),
+    [
+        (
+            "Como ficaram o DEC e o FEC do alimentador ALM-ABR-001 de janeiro a junho de 2026?",
+            "DEC",
+            "network.equivalent_interruption_duration",
+            "dec_value",
+            True,
+        ),
+        (
+            "Como ficaram o DEC e o FEC do alimentador ALM-ABR-001 de janeiro a junho de 2026?",
+            "FEC",
+            "network.equivalent_interruption_frequency",
+            "fec_value",
+            True,
+        ),
+        (
+            "Qual foi o DEC do alimentador ALM-ABR-001 de janeiro a junho de 2026?",
+            "DEC",
+            "network.equivalent_interruption_duration",
+            "dec_value",
+            False,
+        ),
+        (
+            "Quanto deu de FEC no alimentador ALM-ABR-001 de janeiro a junho de 2026?",
+            "FEC",
+            "network.equivalent_interruption_frequency",
+            "fec_value",
+            False,
+        ),
+    ],
+)
+def test_explicit_weighted_continuity_range_uses_typed_plan_without_generation(
+    sql_request, question, indicator, metric_id, alias, add_directive
+):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = (
+        continuity_metric_question(question, indicator)
+        if add_directive
+        else question
+    )
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = ["network.feeder"]
+    payload["temporal_coverage"] = [{
+        "metric_id": metric_id,
+        "kind": "monthly",
+        "competencies": [f"2026-{month:02d}" for month in range(1, 7)],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "network.feeder",
+        "values": ["ALM-ABR-001", "ALM-OTHER-002"],
+    }]
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *_args, **_kwargs):
+            pytest.fail("a faixa explícita deve usar o plano tipado F1")
+
+    result = asyncio.run(observe_sql_generation(
+        request,
+        client=UnexpectedGenerator(),
+        deadline=GenAIRequestDeadline.start(30),
+        correlation_id="b" * 32,
+    ))
+
+    assert result.model_calls == 0
+    assert result.review.measure_semantics[0][0] == alias
+    numerator = (
+        "SUM(duracao_total_interrupcoes_horas)"
+        if indicator == "DEC"
+        else "SUM(frequencia_total_interrupcoes)"
+    )
+    assert numerator in result.review.canonical_sql
+    parameters = dict(result.review.parameter_items)
+    assert parameters["period_start"] == "2026-01"
+    assert parameters["period_end"] == "2026-06"
+    assert parameters["feeder_0"] == "ALM-ABR-001"
+    assert "ALM-ABR-001" not in result.review.canonical_sql
+
+
+def test_weighted_continuity_plan_does_not_infer_unknown_feeder_or_uncovered_range(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = continuity_metric_question(
+        "Como ficaram o DEC e o FEC do alimentador DESCONHECIDO de janeiro a junho de 2026?",
+        "DEC",
+    )
+    payload["access_scope"]["allowed_metric_ids"] = [
+        "network.equivalent_interruption_duration"
+    ]
+    payload["access_scope"]["allowed_dimension_ids"] = ["network.feeder"]
+    payload["temporal_coverage"] = [{
+        "metric_id": "network.equivalent_interruption_duration",
+        "kind": "monthly",
+        "competencies": ["2026-01", "2026-02"],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "network.feeder", "values": ["ALM-ABR-001"],
+    }]
+    request = type(sql_request).model_validate(payload)
+    from app.services.genai_sql_observation import (
+        _explicit_weighted_continuity_candidate,
+    )
+
+    assert _explicit_weighted_continuity_candidate(
+        request, build_sql_generation_context(request)
+    ) is None
 
 
 def run(

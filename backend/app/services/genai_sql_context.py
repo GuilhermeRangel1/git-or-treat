@@ -20,6 +20,7 @@ F1_DIMENSIONS = {
     "customer.consumption_class": "classe_consumo",
     "network.feeder": "id_alimentador",
     "generation.distributed": "possui_gd",
+    "inspection.priority": "prioridade_inspecao",
 }
 F1_METRIC_SOURCE_CAPABILITY = {
     "billing.revenue": "faturamento.receita",
@@ -36,6 +37,8 @@ F1_METRIC_SOURCE_CAPABILITY = {
     "energy.gd_consumption_drop": "consumo.variacao_uc",
     "network.equivalent_interruption_duration": "interrupcoes.dec_fec",
     "network.equivalent_interruption_frequency": "interrupcoes.dec_fec",
+    "customer.units_by_class": "cadastro.ucs_por_classe",
+    "inspection.units_by_priority": "apoio.fila_inspecao",
 }
 
 
@@ -70,6 +73,23 @@ def _canonical(value) -> str:
 def requested_sql_metric_id(question: str, context=()) -> str:
     normalized = question.casefold()
     normalized_unaccented = _normalize_question(question)
+    unit_count = re.search(
+        r"\b(?:uc|ucs|unidade|unidades|quantas?|quantidade|contagem|total)\b",
+        normalized_unaccented,
+    )
+    if unit_count and re.search(
+        r"\b(?:prioridade|prioridades|fila de inspecao|inspecao|consumo zero)\b",
+        normalized_unaccented,
+    ):
+        return "inspection.units_by_priority"
+    if unit_count and (
+        re.search(r"\b(?:classe|classes)\b", normalized_unaccented)
+        or re.search(
+            r"\b(?:residenciais?|comerciais?|industriais?|rurais?|poder publico)\b",
+            normalized_unaccented,
+        )
+    ):
+        return "customer.units_by_class"
     if re.search(r"\b(?:ticket medio|preco medio por uc|valor medio por uc faturada)\b", normalized_unaccented):
         return "billing.average_ticket"
     if re.search(
@@ -220,6 +240,29 @@ def is_explicit_multi_metric_question(question: str) -> bool:
     return asks_consumption and asks_revenue
 
 
+def is_explicit_dec_fec_question(question: str) -> bool:
+    """True only when the user explicitly asks for both continuity metrics."""
+    normalized = _normalize_question(question)
+    return bool(re.search(r"\bdec\b", normalized) and re.search(r"\bfec\b", normalized))
+
+
+def continuity_metric_question(question: str, metric: str) -> str:
+    """Make one explicit DEC/FEC subquestion while preserving its requested scope."""
+    if metric not in {"DEC", "FEC"}:
+        raise ValueError("métrica de continuidade inválida")
+    normalized = re.sub(r"\b(?:DEC|FEC)\b", metric, question, flags=re.IGNORECASE)
+    normalized = re.sub(
+        rf"\b{metric}\b(?:\s*(?:e|ou|/|,)\s*(?:o\s+)?{metric}\b)+",
+        metric,
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    return (
+        f"Calcule o {metric} ponderado para a janela inteira, sem retornar série mensal, "
+        f"preservando o alimentador e o período pedidos: {normalized}"
+    )
+
+
 def is_periodized_accumulated_attendance_question(question: str) -> bool:
     """The accumulated source has no certified time window; never imply one."""
     normalized = unicodedata.normalize("NFKD", question.casefold())
@@ -332,6 +375,17 @@ def _uses_weighted_continuity(question: str, context, dimension_value_coverage) 
     )
     if len(set(dates)) > 1 or len(set(named_months)) > 1:
         return True
+    month_range = re.search(
+        r"\b(?:de\s+)?(?:janeiro|jan|fevereiro|fev|marco|mar|abril|abr|"
+        r"maio|mai|junho|jun|julho|jul|agosto|ago|setembro|set|outubro|out|"
+        r"novembro|nov|dezembro|dez)\s+(?:a|ate)\s+(?:de\s+)?"
+        r"(?:janeiro|jan|fevereiro|fev|marco|mar|abril|abr|maio|mai|junho|jun|"
+        r"julho|jul|agosto|ago|setembro|set|outubro|out|novembro|nov|dezembro|dez)"
+        r"\s+(?:de\s+)?20\d{2}\b",
+        _normalize_question(text),
+    )
+    if month_range:
+        return True
     if re.search(r"\b(?:ultim[oa]s?\s+\d+\s+meses|ultim[oa]\s+ano|ano\s+inteiro)\b", text):
         return True
     if re.search(
@@ -357,6 +411,9 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
     scope = request.access_scope
     metric_id = requested_sql_metric_id(request.question, request.context)
     generation_version = (
+        "text-to-sql-f1-v14"
+        if metric_id in {"customer.units_by_class", "inspection.units_by_priority"}
+        else
         "text-to-sql-f1-v12"
         if metric_id.startswith("network.equivalent_interruption_")
         and _uses_weighted_continuity(
@@ -400,6 +457,8 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         "service.accumulated_satisfaction",
         "energy.gd_units",
         "energy.gd_consumption_drop",
+        "customer.units_by_class",
+        "inspection.units_by_priority",
     }:
         coverage = next(
             (item for item in request.temporal_coverage if item.metric_id == metric_id),
@@ -497,6 +556,17 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
             "frequencia_total_interrupcoes",
         ))
     table = TABLES[source.table]
+    dimension_values = {
+        item.dimension_id: list(item.values)
+        for item in request.dimension_value_coverage
+        if item.dimension_id in dimensions
+    }
+    if metric_id == "inspection.units_by_priority":
+        priority_values = dimension_values.setdefault("inspection.priority", [])
+        if "ALTA - CONSUMO ZERO" not in priority_values:
+            # This approved label may be absent from the current lot; retaining it
+            # lets the model ask for the exact category and return a valid zero.
+            priority_values.append("ALTA - CONSUMO ZERO")
     payload = {
         "generation_contract_version": generation_version,
         "dialect": "postgres",
@@ -547,9 +617,8 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         },
         "dimensions": dimensions,
         "dimension_values": [
-            item.model_dump(mode="json")
-            for item in request.dimension_value_coverage
-            if item.dimension_id in dimensions
+            {"dimension_id": dimension_id, "values": values}
+            for dimension_id, values in sorted(dimension_values.items())
         ],
         "temporal_coverage": coverage.model_dump(mode="json"),
         "rules": {

@@ -27,6 +27,7 @@ _ARGS = {
     exp.Column: {"this", "table", "db", "catalog"},
     exp.Sum: {"this"},
     exp.Count: {"this", "expressions", "big_int"},
+    exp.Distinct: {"expressions"},
     exp.Avg: {"this"},
     exp.Filter: {"this", "expression"},
     exp.Sub: {"this", "expression"},
@@ -123,7 +124,21 @@ def _measure(node: exp.Expression, measure_column: str, metric_id: str) -> bool:
     if type(node) is exp.Sum:
         return type(node.this) is exp.Column and node.this.name == measure_column
     if type(node) is exp.Count:
-        return type(node.this) is exp.Column and node.this.name == measure_column
+        count_target = node.this
+        is_distinct = type(count_target) is exp.Distinct
+        if is_distinct:
+            distinct_columns = count_target.expressions
+            if len(distinct_columns) != 1:
+                return False
+            count_target = distinct_columns[0]
+        return (
+            type(count_target) is exp.Column
+            and count_target.name == measure_column
+            and (
+                metric_id not in {"customer.units_by_class", "inspection.units_by_priority"}
+                or is_distinct
+            )
+        )
     if type(node) is exp.Avg:
         return (
             metric_id
