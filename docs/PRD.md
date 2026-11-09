@@ -465,6 +465,17 @@ O README atual não deve ser confundido com o README operacional exigido para a 
 
 ## 14. Registro de progresso
 
+### 2026-11-09 — WEB-01 / IA-04 — resposta ao Diretor no bloco Diagnóstico comercial
+
+- Estado: WEB-01 permanece `Concluído`; IA-04 permanece `Em validação`. Implementação local em `feat/front-panorama`, ainda sem commit.
+- Mudança observável: o bloco Diagnóstico comercial do Panorama ganha o cartão "Resposta ao Diretor" (título em uma linha, truncado em telas estreitas), com o subtítulo "Leitura do diagnóstico · calculada dos dados", o selo "Calculado", ícone de lâmpada e nenhum selo ou ícone de IA. O cartão traz a pergunta "Por que a receita subiu só X%?" e dois parágrafos com frase-chave em negrito: (1) quanto o volume devolveu do ganho de preço, com os efeitos de preço e volume e o saldo; (2) a parcela da queda de volume em UCs com GD e no território, com os nomes da API. "Os dados apontam a GD como principal explicação" só aparece a partir de 50%. Seguem a linha "Próximo passo" (medir a energia gerada pelas UCs com GD; a causa ainda não está comprovada) e o rodapé "Preço observado não é tarifa", acrescido de "Base parcial" quando houver. O texto é montado por regras sobre `GET /api/v1/revenue?include_diagnosis=true`, não pela IA. Em telas largas, os sub-blocos "Preço × Volume" e "Onde a queda de volume se concentra" ficam empilhados à esquerda (2/3) e o cartão fica à direita (1/3), com a altura da coluna; em telas estreitas, o cartão vem logo depois do título do bloco. O cartão só aparece quando o bloco aparece (Gold e `revenue:read`) e quando preço > 0, volume < 0 e saldo > 0; caso contrário, o bloco mantém o layout anterior, sem o cartão. O cartão "Insight do Panorama" (IA) permanece idêntico ao commit `5ee2cec`; a tentativa anterior de trocar o conteúdo desse cartão foi revertida.
+- Arquivos: `frontend/src/features/panorama/PanoramaDiagnosisInsight.tsx` (novo), `revenue-diagnosis-summary.ts` (novo), `PanoramaRevenueDiagnosis.tsx`; testes `revenue-diagnosis-summary.test.ts` (novo), `PanoramaRevenueDiagnosis.test.tsx`, `PanoramaDiagnosisFindings.test.tsx` e `PanoramaPage.test.tsx`. Sem mudança em Backend, ai-agent, `features/receita` ou `shared/filters`.
+- Verificações: `npx vitest run src/features/panorama`: 13 arquivos e 171 testes aprovados; `npm run build`, `prettier --check`, `oxlint` e `check:boundaries` (266 arquivos) passaram.
+- Pendências:
+  - O cabeçalho do cartão de IA diz "Análise assistida por IA" e usa o selo IA, embora a leitura do recorte seja calculada no front; só a hipótese vem da IA. Revisar o rótulo.
+  - Com a Gold, o botão "Limpar filtros" (`shared/filters/FilterBar.tsx`) volta à competência demonstrativa `2024-04`, e não à mais recente publicada. Corrigir exige que a barra de filtros receba o estado inicial da fonte.
+  - Conferência visual com a Gold real (bloco inteiro e cartão de IA) ainda não foi registrada.
+
 ### 2026-11-04 — IA-01/02/03/05/06/07/08 — consistência das consultas do Assistente
 
 - Estado do cartão adicional: `Concluído` para a entrega local descrita, com os doze aceites revisados. A integração em develop e os estados dos requisitos oficiais seguem seus próprios gates.

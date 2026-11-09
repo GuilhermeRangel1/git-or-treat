@@ -762,6 +762,30 @@ describe("PanoramaPage (WEB-01)", () => {
       ).toBeTruthy();
     });
 
+    it("a resposta ao Diretor fica dentro do bloco e o cartão de IA continua igual", async () => {
+      stubGoldApi(okRevenue);
+      renderPage();
+
+      const answer = await screen.findByRole("region", {
+        name: "Resposta ao Diretor",
+      });
+      expect(block()).toContainElement(answer);
+      const insight = screen.getByRole("region", {
+        name: "Insight contextual do Panorama",
+      });
+      expect(insight).not.toContainElement(answer);
+      expect(
+        within(insight).getByText(/Análise assistida por IA/),
+      ).toBeVisible();
+      expect(within(insight).getByText("IA")).toBeVisible();
+      expect(within(insight).getByText("Leitura do recorte")).toBeVisible();
+      expect(
+        within(insight).getByRole("button", { name: "Ver análise detalhada" }),
+      ).toBeVisible();
+      expect(within(insight).queryByText(/Por que a receita subiu/)).toBeNull();
+      expect(within(insight).queryByText("Calculado")).toBeNull();
+    });
+
     it("não refaz a consulta ao trocar a competência, mas refaz ao trocar o município", async () => {
       const user = userEvent.setup();
       const revenueRequests = stubGoldApi(okRevenue);
