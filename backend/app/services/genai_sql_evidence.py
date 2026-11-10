@@ -45,8 +45,12 @@ def _with_growth_percentage(result: SqlMaterializedResult) -> SqlMaterializedRes
         meaning: result.columns.index(name)
         for name, meaning in result.measure_semantics
     }
-    current_index = by_meaning["period_0_total"]
-    baseline_index = by_meaning["period_1_total"]
+    if "period_1_minus_period_0" in by_meaning:
+        current_index = by_meaning["period_1_total"]
+        baseline_index = by_meaning["period_0_total"]
+    else:
+        current_index = by_meaning["period_0_total"]
+        baseline_index = by_meaning["period_1_total"]
     rows = []
     for row in result.rows:
         current, baseline = row[current_index], row[baseline_index]

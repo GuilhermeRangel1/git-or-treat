@@ -36,12 +36,15 @@ _MEASURES = {
     "period_0_total": "Faturamento no período 1",
     "period_1_total": "Faturamento no período 2",
     "period_0_minus_period_1": "Diferença (período 1 − período 2)",
+    "period_1_minus_period_0": "Diferença (período 2 − período 1)",
     "period_0_growth_percent": "Variação percentual",
 }
 _FILTER_DIMENSIONS = {
     "geography.municipality": "Município",
     "geography.neighborhood": "Bairro",
     "customer.consumption_class": "Classe de consumo",
+    "tariff.subgroup": "Subgrupo tarifário",
+    "tariff.flag": "Bandeira tarifária",
     "network.feeder": "Alimentador",
     "generation.distributed": "Geração distribuída (cadastro)",
     "inspection.priority": "Prioridade de inspeção",
@@ -328,6 +331,11 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
             if value == "0" and evidence.metric_id == "inspection.units_by_priority":
                 return f"Não há UCs nessa prioridade{scope}; a contagem consultada é zero."
             return f"Foram identificadas {formatted(value)}{scope}."
+        if evidence.interpretation.group_by:
+            return (
+                "A contagem de UCs com GD cadastrada por município no lote publicado "
+                "está detalhada na tabela."
+            )
         column = next(
             name
             for name, meaning in evidence.measure_semantics.items()
@@ -501,14 +509,54 @@ def _answer(evidence: SqlEvidence, filters: tuple[str, ...]) -> str:
                     f"A comparação de {metric_label} por {grouping}{scope} "
                     "está detalhada na tabela."
                 )
-            if evidence.interpretation.ranking_direction == "desc":
-                ranked_change = "maiores diferenças"
-            else:
-                ranked_change = "menores diferenças"
-            return (
-                f"A tabela lista as {ranked_change} de {metric_label} "
-                f"(primeiro período − segundo período), por {grouping}{scope}."
+            reverse_delta = "period_1_minus_period_0" in evidence.measure_semantics.values()
+            delta_name = next(
+                name for name, meaning in evidence.measure_semantics.items()
+                if meaning in {"period_0_minus_period_1", "period_1_minus_period_0"}
             )
+            delta_index = next(
+                index for index, column in enumerate(evidence.columns)
+                if column.name == delta_name
+            )
+            delta_values = [
+                Decimal(row[delta_index]) for row in evidence.rows
+                if row[delta_index] is not None
+            ]
+            all_non_positive = bool(delta_values) and all(value <= 0 for value in delta_values)
+            all_non_negative = bool(delta_values) and all(value >= 0 for value in delta_values)
+            if evidence.interpretation.ranking_direction == "desc" and reverse_delta:
+                ranked_change = (
+                    "os maiores valores de variação"
+                    if all_non_positive
+                    else "os maiores aumentos"
+                    if all_non_negative
+                    else "as maiores variações"
+                )
+                direction = "segundo período − primeiro período"
+            elif evidence.interpretation.ranking_direction == "desc":
+                ranked_change = (
+                    "os maiores valores de redução"
+                    if all_non_positive
+                    else "as maiores reduções"
+                    if all_non_negative
+                    else "as maiores variações"
+                )
+                direction = "primeiro período − segundo período"
+            else:
+                ranked_change = (
+                    "as menores variações" if reverse_delta else "as menores diferenças"
+                )
+                direction = (
+                    "segundo período − primeiro período"
+                    if reverse_delta else "primeiro período − segundo período"
+                )
+            answer = (
+                f"A tabela lista {ranked_change} de {metric_label} "
+                f"({direction}), por {grouping}{scope}."
+            )
+            if reverse_delta and all_non_positive:
+                answer += " Os valores selecionados são negativos ou nulos; não houve aumento nesse recorte."
+            return answer
         values: dict[str, str | None] = {}
         for name, meaning in evidence.measure_semantics.items():
             index = next(
@@ -630,6 +678,7 @@ def _metric_measure_label(evidence: SqlEvidence, meaning: str) -> str:
         "period_0_total": "Consumo no período 1",
         "period_1_total": "Consumo no período 2",
         "period_0_minus_period_1": "Diferença de consumo (período 1 − período 2)",
+        "period_1_minus_period_0": "Diferença de consumo (período 2 − período 1)",
         "period_0_growth_percent": "Variação percentual do consumo",
     }[meaning]
 

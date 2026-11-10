@@ -51,6 +51,7 @@ Meaning = Literal[
     "period_1_total",
     "satisfaction_accumulated_average",
     "period_0_minus_period_1",
+    "period_1_minus_period_0",
     "period_0_growth_percent",
 ]
 DimensionMeaning = Literal[
@@ -332,6 +333,17 @@ class SqlEvidence(ClosedModel):
                     "receita por bairro exige contrato de receita compatível"
                 )
         elif (
+            self.metric_id == "energy.consumption"
+            and self.source_table == "gold_v2.consumo_receita_bairro"
+        ):
+            if not any(
+                item.dimension_id == "geography.neighborhood"
+                for item in self.interpretation.filters
+            ):
+                raise ValueError(
+                    "consumo no recorte por bairro exige filtro territorial explícito"
+                )
+        elif (
             not continuity
             and self.metric_id
             not in {
@@ -344,11 +356,15 @@ class SqlEvidence(ClosedModel):
         ):
             raise ValueError("fonte SQL diverge da métrica F1")
         if self.interpretation.operation == "comparison":
+            delta_meanings = {
+                "period_0_minus_period_1",
+                "period_1_minus_period_0",
+            }
+            present = set(self.measure_semantics.values())
             base_meanings = {
                 "period_0_total",
                 "period_1_total",
-                "period_0_minus_period_1",
-            }
+            } | (present & delta_meanings)
             has_growth = "period_0_growth_percent" in self.measure_semantics.values()
             expected_meanings = base_meanings | (
                 {"period_0_growth_percent"} if has_growth else set()
@@ -363,6 +379,7 @@ class SqlEvidence(ClosedModel):
             if (
                 len(measures) != len(expected_meanings)
                 or set(self.measure_semantics.values()) != expected_meanings
+                or len(present & delta_meanings) != 1
                 or self.evidence_contract_version != expected_version
             ):
                 raise ValueError(

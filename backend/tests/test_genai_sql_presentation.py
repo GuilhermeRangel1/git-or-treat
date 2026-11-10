@@ -7,7 +7,11 @@ from types import SimpleNamespace
 import pytest
 from app.schemas.sql_analysis import SqlAnalysisResponse, SqlContinuityPairAnalysis
 from app.schemas.sql_evidence import SqlEvidence, sql_evidence_digest
-from app.schemas.sql_generation import SqlInterpretation, SqlResultColumn
+from app.schemas.sql_generation import (
+    SqlAnalysisFilter,
+    SqlInterpretation,
+    SqlResultColumn,
+)
 from app.services.genai_sql_presentation import present_sql_evidence
 
 
@@ -21,7 +25,9 @@ def _evidence(
     period_start="2025-01-01",
     period_end="2025-12-31",
     growth=False,
+    delta_semantic="period_0_minus_period_1",
     ranking_direction=None,
+    filters=(),
 ):
     if operation == "comparison":
         columns = [
@@ -47,7 +53,7 @@ def _evidence(
         measure_semantics = {
             "current": "period_0_total",
             "previous": "period_1_total",
-            "difference": "period_0_minus_period_1",
+            "difference": delta_semantic,
         }
         if growth:
             columns.append(
@@ -122,7 +128,7 @@ def _evidence(
                 if operation == "comparison"
                 else [{"start": period_start, "end": period_end}]
             ),
-            "filters": [],
+            "filters": filters,
             "group_by": [dimension] if grouped else [],
             "ranking_direction": ranking_direction
             or ("desc" if operation == "ranking" else None),
@@ -179,6 +185,27 @@ def test_grouped_table_is_identical_to_evidence_and_answer_uses_exact_decimal():
     assert presentation.limitations == (
         "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
     )
+
+
+@pytest.mark.parametrize(
+    ("dimension_id", "value", "label"),
+    [
+        ("tariff.subgroup", "B1", "Subgrupo tarifário"),
+        ("tariff.flag", "VERDE", "Bandeira tarifária"),
+    ],
+)
+def test_tariff_filters_have_customer_facing_labels(dimension_id, value, label):
+    evidence = _evidence(
+        rows=[["1234.50"]],
+        status="available",
+        filters=(SqlAnalysisFilter(
+            dimension_id=dimension_id, operator="eq", values=(value,),
+        ),),
+    )
+
+    presentation = present_sql_evidence(evidence)
+
+    assert presentation.filters == (f"{label}: {value}",)
 
 
 def test_weighted_continuity_presents_weighted_value_and_included_excluded_feeders():
@@ -576,6 +603,44 @@ def test_gd_units_evidence_is_presented_as_a_snapshot_of_the_published_lot():
     )
 
 
+def test_grouped_gd_units_answer_points_to_the_breakdown_table():
+    base = _evidence(rows=[["Recife", "1420"]], status="available", grouped=True)
+    interpretation = SqlInterpretation.model_validate({
+        "metric_id": "energy.gd_units",
+        "operation": "snapshot_total",
+        "aggregation": "count_non_null",
+        "periods": [],
+        "filters": [{
+            "dimension_id": "generation.distributed",
+            "operator": "eq",
+            "values": ["Sim"],
+        }],
+        "group_by": ["municipality"],
+        "ranking_direction": None,
+        "ranking_limit": None,
+    })
+    evidence = base.model_copy(update={
+        "metric_id": "energy.gd_units",
+        "interpretation": interpretation,
+        "source_table": "gold_v2.variacao_consumo_uc",
+        "columns": (
+            SqlResultColumn(name="municipality", role="dimension", value_type="string"),
+            SqlResultColumn(name="gd_units", role="measure", value_type="integer", unit="UCs"),
+        ),
+        "measure_semantics": {"gd_units": "gd_units_total"},
+        "dimension_semantics": {"municipality": "municipality"},
+        "rows": (("Recife", "1420"),),
+    })
+
+    presentation = present_sql_evidence(evidence)
+
+    assert presentation.answer == (
+        "A contagem de UCs com GD cadastrada por município no lote publicado "
+        "está detalhada na tabela."
+    )
+    assert presentation.rows[0].cells == ("Recife", "1420")
+
+
 def test_gd_consumption_drop_presentation_states_fixed_windows_and_limitations():
     interpretation = SqlInterpretation.model_validate(
         {
@@ -885,6 +950,25 @@ def test_ranked_comparison_explains_direction_and_scope():
 
     assert "menores diferenças" in presentation.answer
     assert "primeiro período − segundo período" in presentation.answer
+
+
+def test_ranked_non_positive_growth_does_not_claim_an_increase():
+    evidence = _evidence(
+        rows=[["ARAÇOIABA", "80526", "74407", "-6119", "-7.60"]],
+        status="available",
+        operation="comparison",
+        grouped=True,
+        growth=True,
+        ranking_direction="desc",
+        delta_semantic="period_1_minus_period_0",
+    )
+
+    presentation = present_sql_evidence(evidence)
+
+    assert "maiores valores de variação" in presentation.answer
+    assert "segundo período − primeiro período" in presentation.answer
+    assert "não houve aumento" in presentation.answer
+    assert "as os maiores" not in presentation.answer
 
 
 @pytest.mark.parametrize(

@@ -37,6 +37,8 @@ Dimension = Literal[
     "geography.municipality",
     "geography.neighborhood",
     "customer.consumption_class",
+    "tariff.subgroup",
+    "tariff.flag",
     "network.feeder",
     "generation.distributed",
     "inspection.priority",
@@ -160,7 +162,7 @@ class SqlSemanticIntent(ClosedModel):
         ),
     ]
     periods: tuple[SqlPeriod, ...] = Field(default=(), max_length=2)
-    filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=2)
+    filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=3)
 
     @model_validator(mode="after")
     def check_unique_filters(self) -> Self:
@@ -205,7 +207,7 @@ class SqlInterpretation(ClosedModel):
         "sum", "count_non_null", "count_distinct", "count_gd_drop", "key_grain_read", "average_non_null", "ratio_of_sums", "weighted_ratio"
     ]
     periods: tuple[SqlPeriod, ...] = Field(max_length=2)
-    filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=2)
+    filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=3)
     group_by: tuple[
         Literal[
             "competency", "municipality", "neighborhood", "consumption_class", "feeder", "inspection_priority"
