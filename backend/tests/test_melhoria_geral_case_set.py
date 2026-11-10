@@ -16,7 +16,8 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CASE_SET_PATH = (
     REPOSITORY_ROOT / "docs" / "plans" / "CASOS_MELHORIA_GERAL_CHATBOT.json"
 )
-CATALOG_PATH = REPOSITORY_ROOT / "backend" / "app" / "catalogs" / "gold_v2.json"
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+CATALOG_PATH = BACKEND_ROOT / "app" / "catalogs" / "gold_v2.json"
 GOLD_ORACLE_PATH = (
     REPOSITORY_ROOT
     / "docs"
@@ -69,10 +70,13 @@ def test_case_set_has_exact_size_categories_and_unique_questions():
 
 def test_released_gold_controls_are_part_of_the_updated_chatbot_battery():
     case_set, catalog = _load_inputs()
-    extension = json.loads(
-        (REPOSITORY_ROOT / "backend" / "tests" / "fixtures"
-         / "genai_gold_released_controls_c05_c09.json").read_text(encoding="utf-8")
+    extension_path = (
+        BACKEND_ROOT
+        / "tests"
+        / "fixtures"
+        / "genai_gold_released_controls_c05_c09.json"
     )
+    extension = json.loads(extension_path.read_text(encoding="utf-8"))
     assert case_set["extensions"] == [{
         "id": "genai-gold-released-controls-c05-c09",
         "fixture": "../../backend/tests/fixtures/genai_gold_released_controls_c05_c09.json",
