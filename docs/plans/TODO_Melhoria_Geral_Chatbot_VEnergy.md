@@ -90,6 +90,15 @@ A avaliação usa **230 casos novos** para medir a precisão, a flexibilidade e 
 
 ## 4. Validar e melhorar a experiência no portal
 
+- [x] Gerar gráficos a partir dos resultados estruturados: linha para séries mensais completas, barras para agrupamentos e comparações compatíveis, gráficos separados por unidade e cascata por recorte com decomposição disponível.
+- [x] Oferecer PNG e CSV nos gráficos com verificação de autorização e do lote Gold. Quando o gráfico recorta as primeiras 24 categorias, preservar no CSV as linhas fornecidas ao componente.
+- [x] Oferecer evolução mensal como consulta de acompanhamento para totais anuais de receita sem filtros.
+- [x] Medir a cobertura nas capturas disponíveis, usando o último turno capturado de cada caso e as regras atuais do frontend. Dos 230 casos, 13 produziram gráfico elegível (7 rankings/comparações, 5 compostos e 1 individual), 126 respostas foram aceitas pelo frontend e não produziram gráfico, 20 não tiveram resposta numérica, 30 capturas foram rejeitadas pelo decodificador atual e 41 não tinham captura.
+- [x] Conferir capturas alternativas para os casos rejeitados. Três casos adicionais exibiram gráfico elegível. A cobertura observada passou a 16 de 230, com 126 respostas aceitas sem gráfico, 20 sem resposta numérica, 27 capturas incompatíveis e 41 sem captura. Entre as 126 sem gráfico, 109 tinham apresentação de uma única linha fora da operação de comparação.
+- [x] Ampliar a cobertura observada de 16 para 28 casos nas capturas. MGC-119–128 ganharam cascata da base comum, e MGC-193/197 ganharam gráficos separados por unidade. Comparações de dois períodos em uma única linha também passaram a ter barras dos valores de cada período.
+- [x] Confirmar MGC-163 e MGC-169 no decodificador do Assistente com duas barras iguais aos valores dos períodos na tabela. O total confirmado nas capturas passou a 30. Entre os cinco candidatos restantes da revisão focal, os dois anteriores receberam gráfico e MGC-194, MGC-199 e MGC-200 permanecem como resumo ou tabela por trazerem medidas isoladas ou um único recorte.
+- [ ] Reexecutar os 27 casos com capturas ainda incompatíveis, completar a medição dos 41 casos sem captura quando o holdout for liberado e conferir os downloads no portal com a Gold ativa.
+
 - [ ] Conferir se a escolha automática do gráfico é adequada e se a tabela preserva o detalhamento necessário.
 - [ ] Conferir se o PNG representa o gráfico exibido e se o CSV preserva valores, unidades e recortes da tabela.
 - [ ] Aprimorar a apresentação das análises complexas, deixando claros os períodos comparados, os resultados por grupo e os limites da interpretação.
