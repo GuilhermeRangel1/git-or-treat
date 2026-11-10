@@ -2357,9 +2357,9 @@
     {
       "id": "MGC-033",
       "category": "individual",
-      "question": "Qual foi o consumo medido no bairro CENTRO, em ITAPISSUMA, em abril de 2026?",
+      "question": "Qual foi o consumo medido no bairro CENTRO, da classe rural, em ITAPISSUMA, em abril de 2026?",
       "turns": [
-        "Qual foi o consumo medido no bairro CENTRO, em ITAPISSUMA, em abril de 2026?"
+        "Qual foi o consumo medido no bairro CENTRO, da classe rural, em ITAPISSUMA, em abril de 2026?"
       ],
       "expected": {
         "status": "answered_when_ready",
