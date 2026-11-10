@@ -34,6 +34,8 @@ class RevenueEffect:
     interaction_effect_brl: Decimal | None = Decimal(0)
     state: str = "CALCULADA_BASE_COMUM"
     neighborhood: str = ""
+    consumption_change_kwh: Decimal | None = None
+    average_consumption_kwh: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +60,8 @@ def compose_consumption_revenue(
     *,
     expected_municipalities: frozenset[str],
     expected_revenue_groups: frozenset[tuple[str, ...]],
+    only_declines: bool = True,
+    snapshot: bool = False,
 ) -> CompoundResult:
     """Combine validated totals and published effects, without joining raw facts.
 
@@ -80,7 +84,9 @@ def compose_consumption_revenue(
         ):
             raise CompoundEvidenceUnavailable("Totais municipais inválidos ou duplicados.")
         seen_municipalities.add(row.municipality)
-        if row.current_kwh < row.previous_kwh:
+        if not only_declines or row.current_kwh < row.previous_kwh:
+            if row.previous_kwh == 0 and not snapshot:
+                raise CompoundEvidenceUnavailable("O consumo inicial é zero no recorte.")
             declines.append(row)
 
     if not seen_municipalities or seen_municipalities != expected_municipalities:
@@ -98,12 +104,12 @@ def compose_consumption_revenue(
             not all(key)
             or key in seen_groups
             or not effect.variation_brl.is_finite()
-            or effect.state not in {"CALCULADA_BASE_COMUM", "SEM_BASE_COMUM"}
+            or effect.state not in {"CALCULADA_BASE_COMUM", "SEM_BASE_COMUM", "DECOMPOSICAO_INDISPONIVEL"}
             or effect.state == "CALCULADA_BASE_COMUM"
             and any(value is None or not value.is_finite() for value in (
                 effect.volume_effect_brl, effect.price_effect_brl, effect.interaction_effect_brl
             ))
-            or effect.state == "SEM_BASE_COMUM"
+            or effect.state != "CALCULADA_BASE_COMUM"
             and any(value is not None for value in (
                 effect.volume_effect_brl, effect.price_effect_brl, effect.interaction_effect_brl
             ))
@@ -123,7 +129,7 @@ def compose_consumption_revenue(
             MunicipalityDecline(
                 consumption=row,
                 change_kwh=change,
-                change_percent=change * 100 / row.previous_kwh,
+                change_percent=change * 100 / row.previous_kwh if not snapshot else Decimal(0),
                 revenue_by_class=tuple(
                     sorted(groups[row.municipality], key=lambda item: item.consumption_class)
                 ),
