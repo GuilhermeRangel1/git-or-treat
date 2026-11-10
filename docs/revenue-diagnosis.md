@@ -218,3 +218,24 @@ A Gold sustenta duas evidências complementares: a queda de volume entre as jane
 Essa evidência é mais forte que comparar apenas “com GD” e “sem GD” em um mês. Ainda não mede geração/injeção/compensação e não isola todos os fatores simultâneos à adesão. Não chamar a diferença de efeito causal identificado, energia gerada ou volume recuperável por fiscalização. Cadastro/classe são atuais; observações mensais ausentes e seleção de clientes que adotam GD continuam possíveis fontes de viés.
 
 **Reprodução e verificação:** script local `work/receita-investigacao/event_study.py`, com `MIN_EVENT_MONTHS=4` e `5`; execução somente leitura, sem exportar UCs ou valores absolutos, conferindo a propriedade de transação. A consulta monolítica inicial excedeu o prazo de 20 s e não produziu resultado aceito; o cálculo foi dividido em agregação dos conectados e leitura sequencial dos controles, processada em memória, sem alterar o banco ou ampliar o prazo por consulta. Os resultados acima são das duas execuções concluídas dessa versão. Não houve mudança de API, interface ou fórmula Gold nesta etapa.
+
+## 13. Impacto na receita das UCs com GD (conferência de 04/11/2026)
+
+**Pergunta:** o que a concentração da queda de volume em UCs com GD (seções 11 e 12) significa para a **receita**?
+
+**Fonte e método:** consulta somente leitura à Gold `GOLD_20261103T173853Z_76c37784`, sem tabelas alteradas e sem divulgar R$ nem contagens. Usa a mesma base pareada da seção 11 (seis ou mais pares UC/mês nas duas janelas, consumo positivo nas duas pontas, somente `receita_base_comparavel_reais` e `consumo_base_comparavel_kwh` não nulos) e o **cadastro atual** (`possui_gd` de `visao_360_uc`), e não a data de conexão. Os percentuais são razões agregadas e por isso **não substituem** a decomposição da seção 5: a receita da base pareada sobe +7,37%, o volume cai −4,54% e o preço efetivo agregado sobe +12,47%.
+
+| Grupo | Peso na receita de P0 | Volume | Receita | Preço efetivo | Contribuição à variação da receita |
+| --- | --- | --- | --- | --- | --- |
+| Sem GD no cadastro | 91,5% | +0,46% | +13,21% | +12,69% | +12,09 p.p. |
+| Com GD no cadastro | 8,5% | −61,65% | −55,58% | +15,81% | −4,72 p.p. |
+
+- **A receita das UCs com GD cai quase na mesma proporção do volume** (−55,58% contra −61,65%): a fatura é quase toda proporcional ao consumo medido, então a energia abatida vira receita não faturada. As UCs com GD reduziram a variação da receita em cerca de 4,7 p.p.; sem elas, a base pareada teria crescido cerca de 12%.
+- **A receita total continua subindo** (+7,97% na decomposição): as UCs sem GD, ≈ 92% da receita, crescem tanto que compensam a perda.
+- **Concentração (base pareada):** só 23,8% das UCs caíram; 9,4% caíram 30% ou mais e respondem por 89,3% da perda bruta de volume; a mediana por UC foi +3,2%. Quem subiu devolveu cerca de 35% da perda bruta.
+- **Por classe e GD:** comercial sem GD −1,93% e com GD −61,51%; residencial sem GD +2,18% e com GD −61,74%, em linha com a seção 11. Industrial, poder público e rural não têm UCs com GD nesta base.
+- **Tempo:** comparando o mesmo trimestre, o volume vem caindo gradualmente desde 2024, e não em degrau, o que combina com adesão crescente.
+
+**Limites:** associação, não causa (não há energia gerada na Gold); "tem GD" é o cadastro atual e a seção 11 separa por data de conexão; o preço efetivo agregado inclui efeito de composição.
+
+**Consequência prática:** a perda de receita por GD (≈ 4,7 p.p.) é da mesma ordem de grandeza do teto teórico de recuperação de volume da seção 8 (≈ 4%), e parte dela é geração legítima, que não se recupera. Medir o impacto por município e rever como a energia abatida é cobrada antes de planejar recuperação comercial.
