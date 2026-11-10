@@ -204,7 +204,9 @@ export type SqlFinancialComparison = {
   municipality: string;
   start_month: string;
   end_month: string;
-  metric_ids: ("billing.revenue" | "energy.consumption" | "billing.effective_tariff")[];
+  metric_ids: (
+    "billing.revenue" | "energy.consumption" | "billing.effective_tariff"
+  )[];
   answer: string;
   monthly: {
     period: string;
@@ -220,8 +222,14 @@ export type SqlContinuityPairAnalysis = {
   contract_version: "text-to-sql-f1-continuity-pair-v1";
   answer: string;
   active_gold_batch: string;
-  dec: { evidence: SqlContinuityEvidence; presentation: SqlAnalysisPresentation };
-  fec: { evidence: SqlContinuityEvidence; presentation: SqlAnalysisPresentation };
+  dec: {
+    evidence: SqlContinuityEvidence;
+    presentation: SqlAnalysisPresentation;
+  };
+  fec: {
+    evidence: SqlContinuityEvidence;
+    presentation: SqlAnalysisPresentation;
+  };
   limitations: string[];
   evidence_digest: string;
 };
@@ -238,7 +246,8 @@ export type SqlCompoundAnalysis = {
   active_gold_batch: string;
   staging_manifest_digest: string | null;
   staging_csv_digest: string | null;
-  method: "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3" | "VARIACAO_OBSERVADA";
+  method:
+    "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3" | "VARIACAO_OBSERVADA";
   windows: {
     p0_start: string;
     p0_end: string;
@@ -259,7 +268,8 @@ export type SqlCompoundAnalysis = {
       volume_effect_brl: string | null;
       price_effect_brl: string | null;
       interaction_effect_brl: string | null;
-      state: "CALCULADA_BASE_COMUM" | "SEM_BASE_COMUM" | "DECOMPOSICAO_INDISPONIVEL";
+      state:
+        "CALCULADA_BASE_COMUM" | "SEM_BASE_COMUM" | "DECOMPOSICAO_INDISPONIVEL";
       consumption_change_kwh?: string | null;
       average_consumption_kwh?: string | null;
     }[];
@@ -993,11 +1003,16 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
     if (compound.contract_version === "text-to-sql-f1-feeder-occurrences-v1") {
       const { feeder, month, occurrences } = compound;
       if (
-        typeof feeder !== "string" || !/^[A-Z0-9-]{1,80}$/.test(feeder) ||
-        typeof month !== "string" || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(month) ||
-        typeof occurrences !== "number" || !Number.isSafeInteger(occurrences) || occurrences < 1 ||
+        typeof feeder !== "string" ||
+        !/^[A-Z0-9-]{1,80}$/.test(feeder) ||
+        typeof month !== "string" ||
+        !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(month) ||
+        typeof occurrences !== "number" ||
+        !Number.isSafeInteger(occurrences) ||
+        occurrences < 1 ||
         !/^[a-f0-9]{64}$/.test(String(compound.evidence_digest))
-      ) return fail();
+      )
+        return fail();
       return {
         ...decodeAIQuestionResponse({
           contract_version: "v1",
@@ -1005,23 +1020,42 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           audit_reference: value.audit_reference,
           status: "answered",
           answer: `Em ${month}, o alimentador ${feeder} registrou ${occurrences.toLocaleString("pt-BR")} ocorrências distintas.`,
-          evidence: [{ source: "gold.local", description: "Ocorrências da publicação ativa.", is_demo: false }],
+          evidence: [
+            {
+              source: "gold.local",
+              description: "Ocorrências da publicação ativa.",
+              is_demo: false,
+            },
+          ],
         }),
         sql_analysis_mode: true,
       };
     }
-    if (compound.contract_version === "text-to-sql-f1-published-decomposition-v1") {
+    if (
+      compound.contract_version === "text-to-sql-f1-published-decomposition-v1"
+    ) {
       if (
-        typeof compound.answer !== "string" || !Array.isArray(compound.records) ||
-        compound.records.length > 20 || compound.records.some((row) =>
-          !Array.isArray(row) || row.length !== 3 ||
-          typeof row[0] !== "string" || !["R$", "participações"].includes(row[1]) ||
-          typeof row[2] !== "string" || !/^-?[0-9]+(?:\.[0-9]+)?$/.test(row[2])
-        ) || !/^[a-f0-9]{64}$/.test(String(compound.evidence_digest))
-      ) return fail();
-      const details = compound.records.map(([label, unit, amount]) =>
-        `${label}: ${Number(amount).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${unit}`,
-      ).join("\n");
+        typeof compound.answer !== "string" ||
+        !Array.isArray(compound.records) ||
+        compound.records.length > 20 ||
+        compound.records.some(
+          (row) =>
+            !Array.isArray(row) ||
+            row.length !== 3 ||
+            typeof row[0] !== "string" ||
+            !["R$", "participações"].includes(row[1]) ||
+            typeof row[2] !== "string" ||
+            !/^-?[0-9]+(?:\.[0-9]+)?$/.test(row[2]),
+        ) ||
+        !/^[a-f0-9]{64}$/.test(String(compound.evidence_digest))
+      )
+        return fail();
+      const details = compound.records
+        .map(
+          ([label, unit, amount]) =>
+            `${label}: ${Number(amount).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${unit}`,
+        )
+        .join("\n");
       return {
         ...decodeAIQuestionResponse({
           contract_version: "v1",
@@ -1029,43 +1063,88 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           audit_reference: value.audit_reference,
           status: "answered",
           answer: `${compound.answer}\n${details}`,
-          evidence: [{ source: "gold.local", description: "Decomposição da publicação ativa.", is_demo: false }],
+          evidence: [
+            {
+              source: "gold.local",
+              description: "Decomposição da publicação ativa.",
+              is_demo: false,
+            },
+          ],
         }),
         sql_analysis_mode: true,
         ...(typeof compound.active_gold_batch === "string" &&
-          compound.active_gold_batch.startsWith("gold-csv-v2:") ? {
-          sql_published_decomposition: {
-            batch: compound.active_gold_batch,
-            scope: compound.answer,
-            components: compound.records.filter((row): row is [string, string, string] =>
-              row[1] === "R$" && ["Efeito volume", "Efeito preço observado", "Interação preço-volume"].includes(row[0])),
-          },
-        } : {}),
+        compound.active_gold_batch.startsWith("gold-csv-v2:")
+          ? {
+              sql_published_decomposition: {
+                batch: compound.active_gold_batch,
+                scope: compound.answer,
+                components: compound.records.filter(
+                  (row): row is [string, string, string] =>
+                    row[1] === "R$" &&
+                    [
+                      "Efeito volume",
+                      "Efeito preço observado",
+                      "Interação preço-volume",
+                    ].includes(row[0]),
+                ),
+              },
+            }
+          : {}),
       };
     }
     if (compound.contract_version === "text-to-sql-f1-service-summary-v1") {
-      const { protocols, satisfaction, start_month: start, end_month: end } = compound;
+      const {
+        protocols,
+        satisfaction,
+        start_month: start,
+        end_month: end,
+      } = compound;
       const month = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
       if (
-        typeof protocols !== "number" || !Number.isSafeInteger(protocols) || protocols < 0 ||
-        typeof start !== "string" || typeof end !== "string" ||
-        !month.test(start) || !month.test(end) || start > end ||
-        (satisfaction !== null && (typeof satisfaction !== "string" ||
-          !/^[0-9]+\.[0-9]{2}$/.test(satisfaction))) ||
+        typeof protocols !== "number" ||
+        !Number.isSafeInteger(protocols) ||
+        protocols < 0 ||
+        typeof start !== "string" ||
+        typeof end !== "string" ||
+        !month.test(start) ||
+        !month.test(end) ||
+        start > end ||
+        (satisfaction !== null &&
+          (typeof satisfaction !== "string" ||
+            !/^[0-9]+\.[0-9]{2}$/.test(satisfaction))) ||
         typeof compound.active_gold_batch !== "string" ||
         !compound.active_gold_batch.startsWith("gold-csv-v2:") ||
         !/^[a-f0-9]{64}$/.test(String(compound.evidence_digest)) ||
-        value.evidence != null || value.presentation != null ||
-        value.clarification != null || value.unsupported_reason != null ||
+        value.evidence != null ||
+        value.presentation != null ||
+        value.clarification != null ||
+        value.unsupported_reason != null ||
         value.continuity_pair_analysis != null
-      ) return fail();
-      const rating = satisfaction === null ? "indisponível" : `${satisfaction.replace(".", ",")} pontos`;
+      )
+        return fail();
+      const rating =
+        satisfaction === null
+          ? "indisponível"
+          : `${satisfaction.replace(".", ",")} pontos`;
       const monthly = compound.monthly ?? [];
-      if (!Array.isArray(monthly) || monthly.length > 12 || monthly.some(
-        (row) => !Array.isArray(row) || row.length !== 3 ||
-          typeof row[0] !== "string" || !month.test(row[0]) ||
-          !row.slice(1).every((cell) => typeof cell === "string" && /^[0-9]+\.[0-9]{2}$/.test(cell)),
-      )) return fail();
+      if (
+        !Array.isArray(monthly) ||
+        monthly.length > 12 ||
+        monthly.some(
+          (row) =>
+            !Array.isArray(row) ||
+            row.length !== 3 ||
+            typeof row[0] !== "string" ||
+            !month.test(row[0]) ||
+            !row
+              .slice(1)
+              .every(
+                (cell) =>
+                  typeof cell === "string" && /^[0-9]+\.[0-9]{2}$/.test(cell),
+              ),
+        )
+      )
+        return fail();
       const answer = monthly.length
         ? `De ${start} a ${end}, o consumo medido passou de ${Number(monthly[0][1]).toLocaleString("pt-BR")} kWh para ${Number(monthly.at(-1)![1]).toLocaleString("pt-BR")} kWh. A satisfação média foi ${rating}.`
         : `De ${start} a ${end}, foram registrados ${protocols.toLocaleString("pt-BR")} protocolos. A satisfação média foi ${rating}.`;
@@ -1076,46 +1155,85 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           audit_reference: value.audit_reference,
           status: "answered",
           answer,
-          evidence: [{ source: "gold.local", description: monthly.length
-            ? "Consumo medido e satisfação da publicação ativa."
-            : "Atendimentos da publicação ativa.", is_demo: false }],
+          evidence: [
+            {
+              source: "gold.local",
+              description: monthly.length
+                ? "Consumo medido e satisfação da publicação ativa."
+                : "Atendimentos da publicação ativa.",
+              is_demo: false,
+            },
+          ],
         }),
         sql_analysis_mode: true,
         sql_service_summary: compound as SqlServiceSummary,
       };
     }
-    if (compound.contract_version === "text-to-sql-f1-financial-comparison-v1") {
+    if (
+      compound.contract_version === "text-to-sql-f1-financial-comparison-v1"
+    ) {
       const month = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
       const decimal = /^-?(?:0|[1-9][0-9]{0,100})(?:\.[0-9]{1,100})?$/;
-      const allowedMetrics = ["billing.revenue", "energy.consumption", "billing.effective_tariff"];
+      const allowedMetrics = [
+        "billing.revenue",
+        "energy.consumption",
+        "billing.effective_tariff",
+      ];
       const metricIds = compound.metric_ids;
-      const hasConsumption = Array.isArray(metricIds) && metricIds.includes("energy.consumption");
-      const hasRevenue = Array.isArray(metricIds) && metricIds.includes("billing.revenue");
-      const hasPrice = Array.isArray(metricIds) && metricIds.includes("billing.effective_tariff");
+      const hasConsumption =
+        Array.isArray(metricIds) && metricIds.includes("energy.consumption");
+      const hasRevenue =
+        Array.isArray(metricIds) && metricIds.includes("billing.revenue");
+      const hasPrice =
+        Array.isArray(metricIds) &&
+        metricIds.includes("billing.effective_tariff");
       if (
-        typeof compound.answer !== "string" || typeof compound.municipality !== "string" ||
-        !compound.municipality || typeof compound.active_gold_batch !== "string" ||
+        typeof compound.answer !== "string" ||
+        typeof compound.municipality !== "string" ||
+        !compound.municipality ||
+        typeof compound.active_gold_batch !== "string" ||
         !compound.active_gold_batch.startsWith("gold-csv-v2:") ||
-        !Array.isArray(metricIds) || metricIds.length < 1 || metricIds.length > 3 ||
+        !Array.isArray(metricIds) ||
+        metricIds.length < 1 ||
+        metricIds.length > 3 ||
         metricIds.some((id) => !allowedMetrics.includes(String(id))) ||
         new Set(metricIds).size !== metricIds.length ||
-        typeof compound.start_month !== "string" || !month.test(compound.start_month) ||
-        typeof compound.end_month !== "string" || !month.test(compound.end_month) ||
-        compound.start_month > compound.end_month || !Array.isArray(compound.monthly) ||
-        compound.monthly.length < 1 || compound.monthly.length > 12 ||
-        compound.monthly.some((row) => !isRecord(row) ||
-          typeof row.period !== "string" || !month.test(row.period) ||
-          (hasConsumption ? (typeof row.consumption_kwh !== "string" || !decimal.test(row.consumption_kwh)) : row.consumption_kwh !== null) ||
-          (hasRevenue ? (typeof row.revenue_brl !== "string" || !decimal.test(row.revenue_brl)) : row.revenue_brl !== null) ||
-          (row.observed_price_brl_per_kwh !== null &&
-            (typeof row.observed_price_brl_per_kwh !== "string" ||
-              !decimal.test(row.observed_price_brl_per_kwh))) ||
-          (!hasPrice && row.observed_price_brl_per_kwh !== null)) ||
-        !Array.isArray(compound.limitations) || compound.limitations.some((item) => typeof item !== "string") ||
+        typeof compound.start_month !== "string" ||
+        !month.test(compound.start_month) ||
+        typeof compound.end_month !== "string" ||
+        !month.test(compound.end_month) ||
+        compound.start_month > compound.end_month ||
+        !Array.isArray(compound.monthly) ||
+        compound.monthly.length < 1 ||
+        compound.monthly.length > 12 ||
+        compound.monthly.some(
+          (row) =>
+            !isRecord(row) ||
+            typeof row.period !== "string" ||
+            !month.test(row.period) ||
+            (hasConsumption
+              ? typeof row.consumption_kwh !== "string" ||
+                !decimal.test(row.consumption_kwh)
+              : row.consumption_kwh !== null) ||
+            (hasRevenue
+              ? typeof row.revenue_brl !== "string" ||
+                !decimal.test(row.revenue_brl)
+              : row.revenue_brl !== null) ||
+            (row.observed_price_brl_per_kwh !== null &&
+              (typeof row.observed_price_brl_per_kwh !== "string" ||
+                !decimal.test(row.observed_price_brl_per_kwh))) ||
+            (!hasPrice && row.observed_price_brl_per_kwh !== null),
+        ) ||
+        !Array.isArray(compound.limitations) ||
+        compound.limitations.some((item) => typeof item !== "string") ||
         !/^[a-f0-9]{64}$/.test(String(compound.evidence_digest)) ||
-        value.evidence != null || value.presentation != null || value.clarification != null ||
-        value.unsupported_reason != null || value.continuity_pair_analysis != null
-      ) return fail();
+        value.evidence != null ||
+        value.presentation != null ||
+        value.clarification != null ||
+        value.unsupported_reason != null ||
+        value.continuity_pair_analysis != null
+      )
+        return fail();
       return {
         ...decodeAIQuestionResponse({
           contract_version: "v1",
@@ -1123,7 +1241,13 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           audit_reference: value.audit_reference,
           status: "answered",
           answer: compound.answer,
-          evidence: [{ source: "gold.local", description: "Métricas calculadas da publicação ativa.", is_demo: false }],
+          evidence: [
+            {
+              source: "gold.local",
+              description: "Métricas calculadas da publicação ativa.",
+              is_demo: false,
+            },
+          ],
         }),
         limitations: compound.limitations as string[],
         sql_analysis_mode: true,
@@ -1160,19 +1284,29 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
       !isText(compound.active_gold_batch, 200) ||
       !String(compound.active_gold_batch).startsWith("gold-csv-v2:") ||
       !isRecord(windows) ||
-      ![windows.p0_start, windows.p0_end, windows.p1_start, windows.p1_end].every(
-        (month) => typeof month === "string" && /^[0-9]{4}-(0[1-9]|1[0-2])$/.test(month),
+      ![
+        windows.p0_start,
+        windows.p0_end,
+        windows.p1_start,
+        windows.p1_end,
+      ].every(
+        (month) =>
+          typeof month === "string" && /^[0-9]{4}-(0[1-9]|1[0-2])$/.test(month),
       ) ||
       String(windows.p0_start) > String(windows.p0_end) ||
       (String(windows.p0_end) >= String(windows.p1_start) &&
-        !(compound.method === "VARIACAO_OBSERVADA" &&
+        !(
+          compound.method === "VARIACAO_OBSERVADA" &&
           windows.p0_start === windows.p0_end &&
           windows.p0_end === windows.p1_start &&
-          windows.p1_start === windows.p1_end)) ||
+          windows.p1_start === windows.p1_end
+        )) ||
       String(windows.p1_start) > String(windows.p1_end) ||
       (compound.method === "VARIACAO_OBSERVADA"
-        ? compound.staging_manifest_digest !== null || compound.staging_csv_digest !== null
-        : compound.method !== "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3" ||
+        ? compound.staging_manifest_digest !== null ||
+          compound.staging_csv_digest !== null
+        : compound.method !==
+            "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3" ||
           !digest.test(String(compound.staging_manifest_digest)) ||
           !digest.test(String(compound.staging_csv_digest))) ||
       windows.method !== compound.method ||
@@ -1224,9 +1358,11 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
               !decimal.test(effect.average_consumption_kwh))) ||
           (compound.method === "VARIACAO_OBSERVADA") !==
             (effect.state === "DECOMPOSICAO_INDISPONIVEL") ||
-          !["CALCULADA_BASE_COMUM", "SEM_BASE_COMUM", "DECOMPOSICAO_INDISPONIVEL"].includes(
-            String(effect.state),
-          ) ||
+          ![
+            "CALCULADA_BASE_COMUM",
+            "SEM_BASE_COMUM",
+            "DECOMPOSICAO_INDISPONIVEL",
+          ].includes(String(effect.state)) ||
           (effect.state === "CALCULADA_BASE_COMUM" &&
             [
               effect.volume_effect_brl,
@@ -1323,8 +1459,10 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
       fec.sql_presentation == null ||
       !isRecord(pair.dec.evidence) ||
       !isRecord(pair.fec.evidence) ||
-      pair.dec.evidence.metric_id !== "network.equivalent_interruption_duration" ||
-      pair.fec.evidence.metric_id !== "network.equivalent_interruption_frequency" ||
+      pair.dec.evidence.metric_id !==
+        "network.equivalent_interruption_duration" ||
+      pair.fec.evidence.metric_id !==
+        "network.equivalent_interruption_frequency" ||
       pair.dec.evidence.batch_ref !== pair.active_gold_batch ||
       pair.fec.evidence.batch_ref !== pair.active_gold_batch ||
       dec.sql_presentation.period !== fec.sql_presentation.period ||
@@ -1332,13 +1470,15 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
         (pair.dec.evidence.interpretation as Record<string, unknown>)?.periods,
       ) !==
         JSON.stringify(
-          (pair.fec.evidence.interpretation as Record<string, unknown>)?.periods,
+          (pair.fec.evidence.interpretation as Record<string, unknown>)
+            ?.periods,
         ) ||
       JSON.stringify(
         (pair.dec.evidence.interpretation as Record<string, unknown>)?.filters,
       ) !==
         JSON.stringify(
-          (pair.fec.evidence.interpretation as Record<string, unknown>)?.filters,
+          (pair.fec.evidence.interpretation as Record<string, unknown>)
+            ?.filters,
         )
     )
       return fail();
@@ -1562,11 +1702,20 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
       })
     )
       return fail();
-    const filterDimensions = isRecord(evidence.interpretation) && Array.isArray(evidence.interpretation.filters)
-      ? evidence.interpretation.filters.flatMap((filter) =>
-          isRecord(filter) && typeof filter.dimension_id === "string" ? [filter.dimension_id] : [])
-      : [];
-    const rawVisualization = sqlAnalysisVisualization(presentation, String(evidence.metric_id), filterDimensions);
+    const filterDimensions =
+      isRecord(evidence.interpretation) &&
+      Array.isArray(evidence.interpretation.filters)
+        ? evidence.interpretation.filters.flatMap((filter) =>
+            isRecord(filter) && typeof filter.dimension_id === "string"
+              ? [filter.dimension_id]
+              : [],
+          )
+        : [];
+    const rawVisualization = sqlAnalysisVisualization(
+      presentation,
+      String(evidence.metric_id),
+      filterDimensions,
+    );
     const analysisContext: AIAnalysisContext = {
       batch_reference: evidence.batch_ref,
       metric: String(evidence.metric_id),

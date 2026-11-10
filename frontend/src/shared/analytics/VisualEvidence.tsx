@@ -67,22 +67,28 @@ export default function VisualEvidence({
   // A single observation is a metric, not an invented comparison.
   const comparable = values.length > 1;
   let running = 0;
-  const steps = data.kind === "waterfall" ? values.map((value) => {
-    const start = running;
-    running += value;
-    return { start, end: running };
-  }) : [];
+  const steps =
+    data.kind === "waterfall"
+      ? values.map((value) => {
+          const start = running;
+          running += value;
+          return { start, end: running };
+        })
+      : [];
   const minimum = Math.min(0, ...values, ...steps.map((step) => step.end));
   const maximum = Math.max(0, ...values, ...steps.map((step) => step.end));
   const span = maximum - minimum || 1;
   const y = (v: number) => 210 - ((v - minimum) / span) * 160;
   const cellWidth = Math.max(
     110,
-    ...data.points.map((p) =>
-      Math.max(
-        p.label.length,
-        visualValue(p.value, data.unit, data.precision).length,
-      ) * 10 + 24,
+    ...data.points.map(
+      (p) =>
+        Math.max(
+          p.label.length,
+          visualValue(p.value, data.unit, data.precision).length,
+        ) *
+          10 +
+        24,
     ),
   );
   const width = Math.max(400, data.points.length * cellWidth + 80);

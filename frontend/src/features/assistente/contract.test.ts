@@ -349,16 +349,24 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
       },
     };
     const decoded = decodeSqlAnalysisResponse(comparison);
-    expect(decoded).toMatchObject({ status: "answered", sql_analysis_mode: true });
+    expect(decoded).toMatchObject({
+      status: "answered",
+      sql_analysis_mode: true,
+    });
     expect(decoded.sql_financial_comparison?.metric_ids).toEqual([
-      "energy.consumption", "billing.effective_tariff",
+      "energy.consumption",
+      "billing.effective_tariff",
     ]);
     expect(decoded.sql_financial_comparison?.monthly).toEqual([
       expect.objectContaining({
-        period: "2026-01", consumption_kwh: "7622382", revenue_brl: null,
+        period: "2026-01",
+        consumption_kwh: "7622382",
+        revenue_brl: null,
       }),
       expect.objectContaining({
-        period: "2026-06", consumption_kwh: "5353512", revenue_brl: null,
+        period: "2026-06",
+        consumption_kwh: "5353512",
+        revenue_brl: null,
       }),
     ]);
   });
@@ -903,8 +911,18 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         },
         columns: [
           { name: key, role: "measure", value_type: "decimal", unit },
-          { name: "feeders_included", role: "measure", value_type: "integer", unit: "alimentadores" },
-          { name: "feeders_excluded", role: "measure", value_type: "integer", unit: "alimentadores" },
+          {
+            name: "feeders_included",
+            role: "measure",
+            value_type: "integer",
+            unit: "alimentadores",
+          },
+          {
+            name: "feeders_excluded",
+            role: "measure",
+            value_type: "integer",
+            unit: "alimentadores",
+          },
         ],
         measure_semantics: {
           [key]: meaning,
@@ -926,8 +944,20 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
         limitations: [warning],
         columns: [
           { key, label, role: "measure", semantic_id: meaning, unit },
-          { key: "feeders_included", label: "Alimentadores elegíveis", role: "measure", semantic_id: "feeders_included", unit: "alimentadores" },
-          { key: "feeders_excluded", label: "Alimentadores observados excluídos", role: "measure", semantic_id: "feeders_excluded", unit: "alimentadores" },
+          {
+            key: "feeders_included",
+            label: "Alimentadores elegíveis",
+            role: "measure",
+            semantic_id: "feeders_included",
+            unit: "alimentadores",
+          },
+          {
+            key: "feeders_excluded",
+            label: "Alimentadores observados excluídos",
+            role: "measure",
+            semantic_id: "feeders_excluded",
+            unit: "alimentadores",
+          },
         ],
         rows: [{ observation_id: "row_1", cells: [value, "1", "0"] }],
       },
