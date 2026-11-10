@@ -311,6 +311,58 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
     });
   });
 
+  it("aceita uma comparação financeira com somente as métricas pedidas", () => {
+    const comparison = {
+      correlation_id: sqlResponse.correlation_id,
+      audit_reference: sqlResponse.audit_reference,
+      status: "answered",
+      evidence: null,
+      presentation: null,
+      clarification: null,
+      unsupported_reason: null,
+      continuity_pair_analysis: null,
+      compound_analysis: {
+        contract_version: "text-to-sql-f1-financial-comparison-v1",
+        answer: "De janeiro a junho, o consumo caiu e o preço observado subiu.",
+        active_gold_batch:
+          "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        municipality: "RECIFE",
+        start_month: "2026-01",
+        end_month: "2026-06",
+        metric_ids: ["energy.consumption", "billing.effective_tariff"],
+        monthly: [
+          {
+            period: "2026-01",
+            consumption_kwh: "7622382",
+            revenue_brl: null,
+            observed_price_brl_per_kwh: "0.7547",
+          },
+          {
+            period: "2026-06",
+            consumption_kwh: "5353512",
+            revenue_brl: null,
+            observed_price_brl_per_kwh: "0.7557",
+          },
+        ],
+        limitations: ["Preço observado não é tarifa regulada."],
+        evidence_digest: "c".repeat(64),
+      },
+    };
+    const decoded = decodeSqlAnalysisResponse(comparison);
+    expect(decoded).toMatchObject({ status: "answered", sql_analysis_mode: true });
+    expect(decoded.sql_financial_comparison?.metric_ids).toEqual([
+      "energy.consumption", "billing.effective_tariff",
+    ]);
+    expect(decoded.sql_financial_comparison?.monthly).toEqual([
+      expect.objectContaining({
+        period: "2026-01", consumption_kwh: "7622382", revenue_brl: null,
+      }),
+      expect.objectContaining({
+        period: "2026-06", consumption_kwh: "5353512", revenue_brl: null,
+      }),
+    ]);
+  });
+
   it("aceita a apresentação v2 com crescimento percentual derivado no Backend", () => {
     const result = decodeSqlAnalysisResponse({
       ...sqlResponse,

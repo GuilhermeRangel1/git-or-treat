@@ -300,6 +300,12 @@ function AssistantResult({
 }) {
   const answered = response.status === "answered";
   const state = RESPONSE_STATES[response.status];
+  const compound = response.sql_compound_analysis;
+  const observedCompound = compound?.method === "VARIACAO_OBSERVADA";
+  const compoundHasNeighborhood = compound?.municipalities.some((municipality) =>
+    municipality.revenue_by_class.some((effect) => effect.neighborhood !== "Todos"),
+  ) ?? false;
+  const financialMetrics = new Set(response.sql_financial_comparison?.metric_ids ?? []);
   if (
     !preliminary &&
     !interpretationFailed &&
@@ -453,17 +459,125 @@ function AssistantResult({
           </div>
         </section>
       )}
-      {answered && response.sql_compound_analysis && (
+      {answered && response.sql_compound_analysis &&
+        response.sql_compound_analysis.windows.p0_start ===
+          response.sql_compound_analysis.windows.p1_start && (
+        <section aria-label="Consumo e receita no período" className="overflow-hidden rounded-xl border border-divider bg-surface">
+          <div className="border-b border-divider px-4 py-3">
+            <h3 className="font-semibold text-content">Consumo e receita faturada</h3>
+            <p className="mt-1 text-sm text-muted">{formatPeriod(response.sql_compound_analysis.windows.p1_start)}</p>
+            <p className="mt-2 text-sm text-content">{response.sql_compound_analysis.answer}</p>
+          </div>
+          <div className="max-w-full overflow-auto">
+            <table className="min-w-full border-collapse text-left text-sm">
+              <caption className="sr-only">Consumo e receita por município e classe</caption>
+              <thead className="bg-canvas text-xs text-muted"><tr>
+                {["Município", "Classe", "Consumo", "Receita faturada"].map((label) => (
+                  <th key={label} scope="col" className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold">{label}</th>
+                ))}
+              </tr></thead>
+              <tbody>{response.sql_compound_analysis.municipalities.flatMap((row) => row.revenue_by_class.map((effect) => (
+                <tr key={`${row.municipality}-${effect.consumption_class}`} className="border-b border-divider last:border-0">
+                  <td className="whitespace-nowrap px-3 py-2 text-content">{row.municipality}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-content">{effect.consumption_class}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-content">{effect.consumption_class === "Todas"
+                    ? formatExactDecimal(row.current_consumption_kwh, "kWh")
+                    : effect.average_consumption_kwh == null ? "Indisponível"
+                      : formatExactDecimal(effect.average_consumption_kwh, "kWh/UC com leitura")}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-content">{formatExactDecimal(effect.variation_brl, "R$")}</td>
+                </tr>
+              )))}</tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      {answered && response.sql_service_summary && response.sql_service_summary.monthly.length > 0 && (
+        <section aria-label="Consumo e satisfação mensal" className="overflow-hidden rounded-xl border border-divider bg-surface">
+          <div className="border-b border-divider px-4 py-3">
+            <h3 className="font-semibold text-content">Consumo e satisfação por mês</h3>
+            <p className="mt-1 text-sm text-muted">{formatPeriod(`${response.sql_service_summary.start_month} a ${response.sql_service_summary.end_month}`)}</p>
+          </div>
+          <div className="max-w-full overflow-auto">
+            <table className="min-w-full border-collapse text-left text-sm">
+              <caption className="sr-only">Consumo medido e nota média por competência</caption>
+              <thead className="bg-canvas text-xs text-muted"><tr>
+                {["Mês", "Consumo medido", "Satisfação média"].map((label) => (
+                  <th key={label} scope="col" className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold">{label}</th>
+                ))}
+              </tr></thead>
+              <tbody>{response.sql_service_summary.monthly.map(([period, kwh, rating]) => (
+                <tr key={period} className="border-b border-divider last:border-0">
+                  <th scope="row" className="whitespace-nowrap px-3 py-2 font-medium text-content">{formatPeriod(period)}</th>
+                  <td className="whitespace-nowrap px-3 py-2 text-content">{formatExactDecimal(kwh, "kWh")}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-content">{formatExactDecimal(rating, "pontos")}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          <p className="border-t border-divider px-4 py-3 text-sm text-muted">
+            Atendimentos registrados no período: {response.sql_service_summary.protocols.toLocaleString("pt-BR")}.
+          </p>
+        </section>
+      )}
+      {answered && response.sql_financial_comparison && (
+        <section aria-label="Consumo, faturamento e preço observado" className="overflow-hidden rounded-xl border border-divider bg-surface">
+          <div className="border-b border-divider px-4 py-3">
+            <h3 className="font-semibold text-content">Consumo, faturamento e preço observado</h3>
+            <p className="mt-1 text-sm text-muted">
+              {response.sql_financial_comparison.municipality} · {formatPeriod(`${response.sql_financial_comparison.start_month} a ${response.sql_financial_comparison.end_month}`)}
+            </p>
+            <p className="mt-2 text-sm text-content">{response.sql_financial_comparison.answer}</p>
+          </div>
+          <div className="max-w-full overflow-auto">
+            <table className="min-w-full border-collapse text-left text-sm">
+              <caption className="sr-only">Consumo, faturamento e tarifa efetiva observada por mês</caption>
+              <thead className="bg-canvas text-xs text-muted"><tr>
+                {[
+                  "Mês",
+                  ...(financialMetrics.has("energy.consumption") ? ["Consumo medido"] : []),
+                  ...(financialMetrics.has("billing.revenue") ? ["Faturamento"] : []),
+                  ...(financialMetrics.has("billing.effective_tariff") ? ["Preço observado na base comparável"] : []),
+                ].map((label) => (
+                  <th key={label} scope="col" className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold">{label}</th>
+                ))}
+              </tr></thead>
+              <tbody>{response.sql_financial_comparison.monthly.map((row) => (
+                <tr key={row.period} className="border-b border-divider last:border-0">
+                  <th scope="row" className="whitespace-nowrap px-3 py-2 font-medium text-content">{formatPeriod(row.period)}</th>
+                  {financialMetrics.has("energy.consumption") && <td className="whitespace-nowrap px-3 py-2 text-content">{row.consumption_kwh == null ? "Indisponível" : formatExactDecimal(row.consumption_kwh, "kWh")}</td>}
+                  {financialMetrics.has("billing.revenue") && <td className="whitespace-nowrap px-3 py-2 text-content">{row.revenue_brl == null ? "Indisponível" : formatExactDecimal(row.revenue_brl, "R$")}</td>}
+                  {financialMetrics.has("billing.effective_tariff") && <td className="whitespace-nowrap px-3 py-2 text-content">{row.observed_price_brl_per_kwh == null
+                    ? "Sem base comparável"
+                    : formatExactDecimal(row.observed_price_brl_per_kwh, "R$/kWh")}</td>}
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          <ul className="space-y-1 border-t border-divider px-4 py-3 text-sm text-muted">
+            {response.sql_financial_comparison.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
+          </ul>
+        </section>
+      )}
+      {answered && response.sql_compound_analysis &&
+        response.sql_compound_analysis.windows.p0_start !==
+          response.sql_compound_analysis.windows.p1_start && (
         <section
           aria-label="Análise composta de consumo e faturamento"
           className="overflow-hidden rounded-xl border border-divider bg-surface"
         >
           <div className="border-b border-divider px-4 py-3">
             <h3 className="font-semibold text-content">
-              Consumo e decomposição da receita
+              {response.sql_compound_analysis.method === "VARIACAO_OBSERVADA"
+                ? "Variação de consumo e receita"
+                : "Consumo e decomposição da receita"}
             </h3>
             <p className="mt-1 text-sm text-muted">
-              Jul/2024–jun/2025 vs. jul/2025–jun/2026
+              {[
+                [response.sql_compound_analysis.windows.p0_start, response.sql_compound_analysis.windows.p0_end],
+                [response.sql_compound_analysis.windows.p1_start, response.sql_compound_analysis.windows.p1_end],
+              ].map(([start, end]) => formatPeriod(
+                start === end ? start : `${start} a ${end}`,
+              )).join(" vs. ")}
             </p>
             <details className="mt-2 text-xs text-muted">
               <summary className="min-h-9 cursor-pointer py-2 font-medium text-content focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
@@ -476,15 +590,17 @@ function AssistantResult({
                     response.sql_compound_analysis.active_gold_batch,
                   )}
                 </p>
-                <p>Decomposição lida de staging local.</p>
+                <p>{response.sql_compound_analysis.staging_manifest_digest
+                  ? "Decomposição lida de staging local."
+                  : "Comparação baseada nos dados publicados."}</p>
                 <p>Método técnico: {response.sql_compound_analysis.method}</p>
                 <p>
                   Evidência: {response.sql_compound_analysis.evidence_digest}
                 </p>
-                <p>
+                {response.sql_compound_analysis.staging_manifest_digest ? <p>
                   Manifesto:{" "}
                   {response.sql_compound_analysis.staging_manifest_digest}
-                </p>
+                </p> : null}
               </div>
             </details>
           </div>
@@ -495,27 +611,24 @@ function AssistantResult({
           >
             <table className="min-w-full border-collapse text-left text-sm">
               <caption className="sr-only">
-                Consumo por município e decomposição de faturamento por classe
+                Consumo por município e variação de faturamento por classe
               </caption>
               <thead className="sticky top-0 bg-canvas text-xs text-muted">
                 <tr>
                   {[
                     "Município",
-                    "Bairro",
+                    ...(compoundHasNeighborhood ? ["Bairro"] : []),
                     "Classe",
-                    "Consumo anterior (kWh)",
-                    "Consumo atual (kWh)",
-                    "Variação (kWh)",
-                    "Variação (%)",
-                    "Receita (R$)",
-                    "Volume (R$)",
-                    "Preço observado (R$)",
-                    "Interação (R$)",
+                    "Variação de consumo (kWh)",
+                    "Variação de receita (R$)",
+                    ...(!observedCompound ? ["Volume (R$)", "Preço observado (R$)", "Interação (R$)"] : []),
                   ].map((label) => (
                     <th
                       key={label}
                       scope="col"
-                      className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold"
+                      className={`${label === "Município" || label === "Bairro" || label === "Classe"
+                        ? "whitespace-nowrap"
+                        : "max-w-[135px] whitespace-normal leading-4"} border-b border-divider px-3 py-2 font-semibold`}
                     >
                       {label}
                     </th>
@@ -527,66 +640,61 @@ function AssistantResult({
                   (municipality) =>
                     municipality.revenue_by_class.map((effect) => (
                       <tr
-                        key={`${municipality.municipality}-${effect.consumption_class}`}
+                        key={`${municipality.municipality}-${effect.neighborhood}-${effect.consumption_class}`}
                         className="border-b border-divider last:border-0"
                       >
                         <td className="whitespace-nowrap px-3 py-2 text-content">
                           {municipality.municipality}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                        {compoundHasNeighborhood && <td className="whitespace-nowrap px-3 py-2 text-content">
                           {effect.neighborhood}
-                        </td>
+                        </td>}
                         <td className="whitespace-nowrap px-3 py-2 text-content">
                           {effect.consumption_class}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-content">
-                          {formatExactDecimal(
-                            municipality.previous_consumption_kwh,
-                            "kWh",
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-content">
-                          {formatExactDecimal(
-                            municipality.current_consumption_kwh,
-                            "kWh",
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-content">
-                          {formatExactDecimal(municipality.change_kwh, "kWh")}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-content">
-                          {formatExactDecimal(municipality.change_percent, "%")}
+                          {effect.consumption_change_kwh == null
+                            ? "—"
+                            : formatExactDecimal(effect.consumption_change_kwh, "kWh")}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-content">
                           {formatExactDecimal(effect.variation_brl, "R$")}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                        {!observedCompound && <td className="whitespace-nowrap px-3 py-2 text-content">
                           {effect.volume_effect_brl === null
-                            ? "Sem base comparável"
+                            ? effect.state === "DECOMPOSICAO_INDISPONIVEL"
+                              ? "Indisponível"
+                              : "Sem base comparável"
                             : formatExactDecimal(
                                 effect.volume_effect_brl,
                                 "R$",
                               )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                        </td>}
+                        {!observedCompound && <td className="whitespace-nowrap px-3 py-2 text-content">
                           {effect.price_effect_brl === null
-                            ? "Sem base comparável"
+                            ? effect.state === "DECOMPOSICAO_INDISPONIVEL"
+                              ? "Indisponível"
+                              : "Sem base comparável"
                             : formatExactDecimal(effect.price_effect_brl, "R$")}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                        </td>}
+                        {!observedCompound && <td className="whitespace-nowrap px-3 py-2 text-content">
                           {effect.interaction_effect_brl === null
-                            ? "Sem base comparável"
+                            ? effect.state === "DECOMPOSICAO_INDISPONIVEL"
+                              ? "Indisponível"
+                              : "Sem base comparável"
                             : formatExactDecimal(
                                 effect.interaction_effect_brl,
                                 "R$",
                               )}
-                        </td>
+                        </td>}
                       </tr>
                     )),
                 )}
                 {response.sql_compound_analysis.municipalities.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="px-3 py-4 text-muted">
+                    <td colSpan={observedCompound
+                      ? (compoundHasNeighborhood ? 5 : 4)
+                      : (compoundHasNeighborhood ? 8 : 7)} className="px-3 py-4 text-muted">
                       Nenhum município apresentou queda de consumo nas janelas
                       comparadas.
                     </td>
@@ -595,11 +703,6 @@ function AssistantResult({
               </tbody>
             </table>
           </div>
-          <ul className="space-y-1 border-t border-divider px-4 py-3 text-sm text-muted">
-            {response.sql_compound_analysis.limitations.map((limitation) => (
-              <li key={limitation}>{limitation}</li>
-            ))}
-          </ul>
         </section>
       )}
       {answered && response.sql_continuity_pair_analysis && (
