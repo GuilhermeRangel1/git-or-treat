@@ -10,7 +10,7 @@ import ChartBoundary from "./ChartBoundary";
 
 export interface VisualEvidenceData {
   reading?: VisualReading | null;
-  kind?: "bars" | "horizontal" | "donut" | "line";
+  kind?: "bars" | "horizontal" | "donut" | "line" | "waterfall";
   total?: number;
   note?: string;
   tablePoints?: VisualEvidenceData["points"];
@@ -66,17 +66,23 @@ export default function VisualEvidence({
     .filter((v): v is number => v !== null);
   // A single observation is a metric, not an invented comparison.
   const comparable = values.length > 1;
-  const minimum = Math.min(0, ...values);
-  const maximum = Math.max(0, ...values);
+  let running = 0;
+  const steps = data.kind === "waterfall" ? values.map((value) => {
+    const start = running;
+    running += value;
+    return { start, end: running };
+  }) : [];
+  const minimum = Math.min(0, ...values, ...steps.map((step) => step.end));
+  const maximum = Math.max(0, ...values, ...steps.map((step) => step.end));
   const span = maximum - minimum || 1;
   const y = (v: number) => 210 - ((v - minimum) / span) * 160;
   const cellWidth = Math.max(
     110,
     ...data.points.map((p) =>
-      Math.min(
-        220,
-        visualValue(p.value, data.unit, data.precision).length * 8 + 16,
-      ),
+      Math.max(
+        p.label.length,
+        visualValue(p.value, data.unit, data.precision).length,
+      ) * 10 + 24,
     ),
   );
   const width = Math.max(400, data.points.length * cellWidth + 80);
@@ -160,11 +166,9 @@ export default function VisualEvidence({
         {comparable ? (
           <div
             className={`mt-3 overflow-x-auto ${data.kind === "horizontal" ? "max-h-[320px] overflow-y-auto" : ""}`}
-            role={data.kind === "horizontal" ? "region" : undefined}
-            aria-label={
-              data.kind === "horizontal" ? "Gráfico com rolagem" : undefined
-            }
-            tabIndex={data.kind === "horizontal" ? 0 : undefined}
+            role="region"
+            aria-label="Gráfico com rolagem"
+            tabIndex={0}
           >
             {data.kind === "horizontal" || data.kind === "donut" ? (
               <DistributionGraphic data={data} svgRef={svg} id={id} />
@@ -230,7 +234,8 @@ export default function VisualEvidence({
                 )}
                 {data.points.map((point, i) => {
                   const x = 40 + i * cell + cell / 2;
-                  const valueY = y(point.value ?? 0);
+                  const valueY = y(steps[i]?.end ?? point.value ?? 0);
+                  const baseY = y(steps[i]?.start ?? 0);
                   return (
                     <g key={`${i}-${point.label}`}>
                       {point.value !== null && data.kind === "line" && (
@@ -253,9 +258,9 @@ export default function VisualEvidence({
                       {point.value !== null && data.kind !== "line" && (
                         <rect
                           x={x - Math.min(cell * 0.3, 42)}
-                          y={Math.min(y(0), valueY)}
+                          y={Math.min(baseY, valueY)}
                           width={Math.min(cell * 0.6, 84)}
-                          height={Math.abs(y(0) - valueY)}
+                          height={Math.abs(baseY - valueY)}
                           rx="5"
                           fill={
                             i === data.points.length - 1

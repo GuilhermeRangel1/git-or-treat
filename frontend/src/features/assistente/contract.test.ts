@@ -223,7 +223,7 @@ describe("resposta apresentada pela F1 Text-to-SQL", () => {
       answer: sqlResponse.presentation.answer,
       sql_presentation: sqlResponse.presentation,
       visualization: {
-        kind: "bars",
+        kind: "horizontal",
         points: [
           { observation_id: "row_1", label: "Recife", value: 1234.5 },
           { observation_id: "row_2", label: "Olinda", value: 975.25 },

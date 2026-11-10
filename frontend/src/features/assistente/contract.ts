@@ -179,6 +179,11 @@ export type AIQuestionResponse = {
   sql_compound_analysis?: SqlCompoundAnalysis;
   sql_financial_comparison?: SqlFinancialComparison;
   sql_service_summary?: SqlServiceSummary;
+  sql_published_decomposition?: {
+    batch: string;
+    scope: string;
+    components: [string, string, string][];
+  };
   sql_continuity_pair_analysis?: SqlContinuityPairAnalysis;
 };
 
@@ -1027,6 +1032,15 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
           evidence: [{ source: "gold.local", description: "Decomposição da publicação ativa.", is_demo: false }],
         }),
         sql_analysis_mode: true,
+        ...(typeof compound.active_gold_batch === "string" &&
+          compound.active_gold_batch.startsWith("gold-csv-v2:") ? {
+          sql_published_decomposition: {
+            batch: compound.active_gold_batch,
+            scope: compound.answer,
+            components: compound.records.filter((row): row is [string, string, string] =>
+              row[1] === "R$" && ["Efeito volume", "Efeito preço observado", "Interação preço-volume"].includes(row[0])),
+          },
+        } : {}),
       };
     }
     if (compound.contract_version === "text-to-sql-f1-service-summary-v1") {
@@ -1548,7 +1562,11 @@ export function decodeSqlAnalysisResponse(value: unknown): AIQuestionResponse {
       })
     )
       return fail();
-    const rawVisualization = sqlAnalysisVisualization(presentation);
+    const filterDimensions = isRecord(evidence.interpretation) && Array.isArray(evidence.interpretation.filters)
+      ? evidence.interpretation.filters.flatMap((filter) =>
+          isRecord(filter) && typeof filter.dimension_id === "string" ? [filter.dimension_id] : [])
+      : [];
+    const rawVisualization = sqlAnalysisVisualization(presentation, String(evidence.metric_id), filterDimensions);
     const analysisContext: AIAnalysisContext = {
       batch_reference: evidence.batch_ref,
       metric: String(evidence.metric_id),

@@ -285,6 +285,179 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   );
 }
 
+export function compoundChartData(response: AIQuestionResponse, municipalityIndex = 0) {
+  const decompositions: React.ComponentProps<typeof VisualEvidence>["data"][] = [];
+  const financial = response.sql_financial_comparison;
+  const compound = response.sql_compound_analysis;
+  const charts: React.ComponentProps<typeof VisualEvidence>["data"][] = [];
+  if (financial && financial.monthly.length > 1) {
+    const scope = [
+      financial.municipality,
+      formatPeriod(`${financial.start_month} a ${financial.end_month}`),
+    ].join(" · ");
+    const series = [
+      ["energy.consumption", "consumption_kwh", "Consumo medido", "kWh", 2],
+      ["billing.revenue", "revenue_brl", "Receita faturada", "R$", 2],
+      ["billing.effective_tariff", "observed_price_brl_per_kwh", "Preço observado", "R$/kWh", 4],
+    ] as const;
+    for (const [metric, field, title, unit, precision] of series) {
+      if (!financial.metric_ids.includes(metric) || financial.monthly.some((row) => row[field] === null)) continue;
+      charts.push({
+        kind: "line", title, unit, precision, scope,
+        points: financial.monthly.map((row) => ({
+          label: formatPeriod(row.period), value: Number(row[field]),
+        })),
+      });
+    }
+  }
+  if (compound && compound.windows.p0_start !== compound.windows.p1_start) {
+    const { p0_start, p0_end, p1_start, p1_end } = compound.windows;
+    const scope = [formatPeriod(`${p0_start} a ${p0_end}`), formatPeriod(`${p1_start} a ${p1_end}`)].join(" vs. ");
+    const municipalities = compound.municipalities;
+    if (municipalities.length > 1) {
+      charts.push({
+        kind: "horizontal", title: "Variação de consumo por município", unit: "kWh", scope,
+        points: municipalities.slice(0, 24).map((row) => ({ label: row.municipality, value: Number(row.change_kwh) })),
+        tablePoints: municipalities.map((row) => ({ label: row.municipality, value: Number(row.change_kwh) })),
+      });
+    }
+    const selectedMunicipality = municipalities[municipalityIndex] ?? municipalities[0];
+    const classes = (selectedMunicipality?.revenue_by_class ?? []).map((effect) => ({
+      label: [effect.neighborhood === "Todos" ? null : effect.neighborhood, effect.consumption_class].filter(Boolean).join(" · "),
+      value: Number(effect.variation_brl),
+    }));
+    if (compound.method === "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3") {
+      for (const row of municipalities) {
+        for (const effect of row.revenue_by_class) {
+          const components = [effect.volume_effect_brl, effect.price_effect_brl, effect.interaction_effect_brl];
+          if (effect.state !== "CALCULADA_BASE_COMUM" || components.some((value) => value === null)) continue;
+          const title = [row.municipality, effect.neighborhood === "Todos" ? null : effect.neighborhood, effect.consumption_class].filter(Boolean).join(" · ");
+          decompositions.push({
+            kind: "waterfall", title, unit: "R$", precision: 2, scope,
+            categoryLabel: "Componente",
+            note: "A cascata acumula volume, preço e interação na base comum.",
+            points: ["Volume", "Preço", "Interação"].map((label, index) => ({
+              label, value: Number(components[index]),
+            })),
+          });
+        }
+      }
+    }
+    if (classes.length > 1 && selectedMunicipality) {
+      const orderedClasses = [...classes].sort((a, b) => b.value - a.value);
+      charts.push({
+        kind: "horizontal", title: "Variação de receita por classe",
+        unit: "R$", precision: 2, scope: `${selectedMunicipality.municipality} · ${scope}`,
+        categoryLabel: "Classe / recorte",
+        points: orderedClasses.slice(0, 24), tablePoints: orderedClasses,
+        note: "Valores positivos indicam alta. Valores negativos indicam queda. O CSV inclui todas as classes do município selecionado.",
+      });
+    }
+  }
+  const published = response.sql_published_decomposition;
+  if (published && new Set(published.components.map(([label]) => label)).size === 3 &&
+    published.components.length === 3) {
+    decompositions.push({
+      kind: "waterfall", title: "Efeitos na base comum", unit: "R$", precision: 2,
+      scope: published.scope, categoryLabel: "Componente",
+      points: published.components.map(([label, , value]) => ({ label, value: Number(value) })),
+    });
+  }
+  if (compound && compound.windows.p0_start === compound.windows.p1_start &&
+    compound.windows.p0_end === compound.windows.p1_end) {
+    const municipalities = compound.municipalities;
+    const selected = municipalities[municipalityIndex] ?? municipalities[0];
+    const detailed = municipalities.length > 1 && municipalities.some((row) => row.revenue_by_class.length > 1);
+    const period = formatPeriod(`${compound.windows.p1_start} a ${compound.windows.p1_end}`);
+    const scope = detailed && selected ? `${selected.municipality} · ${period}` : period;
+    const rows = (detailed && selected ? [selected] : municipalities).flatMap((row) => row.revenue_by_class.map((effect) => ({
+      label: [detailed ? null : row.municipality, effect.neighborhood === "Todos" ? null : effect.neighborhood,
+        effect.consumption_class === "Todas" ? null : effect.consumption_class].filter(Boolean).join(" · ") || row.municipality,
+      revenue: Number(effect.variation_brl),
+      average: effect.average_consumption_kwh == null ? null : Number(effect.average_consumption_kwh),
+    })));
+    if (rows.length > 1) {
+      const add = (title: string, unit: string, points: { label: string; value: number }[]) =>
+        charts.push({ kind: "horizontal", title, unit, scope, precision: 2,
+          points: [...points].sort((a, b) => b.value - a.value).slice(0, 24),
+          tablePoints: points, categoryLabel: "Recorte",
+          note: points.length > 24 ? "O gráfico mostra os 24 maiores valores. O CSV inclui todas as linhas do resultado." : undefined });
+      add("Receita faturada por recorte", "R$", rows.map(({label, revenue}) => ({label, value: revenue})));
+      if (rows.every((row) => row.average !== null)) {
+        add("Consumo médio por UC com leitura", "kWh/UC", rows.map(({label, average}) => ({label, value: average!})));
+      } else if (!detailed && compound.municipalities.length > 1) {
+        add("Consumo medido por município", "kWh", compound.municipalities.map((row) =>
+          ({label: row.municipality, value: Number(row.current_consumption_kwh)})));
+      }
+    }
+  }
+  const service = response.sql_service_summary;
+  if (service && service.monthly.length > 1) {
+    const scope = formatPeriod(`${service.start_month} a ${service.end_month}`);
+    charts.push(
+      { kind: "line", title: "Consumo medido mensal", unit: "kWh", scope,
+        points: service.monthly.map(([month, value]) => ({ label: formatPeriod(month), value: Number(value) })) },
+      { kind: "line", title: "Satisfação média mensal", unit: "pontos", precision: 2, scope,
+        points: service.monthly.map(([month, , value]) => ({ label: formatPeriod(month), value: Number(value) })) },
+    );
+  }
+  return { charts, decompositions };
+}
+
+function CompoundCharts({ response }: { response: AIQuestionResponse }) {
+  const [decompositionIndex, setDecompositionIndex] = useState(0);
+  const [municipalityIndex, setMunicipalityIndex] = useState(0);
+  const { charts, decompositions } = compoundChartData(response, municipalityIndex);
+  const decomposition = decompositions[decompositionIndex] ?? decompositions[0];
+  if (decomposition) charts.push(decomposition);
+  const financial = response.sql_financial_comparison;
+  const compound = response.sql_compound_analysis;
+  const service = response.sql_service_summary;
+  const batch = financial?.active_gold_batch ?? compound?.active_gold_batch ?? service?.active_gold_batch ?? response.sql_published_decomposition?.batch;
+  if (!charts.length) return null;
+  return (
+    <details open className="space-y-3">
+      <summary className="cursor-pointer text-sm font-medium text-content">Gráficos da comparação</summary>
+      {decompositions.length > 1 && (
+        <label className="block text-sm text-content">
+          Recorte da decomposição
+          <select className="ml-2 rounded border border-divider bg-surface p-1"
+            value={decompositionIndex < decompositions.length ? decompositionIndex : 0}
+            onChange={(event) => setDecompositionIndex(Number(event.target.value))}>
+            {decompositions.map((item, index) => <option key={item.title} value={index}>{item.title}</option>)}
+          </select>
+        </label>
+      )}
+      {compound && compound.municipalities.length > 1 &&
+        compound.municipalities.some((row) => row.revenue_by_class.length > 1) && (
+          <label className="block text-sm text-content">
+            Município para detalhar os recortes
+            <select className="ml-2 rounded border border-divider bg-surface p-1"
+              value={municipalityIndex < compound.municipalities.length ? municipalityIndex : 0}
+              onChange={(event) => setMunicipalityIndex(Number(event.target.value))}>
+              {compound.municipalities.map((row, index) => (
+                <option key={row.municipality} value={index}>{row.municipality}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      {charts.map((data) => <div key={data.title} className="space-y-2">
+        <VisualEvidence key={data.scope} data={data} tableEnabled={false}
+        canExport={() => !!batch && verifyVisualExport({
+          metric: data.unit === "kWh/UC" ? "energy.average_consumption_per_uc" : data.unit === "pontos" ? "service.satisfaction" : data.unit === "kWh" ? "energy.consumption" : data.unit === "R$/kWh" ? "billing.effective_tariff" : "billing.revenue",
+          dimension_ids: service ? ["time.competency"] : financial ? ["time.competency", "geography.municipality"] : [
+            "time.competency", "geography.municipality",
+            ...(data.unit === "R$" || data.unit === "kWh/UC" ? ["customer.consumption_class"] : []),
+            ...((data.unit === "R$" || data.unit === "kWh/UC") && compound?.municipalities.some((row) =>
+              row.revenue_by_class.some((effect) => effect.neighborhood !== "Todos")) ? ["geography.neighborhood"] : []),
+          ],
+          batch_reference: batch,
+        })} />
+      </div>)}
+    </details>
+  );
+}
+
 function AssistantResult({
   response,
   preliminary = false,
@@ -331,6 +504,18 @@ function AssistantResult({
             ? "Os dados já estão disponíveis. Preparando a interpretação."
             : responseContent(response)}
       </p>
+      {answered && !preliminary && response.sql_presentation?.state === "ready" &&
+        response.sql_presentation.operation === "total" &&
+        response.sql_presentation.filters.length === 0 &&
+        response.sql_presentation.columns.some((column) => column.semantic_id === "revenue_total") &&
+        /^(\d{4})-01 a \1-(?:0[2-9]|1[0-2])$/.test(response.sql_presentation.period) && onChooseOption && (
+          <button type="button" disabled={choicesDisabled}
+            className="rounded border border-line px-3 py-2 text-sm font-medium text-content disabled:opacity-50"
+            onClick={() => onChooseOption(`Como evoluiu a receita faturada mês a mês de ${formatPeriod(response.sql_presentation!.period)}?`)}>
+            Ver evolução mensal
+          </button>
+      )}
+      {answered && <CompoundCharts response={response} />}
       {answered && response.visualization && (
         <VisualEvidence
           key={`${response.analysis_context?.batch_reference}-${response.visualization.metric}-${response.visualization.period}-${JSON.stringify(response.analysis_context?.filters)}`}
@@ -369,7 +554,7 @@ function AssistantResult({
             note: response.visualization.note,
             ...chatChartPoints(response.visualization, formatVisualLabel),
           }}
-          exportsEnabled={!response.sql_presentation}
+          exportsEnabled={Boolean(response.analysis_context?.batch_reference)}
           tableEnabled={!response.sql_presentation}
         />
       )}
