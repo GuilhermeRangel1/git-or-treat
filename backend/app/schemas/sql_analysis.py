@@ -279,10 +279,7 @@ class SqlCompoundAnalysis(BaseModel):
                     "Não há classes com valores completos nas duas janelas comparadas."
                 )
             elif municipality_limit is None:
-                answer = (
-                    "A tabela mostra a variação de consumo medido e de receita faturada "
-                    "por classe entre jul/2024–jun/2025 e jul/2025–jun/2026."
-                )
+                answer = "A comparação detalha o consumo medido e a receita faturada por classe."
             else:
                 answer = (
                     "A tabela ordena os municípios pela maior queda de consumo entre "
@@ -296,7 +293,6 @@ class SqlCompoundAnalysis(BaseModel):
                     "As variações observadas não isolam o efeito do consumo sobre a receita.",
                 ]
         if municipality_limit is not None and municipalities:
-            leader = municipalities[0]
             ranked_findings = []
             for row in municipalities:
                 increased = [
@@ -321,9 +317,45 @@ class SqlCompoundAnalysis(BaseModel):
             answer = (
                 "Entre os três municípios com maior queda de consumo, "
                 + "; ".join(ranked_findings)
-                + ". A tabela detalha o faturamento por classe e, quando disponível, os componentes da decomposição publicada; "
-                "essa comparação não demonstra que a mudança no consumo causou a mudança na receita."
+                + ". A tabela compara as mudanças de consumo e faturamento em cada classe."
             )
+        if not snapshot and result.scope.windows.p0_start != result.scope.windows.p0_end:
+            effects = [
+                (row.municipality, effect)
+                for row in municipalities
+                for effect in row.revenue_by_class
+            ]
+            for direction, label in ((-1, "maior queda"), (1, "maior alta")):
+                matching = [
+                    item for item in effects
+                    if Decimal(item[1].variation_brl) * direction > 0
+                ]
+                if not matching:
+                    continue
+                municipality, effect = max(
+                    matching, key=lambda item: abs(Decimal(item[1].variation_brl)),
+                )
+                neighborhood = f", bairro {effect.neighborhood}" if effect.neighborhood != "Todos" else ""
+                value = _format_compound_number(abs(Decimal(effect.variation_brl)), 2)
+                answer += (
+                    f" A {label} de receita no recorte exibido foi de R$ {value} "
+                    f"em {municipality}{neighborhood}, na classe {effect.consumption_class}."
+                )
+                if effect.consumption_change_kwh is not None:
+                    consumption = Decimal(effect.consumption_change_kwh)
+                    change = _format_compound_number(abs(consumption), 0)
+                    if consumption:
+                        movement = "caiu" if consumption < 0 else "subiu"
+                        answer += f" Na mesma classe, o consumo {movement} {change} kWh."
+                    else:
+                        answer += " Na mesma classe, o consumo ficou estável."
+                if effect.volume_effect_brl is not None:
+                    volume = _format_compound_number(Decimal(effect.volume_effect_brl), 2)
+                    answer += f" Nesse grupo, o efeito volume publicado foi de R$ {volume}."
+            if effects and not any(Decimal(effect.variation_brl) for _, effect in effects):
+                answer += " A receita ficou estável em todos os recortes exibidos."
+            if municipality_limit is not None and effects and manifest is None:
+                answer += " O efeito volume por classe está indisponível para essas janelas."
         base = {
             "contract_version": "text-to-sql-f1-compound-v1",
             "answer": answer,
