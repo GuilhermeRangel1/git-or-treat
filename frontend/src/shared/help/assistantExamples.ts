@@ -9,7 +9,12 @@ const assistantExamples = {
 } as const;
 
 export const ASSISTANT_EXAMPLES: string[] = Object.values(assistantExamples);
-export const ASSISTANT_HOME_SUGGESTIONS = ASSISTANT_EXAMPLES;
+export const ASSISTANT_HOME_SUGGESTIONS = [
+  assistantExamples.distribution,
+  assistantExamples.monthlySeries,
+  "Compare a receita de Recife entre maio de 2026 e junho de 2026.",
+  "Quais municípios apresentaram a maior queda no consumo de energia nos últimos 12 meses e como essa redução impactou a receita faturada, considerando as diferentes classes de consumo?",
+];
 
 // Exemplos adicionais baseados nos cenários positivos da matriz Gold v2.
 // Não se confundem com as sugestões da tela inicial nem prometem cobertura futura.
