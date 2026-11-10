@@ -6,6 +6,11 @@ import TestProviders from "../../shared/test/TestProviders";
 import PanoramaPage from "./PanoramaPage";
 import { calculateSyntheticPanorama } from "../../shared/analytics/syntheticData";
 import { resetGoldPublication } from "../../shared/analytics/goldPublication";
+import {
+  SessionContext,
+  type SessionValue,
+} from "../../shared/auth/session-context";
+import { revenueResponse } from "./revenue-diagnosis.test-support";
 
 function panoramaRequestCount() {
   return vi
@@ -257,12 +262,15 @@ describe("PanoramaPage (WEB-01)", () => {
       </TestProviders>,
     );
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(
-          "Não foi possível gerar a interpretação agora. Os indicadores continuam disponíveis para consulta.",
-        ),
-      ).toBeVisible(),
+    // Primeiro teste do arquivo: disputa a carga dos módulos com os demais workers.
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText(
+            "Não foi possível gerar a interpretação agora. Os indicadores continuam disponíveis para consulta.",
+          ),
+        ).toBeVisible(),
+      { timeout: 4000 },
     );
     expect(
       await screen.findByRole("article", { name: /Valor faturado/ }),
@@ -573,12 +581,21 @@ describe("PanoramaPage (WEB-01)", () => {
     // Aguarda o carregamento dos dados e verifica os valores do benchmark (PRD WEB-01)
     expect(await screen.findByText(/R\$ 76,5 mil/)).toBeVisible();
     expect(screen.getByText("90 MWh")).toBeVisible();
-    expect(screen.getByText("1.248 UCs")).toBeVisible();
-    expect(screen.getByText("Valor faturado")).toBeVisible();
-    expect(screen.getByText("Consumo apurado")).toBeVisible();
-    expect(screen.getByText("Base de UCs")).toBeVisible();
-    expect(screen.getByText("UCs faturadas no mês")).toBeVisible();
-    expect(screen.getAllByRole("article")).toHaveLength(4);
+    expect(screen.getByText(/^R\$ \d+,\d{2}\/kWh$/)).toBeVisible();
+    expect(screen.getByText("Receita ÷ consumo · não é tarifa")).toBeVisible();
+    const cards = screen.getAllByRole("article");
+    expect(cards).toHaveLength(4);
+    expect(
+      cards.map((card) => within(card).getByRole("heading").textContent),
+    ).toEqual([
+      "Valor faturado",
+      "Consumo apurado",
+      "Preço observado",
+      "UCs faturadas no mês",
+    ]);
+    expect(screen.queryByText("Base de UCs")).toBeNull();
+    expect(screen.queryByText("UCs cadastradas no lote")).toBeNull();
+    expect(screen.queryByText("1.248 UCs")).toBeNull();
     await userEvent.click(
       screen.getByRole("button", { name: "Ver fundamentos" }),
     );
@@ -610,9 +627,9 @@ describe("PanoramaPage (WEB-01)", () => {
     await user.selectOptions(municipioSelect, "Recife");
     expect(screen.getByText(/R\$ 76,5 mil/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
-    // Recife soma R$ 38 mil e 620 UCs
+    // Recife soma R$ 38 mil, e o consumo deixa de ser o total da rede.
     expect(await screen.findByText(/R\$ 38 mil/)).toBeVisible();
-    expect(screen.getByText(/620 UCs/)).toBeVisible();
+    expect(screen.queryByText("90 MWh")).toBeNull();
   });
 
   it("exibe aviso de período incompleto na competência 2024-05", async () => {
@@ -680,6 +697,206 @@ describe("PanoramaPage (WEB-01)", () => {
     expect(
       within(dialog).getByText("Σ(faturas_emitidas.valor_total)"),
     ).toBeVisible();
+  });
+
+  describe("Diagnóstico comercial", () => {
+    function stubGoldApi(revenue: (url: URL) => Response) {
+      const requests: URL[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL) => {
+          const url = new URL(String(input), "http://localhost:5173");
+          requests.push(url);
+          if (url.pathname === "/api/v1/revenue") return revenue(url);
+          if (url.pathname === "/api/v1/panorama") {
+            const params = url.searchParams;
+            return new Response(
+              JSON.stringify(
+                goldPanorama({
+                  periodo: params.get("competencia") ?? "2026-06",
+                  comparacao: (params.get("comparacao") ?? "anterior") as
+                    "anterior" | "ano_anterior" | "nenhuma",
+                  municipio: params.get("municipio") ?? "todos",
+                  classe: params.get("classe") ?? "todas",
+                }),
+              ),
+            );
+          }
+          return new Response("{}", { status: 500 });
+        }),
+      );
+      return () => requests.filter((url) => url.pathname === "/api/v1/revenue");
+    }
+    const okRevenue = (url: URL) =>
+      new Response(JSON.stringify(revenueResponse(url)));
+    const renderPage = (entry = "/panorama") =>
+      render(
+        <TestProviders>
+          <MemoryRouter initialEntries={[entry]}>
+            <PanoramaPage />
+          </MemoryRouter>
+        </TestProviders>,
+      );
+    const block = () =>
+      screen.queryByRole("region", { name: "Diagnóstico comercial" });
+
+    it("aparece entre o gráfico e os botões e não muda a contagem de cartões", async () => {
+      stubGoldApi(okRevenue);
+      renderPage();
+
+      expect(
+        await screen.findByRole("img", { name: /^Volume:/ }),
+      ).toBeVisible();
+      expect(screen.getAllByRole("article")).toHaveLength(4);
+      const explore = screen.getByRole("link", { name: "Explorar receita" });
+      expect(
+        block()!.compareDocumentPosition(explore) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      const insight = screen.getByRole("region", {
+        name: "Insight contextual do Panorama",
+      });
+      expect(
+        insight.compareDocumentPosition(block()!) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it("a resposta ao Diretor fica dentro do bloco e o cartão de IA continua igual", async () => {
+      stubGoldApi(okRevenue);
+      renderPage();
+
+      const answer = await screen.findByRole("region", {
+        name: "Resposta ao Diretor",
+      });
+      expect(block()).toContainElement(answer);
+      const insight = screen.getByRole("region", {
+        name: "Insight contextual do Panorama",
+      });
+      expect(insight).not.toContainElement(answer);
+      expect(
+        within(insight).getByText(/Análise assistida por IA/),
+      ).toBeVisible();
+      expect(within(insight).getByText("IA")).toBeVisible();
+      expect(within(insight).getByText("Leitura do recorte")).toBeVisible();
+      expect(
+        within(insight).getByRole("button", { name: "Ver análise detalhada" }),
+      ).toBeVisible();
+      expect(within(insight).queryByText(/Por que a receita subiu/)).toBeNull();
+      expect(within(insight).queryByText("Calculado")).toBeNull();
+    });
+
+    it("não refaz a consulta ao trocar a competência, mas refaz ao trocar o município", async () => {
+      const user = userEvent.setup();
+      const revenueRequests = stubGoldApi(okRevenue);
+      renderPage("/panorama?periodo=2026-06");
+      await screen.findByRole("img", { name: /^Volume:/ });
+      expect(revenueRequests()).toHaveLength(1);
+      const [first] = revenueRequests();
+      expect(first.searchParams.get("competencia_inicio")).toBe(
+        first.searchParams.get("competencia_fim"),
+      );
+      expect(first.searchParams.get("include_diagnosis")).toBe("true");
+
+      await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+      await user.selectOptions(screen.getByLabelText("Competência"), "2026-05");
+      await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+      await waitFor(() =>
+        expect(screen.getByRole("img", { name: /^Volume:/ })).toBeVisible(),
+      );
+      await waitFor(() =>
+        expect(screen.getAllByText("Mai/2026").length).toBeGreaterThan(0),
+      );
+      expect(revenueRequests()).toHaveLength(1);
+      expect(screen.queryByText(/^Recorte:/)).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+      await user.selectOptions(
+        screen.getByLabelText("Comparar com"),
+        "ano_anterior",
+      );
+      await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+      await waitFor(() =>
+        expect(screen.getByRole("img", { name: /^Volume:/ })).toBeVisible(),
+      );
+      expect(revenueRequests()).toHaveLength(1);
+      expect(screen.queryByText(/^Recorte:/)).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Ajustar filtros" }));
+      await user.selectOptions(screen.getByLabelText("Município"), "Curitiba");
+      await user.selectOptions(
+        screen.getByLabelText("Classe de consumo"),
+        "Residencial",
+      );
+      await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+      await waitFor(() => expect(revenueRequests()).toHaveLength(2));
+      expect(revenueRequests()[1].searchParams.get("municipio")).toBe(
+        "Curitiba",
+      );
+      expect(revenueRequests()[1].searchParams.get("classe")).toBe(
+        "Residencial",
+      );
+      expect(
+        await screen.findByText("Recorte: Curitiba · Residencial"),
+      ).toBeVisible();
+    });
+
+    it("mantém KPIs e insight quando a consulta do diagnóstico falha", async () => {
+      stubGoldApi(() => new Response("{}", { status: 500 }));
+      renderPage();
+
+      const alert = await waitFor(() => within(block()!).getByRole("alert"));
+      expect(
+        within(alert).getByRole("button", { name: "Tentar novamente" }),
+      ).toBeVisible();
+      expect(screen.getAllByRole("article")).toHaveLength(4);
+      expect(
+        screen.getByRole("region", { name: "Insight contextual do Panorama" }),
+      ).toBeVisible();
+    });
+
+    it("fica escondido, sem consultar a API, para quem não tem revenue:read", async () => {
+      const revenueRequests = stubGoldApi(okRevenue);
+      const session = {
+        configured: true,
+        loading: false,
+        user: {
+          id: "operacao",
+          username: "operacao",
+          profile: "operations",
+          permissions: ["operations:read", "ai:ask"],
+        },
+      } as SessionValue;
+      render(
+        <TestProviders>
+          <SessionContext.Provider value={session}>
+            <MemoryRouter initialEntries={["/panorama"]}>
+              <PanoramaPage />
+            </MemoryRouter>
+          </SessionContext.Provider>
+        </TestProviders>,
+      );
+
+      await screen.findByRole("article", { name: /Valor faturado/ });
+      expect(block()).toBeNull();
+      expect(revenueRequests()).toHaveLength(0);
+    });
+
+    it("fica escondido, sem consultar a API, com dados sintéticos", async () => {
+      renderPage();
+
+      await screen.findByRole("article", { name: /Valor faturado/ });
+      expect(block()).toBeNull();
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(
+            ([input]) =>
+              new URL(String(input), "http://localhost:5173").pathname ===
+              "/api/v1/revenue",
+          ),
+      ).toBe(false);
+    });
   });
 
   it("alterna entre visualização gráfica e tabela na série histórica", async () => {

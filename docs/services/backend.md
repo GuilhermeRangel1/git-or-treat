@@ -1,5 +1,8 @@
 # Serviço: backend e banco local
 
+Revisão de Receita em 06/11/2026: `include_diagnosis` adiciona achados determinísticos a pedido do Resumo; chamadas normais não executam as consultas extras. O repositório agrega população faturada e pares UC/mês por conexão de GD, e `revenue_diagnosis.py` confere reconciliação, recorte e denominadores antes de publicar o achado. Variação financeira e efeitos têm elegibilidades separadas; subgrupo parcial não bloqueia sozinho a variação agregada conhecida. [Contrato atualizado](../contracts/revenue-dev03.md#achados-determinísticos-e-histórico-sob-demanda--06112026).
+
+Atualização Receita de 05/11/2026: o serviço Gold expõe bases P0/P1, percentuais observados elegíveis e agrupamento dos componentes V3 por município/bairro/classe, usando os mesmos fatos da decomposição, sem N+1. A comparação mensal preserva sua política anterior. Sem configuração de janelas, não consulta a tabela de decomposição e mantém a exploração mensal disponível. Contrato e limites em [Receita](../contracts/revenue-dev03.md#extensão-de-leitura-por-janelas--05112026); aceite com publicação V3 real permanece pendente no [plano](../plans/2026-11-05-receita-repaginacao.md).
 ## Transição Text-to-SQL — 05/11/2026
 
 A [ADR-0025](../decisions/0025-text-to-sql-generativo.md) autoriza a direção de SQL candidato gerado pelo modelo, com validação/execução finais no Backend. [Contrato e matriz de consumidores](../contracts/text-to-sql-f1.md). Há preparação de schemas, contexto e adaptador; o caminho quantitativo implantado continua determinístico até integração e ativação explícitas. Não há liberação de SQL generativo pela simples validação do envelope. Referências abaixo ao fluxo antigo continuam descrevendo o runtime vigente e seu histórico.

@@ -7,6 +7,7 @@ import type { RevenueEnvelope } from "./contract";
 import type { RevenueBaseFilters } from "./revenue-filters";
 
 type RevenueFiltersFormProps = {
+  showPeriod?: boolean;
   initialFilters: RevenueBaseFilters;
   defaultFilters: RevenueBaseFilters;
   searchKey: string;
@@ -80,6 +81,7 @@ function monthValid(value: string) {
 }
 
 export default function RevenueFiltersForm({
+  showPeriod = true,
   initialFilters,
   defaultFilters,
   searchKey,
@@ -138,7 +140,6 @@ export default function RevenueFiltersForm({
       ["municipio", "Município"],
       ["bairro", "Bairro"],
       ["classe", "Classe"],
-      ["alimentador", "Alimentador"],
     ] as const) {
       if (Array.from(draft[field]).length > 100) {
         nextErrors.push(`${label} deve ter no máximo 100 caracteres.`);
@@ -157,7 +158,18 @@ export default function RevenueFiltersForm({
   }
 
   function resetDraft() {
-    setDraft(defaultFilters);
+    setDraft({
+      ...draft,
+      ...(showPeriod
+        ? {
+            competencia_inicio: defaultFilters.competencia_inicio,
+            competencia_fim: defaultFilters.competencia_fim,
+          }
+        : {}),
+      municipio: "",
+      bairro: "",
+      classe: "",
+    });
     setErrors([]);
   }
 
@@ -168,56 +180,60 @@ export default function RevenueFiltersForm({
       noValidate
       aria-label="Filtros de receita"
     >
-      {options?.competencias.length ? (
-        <SelectField
-          label="Mês inicial"
-          value={draft.competencia_inicio}
-          options={[
-            ...(!options.competencias.includes(draft.competencia_inicio)
-              ? [draft.competencia_inicio]
-              : []),
-            ...options.competencias,
-          ]}
-          onChange={(competencia_inicio) =>
-            setDraft({ ...draft, competencia_inicio })
-          }
-        />
-      ) : (
-        <MonthYearField
-          label="Mês inicial"
-          monthLabel="Mês de início"
-          yearLabel="Ano de início"
-          value={draft.competencia_inicio}
-          onChange={(competencia_inicio) =>
-            setDraft({ ...draft, competencia_inicio })
-          }
-        />
-      )}
-      {options?.competencias.length ? (
-        <SelectField
-          label="Mês final"
-          value={draft.competencia_fim}
-          options={[
-            ...(!options.competencias.includes(draft.competencia_fim)
-              ? [draft.competencia_fim]
-              : []),
-            ...options.competencias,
-          ]}
-          onChange={(competencia_fim) =>
-            setDraft({ ...draft, competencia_fim })
-          }
-        />
-      ) : (
-        <MonthYearField
-          label="Mês final"
-          monthLabel="Mês do fim"
-          yearLabel="Ano do fim"
-          value={draft.competencia_fim}
-          onChange={(competencia_fim) =>
-            setDraft({ ...draft, competencia_fim })
-          }
-        />
-      )}
+      {showPeriod ? (
+        <>
+          {options?.competencias.length ? (
+            <SelectField
+              label="Mês inicial"
+              value={draft.competencia_inicio}
+              options={[
+                ...(!options.competencias.includes(draft.competencia_inicio)
+                  ? [draft.competencia_inicio]
+                  : []),
+                ...options.competencias,
+              ]}
+              onChange={(competencia_inicio) =>
+                setDraft({ ...draft, competencia_inicio })
+              }
+            />
+          ) : (
+            <MonthYearField
+              label="Mês inicial"
+              monthLabel="Mês de início"
+              yearLabel="Ano de início"
+              value={draft.competencia_inicio}
+              onChange={(competencia_inicio) =>
+                setDraft({ ...draft, competencia_inicio })
+              }
+            />
+          )}
+          {options?.competencias.length ? (
+            <SelectField
+              label="Mês final"
+              value={draft.competencia_fim}
+              options={[
+                ...(!options.competencias.includes(draft.competencia_fim)
+                  ? [draft.competencia_fim]
+                  : []),
+                ...options.competencias,
+              ]}
+              onChange={(competencia_fim) =>
+                setDraft({ ...draft, competencia_fim })
+              }
+            />
+          ) : (
+            <MonthYearField
+              label="Mês final"
+              monthLabel="Mês do fim"
+              yearLabel="Ano do fim"
+              value={draft.competencia_fim}
+              onChange={(competencia_fim) =>
+                setDraft({ ...draft, competencia_fim })
+              }
+            />
+          )}
+        </>
+      ) : null}
       <label className="grid gap-1.5 text-sm font-medium">
         Município
         <select
@@ -274,30 +290,6 @@ export default function RevenueFiltersForm({
               {classe === "__grid360_missing__" ? "Não informado" : classe}
             </option>
           ))}
-        </select>
-      </label>
-      <label className="grid gap-1.5 text-sm font-medium">
-        Alimentador
-        <select
-          className={textInputClass}
-          value={draft.alimentador}
-          onChange={(event) =>
-            setDraft({ ...draft, alimentador: event.target.value })
-          }
-        >
-          <option value="">Todos os alimentadores</option>
-          {Array.from(
-            new Set([
-              ...(options?.alimentador ?? []),
-              ...(draft.alimentador ? [draft.alimentador] : []),
-            ]),
-          )
-            .sort()
-            .map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
         </select>
       </label>
       {errors.length > 0 ? (

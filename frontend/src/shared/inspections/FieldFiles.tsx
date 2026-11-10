@@ -9,6 +9,9 @@ import { Download, FileSpreadsheet, Upload, ArrowUpRight } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGoldPublicationKey } from "@/shared/analytics/goldPublication";
 
+const exportHelp =
+  "Exporte todas as UCs ou escolha um recorte por categoria, município, bairro e classe.";
+
 function exportError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 422)
@@ -317,16 +320,17 @@ export default function FieldFiles({
       className={
         mode === "results"
           ? "contents"
-          : "overflow-hidden rounded-xl border border-border bg-surface"
+          : mode === "export"
+            ? "contents"
+            : "overflow-hidden rounded-xl border border-border bg-surface"
       }
     >
       {mode === "results" ? (
-        <div className="flex flex-col items-end gap-1.5 max-md:w-full max-md:items-start md:pt-1">
+        <div className="flex flex-col items-end gap-1.5 max-md:w-full max-md:items-start">
           <div className="flex flex-wrap gap-3 max-md:w-full">
             <Button
               variant="secondary"
-              size="sm"
-              className="min-h-11 whitespace-nowrap text-sm! max-md:grow md:min-h-9"
+              className="w-52 max-w-full whitespace-nowrap"
               disabled={busy}
               leftIcon={<Download size={16} aria-hidden="true" />}
               ref={templateTrigger}
@@ -336,8 +340,7 @@ export default function FieldFiles({
             </Button>
             <Button
               variant="primary"
-              size="sm"
-              className="min-h-11 whitespace-nowrap text-sm! max-md:grow md:min-h-9"
+              className="w-52 max-w-full whitespace-nowrap"
               disabled={busy}
               aria-describedby="field-file-help"
               leftIcon={<Upload size={16} aria-hidden="true" />}
@@ -352,25 +355,36 @@ export default function FieldFiles({
           </p>
           {fileInput}
         </div>
+      ) : mode === "export" ? (
+        <div className="flex justify-end max-md:w-full md:ml-auto">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="min-h-11 whitespace-nowrap text-sm! max-md:w-full md:min-h-9"
+            disabled={busy}
+            ref={trigger}
+            title={exportHelp}
+            aria-describedby="field-export-help"
+            leftIcon={<Download size={16} aria-hidden="true" />}
+            onClick={() => void openExport()}
+          >
+            Exportar fila
+          </Button>
+          <span id="field-export-help" className="sr-only">
+            {exportHelp}
+          </span>
+        </div>
       ) : (
         <>
           <header className="border-b border-border px-5 py-4 sm:px-6">
             <h2 className="font-heading text-lg font-semibold text-content">
-              {mode === "export"
-                ? "Enviar a fila para a equipe"
-                : "Arquivos de campo"}
+              Arquivos de campo
             </h2>
             <p className="mt-1 text-sm leading-6 text-muted">
               Prepare a fila de inspeção para enviar à equipe de campo.
             </p>
           </header>
-          <div
-            className={
-              mode === "all"
-                ? "grid divide-y divide-border lg:grid-cols-[0.85fr_1.15fr] lg:divide-x lg:divide-y-0"
-                : "grid"
-            }
-          >
+          <div className="grid divide-y divide-border lg:grid-cols-[0.85fr_1.15fr] lg:divide-x lg:divide-y-0">
             <div className="flex flex-col items-start gap-4 p-5 sm:p-6">
               <span className="flex size-10 items-center justify-center rounded-lg border border-border bg-canvas text-muted">
                 <ArrowUpRight size={20} aria-hidden="true" />
@@ -380,8 +394,7 @@ export default function FieldFiles({
                   Enviar a fila para a equipe
                 </h3>
                 <p className="mt-2 max-w-md text-sm leading-6 text-muted">
-                  Exporte todas as UCs ou escolha um recorte por categoria,
-                  município, bairro e classe.
+                  {exportHelp}
                 </p>
               </div>
               <Button
@@ -395,55 +408,53 @@ export default function FieldFiles({
                 Exportar fila
               </Button>
             </div>
-            {mode === "all" ? (
-              <div className="space-y-4 p-5 sm:p-6">
-                <div className="flex items-start gap-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-canvas text-muted">
-                    <FileSpreadsheet size={20} aria-hidden="true" />
-                  </span>
+            <div className="space-y-4 p-5 sm:p-6">
+              <div className="flex items-start gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-canvas text-muted">
+                  <FileSpreadsheet size={20} aria-hidden="true" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold text-content">
+                    Registrar resultados de campo
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    Baixe o modelo, preencha a coluna resultado e envie a
+                    planilha de volta.
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-lg border border-dashed border-control bg-canvas p-4 sm:p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold text-content">
-                      Registrar resultados de campo
-                    </h3>
-                    <p className="mt-1 text-sm leading-6 text-muted">
-                      Baixe o modelo, preencha a coluna resultado e envie a
-                      planilha de volta.
+                    <p className="text-sm font-medium text-content">
+                      Planilha preenchida
+                    </p>
+                    <p
+                      id="field-file-help"
+                      className="mt-1 text-xs leading-5 text-muted"
+                    >
+                      XLSX ou CSV · até 1 MB · 500 ordens
                     </p>
                   </div>
+                  {selectFileButton}
                 </div>
-                <div className="rounded-lg border border-dashed border-control bg-canvas p-4 sm:p-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-content">
-                        Planilha preenchida
-                      </p>
-                      <p
-                        id="field-file-help"
-                        className="mt-1 text-xs leading-5 text-muted"
-                      >
-                        XLSX ou CSV · até 1 MB · 500 ordens
-                      </p>
-                    </div>
-                    {selectFileButton}
-                  </div>
-                  {fileInput}
-                </div>
-                <Button
-                  variant="ghost"
-                  className="w-full sm:w-auto sm:px-0"
-                  disabled={busy}
-                  leftIcon={<Download size={16} aria-hidden="true" />}
-                  ref={templateTrigger}
-                  onClick={openTemplate}
-                >
-                  Baixar modelo de resultados
-                </Button>
-                <p className="text-xs leading-5 text-muted">
-                  Cada linha válida é registrada. Se houver erros, corrija as
-                  linhas indicadas e reenvie.
-                </p>
+                {fileInput}
               </div>
-            ) : null}
+              <Button
+                variant="ghost"
+                className="w-full sm:w-auto sm:px-0"
+                disabled={busy}
+                leftIcon={<Download size={16} aria-hidden="true" />}
+                ref={templateTrigger}
+                onClick={openTemplate}
+              >
+                Baixar modelo de resultados
+              </Button>
+              <p className="text-xs leading-5 text-muted">
+                Cada linha válida é registrada. Se houver erros, corrija as
+                linhas indicadas e reenvie.
+              </p>
+            </div>
           </div>
         </>
       )}
@@ -649,7 +660,9 @@ export default function FieldFiles({
           className={
             mode === "results"
               ? "min-w-0 basis-full rounded-xl border border-border bg-surface px-5 py-4 text-sm leading-6 break-words whitespace-pre-wrap sm:px-6"
-              : "border-t border-border bg-canvas px-5 py-4 text-sm leading-6 break-words whitespace-pre-wrap sm:px-6"
+              : mode === "export"
+                ? "min-w-0 basis-full rounded-xl border border-border bg-canvas px-5 py-4 text-sm leading-6 break-words whitespace-pre-wrap sm:px-6"
+                : "border-t border-border bg-canvas px-5 py-4 text-sm leading-6 break-words whitespace-pre-wrap sm:px-6"
           }
         >
           {busy ? "Processando arquivo…" : message}

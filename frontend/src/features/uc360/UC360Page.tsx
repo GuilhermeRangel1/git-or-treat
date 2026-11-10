@@ -1,4 +1,3 @@
-import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
@@ -37,7 +36,7 @@ export default function UC360Page() {
     historyDraft.applied === state.section
       ? historyDraft.open
       : Boolean(state.section);
-  const historyDisclosureRef = useRef<HTMLDetailsElement>(null);
+  const historyDisclosureRef = useRef<HTMLDivElement>(null);
   const currentSearch = params.toString();
   const searchReturnParams = new URLSearchParams();
   for (const key of [
@@ -45,6 +44,7 @@ export default function UC360Page() {
     "municipio",
     "classe",
     "search_page",
+    "search_page_size",
     "start",
     "end",
   ]) {
@@ -77,6 +77,7 @@ export default function UC360Page() {
     !selectedUCId &&
       !state.invalid.length &&
       Boolean(state.q || state.municipio || state.classe),
+    state.searchPageSize,
   );
   const overview = useUCOverview(
     selectedUCId,
@@ -91,6 +92,7 @@ export default function UC360Page() {
     state.end,
     state.historyPage,
     !state.invalid.length,
+    state.historyPageSize,
   );
   const series = useUCSeries(
     selectedUCId,
@@ -134,11 +136,11 @@ export default function UC360Page() {
     <div
       className={`grid w-full min-w-0 ${selectedUCId ? "mt-0 gap-6" : "mt-6 gap-4"}`}
     >
-      <div className="flex justify-end">
-        <IndicatorHelp screen="uc360" />
-      </div>
       {selectedUCId ? (
-        <nav aria-label="Navegação da unidade consumidora">
+        <nav
+          aria-label="Navegação da unidade consumidora"
+          className="flex flex-wrap items-center justify-between gap-3"
+        >
           <Link
             className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             to={`/uc-360${searchReturnQuery ? `?${searchReturnQuery}` : ""}`}
@@ -148,42 +150,57 @@ export default function UC360Page() {
           </Link>
         </nav>
       ) : (
-        <UC360SearchPanel
-          query={state.q}
-          municipio={state.municipio}
-          classe={state.classe}
-          options={catalog.data?.data}
-          optionsLoading={catalog.isPending}
-          optionsError={catalog.error}
-          page={state.searchPage}
-          results={search.data}
-          isFetching={search.isFetching}
-          error={search.error}
-          onSearch={submitSearch}
-          onRetry={() => void search.refetch()}
-          onRetryOptions={() => void catalog.refetch()}
-          onPageChange={(page) => {
-            const next = new URLSearchParams(params);
-            next.set("search_page", String(page));
-            setParams(next);
-          }}
-          onSelect={(ucId) => {
-            const detailParams = new URLSearchParams();
-            if (state.q) detailParams.set("q", state.q);
-            if (state.municipio) detailParams.set("municipio", state.municipio);
-            if (state.classe) detailParams.set("classe", state.classe);
-            if (state.searchPage > 1)
-              detailParams.set("search_page", String(state.searchPage));
-            if (state.start && state.end) {
-              detailParams.set("start", state.start);
-              detailParams.set("end", state.end);
-            }
-            const search = detailParams.toString();
-            navigate(
-              `/uc-360/${encodeURIComponent(ucId)}${search ? `?${search}` : ""}`,
-            );
-          }}
-        />
+        <>
+          <UC360SearchPanel
+            query={state.q}
+            municipio={state.municipio}
+            classe={state.classe}
+            options={catalog.data?.data}
+            optionsLoading={catalog.isPending}
+            optionsError={catalog.error}
+            page={state.searchPage}
+            pageSize={state.searchPageSize}
+            results={search.data}
+            isFetching={search.isFetching}
+            error={search.error}
+            onSearch={submitSearch}
+            onRetry={() => void search.refetch()}
+            onRetryOptions={() => void catalog.refetch()}
+            onPageChange={(page) => {
+              const next = new URLSearchParams(params);
+              next.set("search_page", String(page));
+              setParams(next);
+            }}
+            onPageSizeChange={(size) => {
+              const next = new URLSearchParams(params);
+              next.set("search_page_size", String(size));
+              next.delete("search_page");
+              setParams(next);
+            }}
+            onSelect={(ucId) => {
+              const detailParams = new URLSearchParams();
+              if (state.q) detailParams.set("q", state.q);
+              if (state.municipio)
+                detailParams.set("municipio", state.municipio);
+              if (state.classe) detailParams.set("classe", state.classe);
+              if (state.searchPage > 1)
+                detailParams.set("search_page", String(state.searchPage));
+              if (state.searchPageSize !== 20)
+                detailParams.set(
+                  "search_page_size",
+                  String(state.searchPageSize),
+                );
+              if (state.start && state.end) {
+                detailParams.set("start", state.start);
+                detailParams.set("end", state.end);
+              }
+              const search = detailParams.toString();
+              navigate(
+                `/uc-360/${encodeURIComponent(ucId)}${search ? `?${search}` : ""}`,
+              );
+            }}
+          />
+        </>
       )}
       {state.invalid.length > 0 && (
         <div
@@ -291,6 +308,12 @@ export default function UC360Page() {
             onHistoryPage: (page) => {
               const next = new URLSearchParams(params);
               next.set("history_page", String(page));
+              setParams(next);
+            },
+            onHistoryPageSize: (size) => {
+              const next = new URLSearchParams(params);
+              next.set("history_page_size", String(size));
+              next.delete("history_page");
               setParams(next);
             },
             onPeriodApply: (start, end) =>

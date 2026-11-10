@@ -202,12 +202,12 @@ export default function OperacaoPage() {
 
   return (
     <div className="grid min-w-0 gap-6 [overflow-wrap:anywhere]">
-      <header className="grid gap-2">
+      <header>
         <h1 className="font-heading text-[26px] leading-[34px] font-semibold lg:text-[32px] lg:leading-10 lg:tracking-[-0.64px]">
           {pageTitle}
         </h1>
-        <p className="text-sm leading-[22px] text-muted">{pageSubtitle}</p>
-        <div className="flex justify-end">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4">
+          <p className="text-sm leading-[22px] text-muted">{pageSubtitle}</p>
           <IndicatorHelp screen="operacao" />
         </div>
       </header>
@@ -328,6 +328,12 @@ export default function OperacaoPage() {
                   ),
                 )
               }
+              onPageSizeChange={(size) => {
+                const next = new URLSearchParams(location.search);
+                next.set("page_size", String(size));
+                next.delete("page");
+                updateSearch(next);
+              }}
             />
             <OperationFoundations detail={syntheticDetail} />
           </>

@@ -1,4 +1,3 @@
-import IndicatorHelp from "@/shared/help/IndicatorHelp";
 import { useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
@@ -8,8 +7,11 @@ import { useSourceOptions } from "@/shared/analytics/sourceOptions";
 import RevenueFiltersForm from "./RevenueFiltersForm";
 import RevenueBreakdown from "./RevenueBreakdown";
 import RevenueDecomposition from "./RevenueDecomposition";
-import RevenueSeries from "./RevenueSeries";
+import RevenueHistory from "./RevenueHistory";
 import RevenueSummary from "./RevenueSummary";
+import RevenueOverview from "./RevenueOverview";
+import RevenueInvestigation from "./RevenueInvestigation";
+import type { RevenueWindowItem } from "./contract";
 import {
   parseRevenueSearchParams,
   defaultRevenueFilters,
@@ -18,7 +20,7 @@ import {
   updateRevenueBaseParams,
   updateRevenueGroupBy,
 } from "./revenue-filters";
-import { useRevenue } from "./useRevenue";
+import { useRevenue, useRevenueDiagnosis } from "./useRevenue";
 
 function competenceLabel(value: string) {
   const month = Number(value.slice(5, 7));
@@ -46,6 +48,34 @@ function filterLabel(value: string | null, fallback: string) {
 
 export default function ReceitaPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const sections = [
+    { key: "resumo", label: "Resumo" },
+    { key: "investigar", label: "Investigar queda" },
+  ] as const;
+  const section =
+    sections.find((item) => item.key === searchParams.get("aba"))?.key ??
+    "resumo";
+  const historyOpen =
+    searchParams.get("historico") === "aberto" ||
+    searchParams.get("aba") === "evolucao";
+  const historyTriggerRef = useRef<HTMLButtonElement>(null);
+  function selectSection(value: string, focus = false) {
+    const next = new URLSearchParams(searchParams);
+    next.set("aba", value);
+    setSearchParams(next, { preventScrollReset: true });
+    if (focus)
+      requestAnimationFrame(() =>
+        document.getElementById(`revenue-tab-${value}`)?.focus(),
+      );
+  }
+  function viewDiagnosis() {
+    selectSection("resumo");
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        document.getElementById("revenue-overview-title")?.focus(),
+      ),
+    );
+  }
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersTriggerRef = useRef<HTMLButtonElement>(null);
   const searchKey = searchParams.toString();
@@ -65,6 +95,14 @@ export default function ReceitaPage() {
     [searchKey, defaults],
   );
   const revenue = useRevenue(parsed.query);
+  const diagnosis = useRevenueDiagnosis(
+    parsed.query,
+    section === "resumo" &&
+      !historyOpen &&
+      !!revenue.data?.data.window_decomposition &&
+      revenue.data.data.window_decomposition.status !== "unavailable" &&
+      !revenue.isError,
+  );
 
   function applyFilters(
     filters: Parameters<typeof updateRevenueBaseParams>[1],
@@ -93,7 +131,31 @@ export default function ReceitaPage() {
     setSearchParams(next, { preventScrollReset: true });
   }
 
-  const envelope = revenue.data;
+  function exploreWindowItem(item: RevenueWindowItem) {
+    const next = refineRevenueParams(
+      searchParams,
+      parsed.groupBy,
+      item.filters,
+    );
+    next.set("aba", "investigar");
+    setSearchParams(next, { preventScrollReset: true });
+    requestAnimationFrame(() =>
+      document.getElementById("investigation-title")?.focus(),
+    );
+  }
+  const envelope = revenue.isError ? undefined : revenue.data;
+  const analysisWindows =
+    !historyOpen && envelope?.data.window_decomposition?.windows.length === 4
+      ? envelope.data.window_decomposition.windows
+      : null;
+  const catalogMonths = catalog.data?.data.competencias ?? [];
+  const businessComparison =
+    !!analysisWindows &&
+    catalogMonths.length >= 12 &&
+    analysisWindows[0] === catalogMonths[0] &&
+    analysisWindows[1] === catalogMonths[11] &&
+    analysisWindows[2] === catalogMonths[catalogMonths.length - 12] &&
+    analysisWindows[3] === catalogMonths[catalogMonths.length - 1];
   const appliedFilters = envelope?.metadata.filters ?? {
     municipio: parsed.query?.municipio || null,
     bairro: parsed.query?.bairro || null,
@@ -112,17 +174,6 @@ export default function ReceitaPage() {
     searchParams,
     "bairro",
   );
-  const refinementLabels = [
-    parsed.refinements.municipio
-      ? `Município: ${filterLabel(parsed.refinements.municipio, "Não informado")}`
-      : null,
-    parsed.refinements.bairro
-      ? `Bairro: ${filterLabel(parsed.refinements.bairro, "Não informado")}`
-      : null,
-    parsed.refinements.classe
-      ? `Classe: ${filterLabel(parsed.refinements.classe, "Não informado")}`
-      : null,
-  ].filter((label): label is string => label !== null);
   const unavailableMessage = (() => {
     if (!(revenue.error instanceof ApiError)) {
       return "Não foi possível consultar a receita. Tente novamente.";
@@ -182,84 +233,103 @@ export default function ReceitaPage() {
         </div>
       ) : null}
 
-      {refinementLabels.length > 0 ? (
-        <section
-          aria-label="Recorte explorado"
-          className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/40 bg-brand/5 px-4 py-3"
-        >
-          <p className="min-w-0 text-sm text-content">
-            <span className="font-semibold">Explorando:</span>{" "}
-            {refinementLabels.join(" · ")}
-          </p>
-          <Button
-            type="button"
-            variant="accent"
-            size="sm"
-            onClick={() =>
-              setSearchParams(totalRefinementParams, {
-                preventScrollReset: true,
-              })
-            }
-          >
-            Voltar ao total
-          </Button>
-        </section>
-      ) : null}
-
-      <div className="flex justify-end">
-        <IndicatorHelp screen="receita" />
-      </div>
       <section
         aria-label="Filtros aplicados"
         className="mt-2 flex min-h-[92px] min-w-0 flex-wrap items-center justify-between gap-4 rounded-xl bg-surface px-4 py-4 xl:flex-nowrap"
       >
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-[2fr_3fr]">
             <div className="min-w-0">
-              <dt className="text-xs text-muted">Mês inicial</dt>
-              <dd className="mt-1 truncate font-medium text-content">
-                {competenceLabel(
-                  envelope?.metadata.period.start ??
-                    parsed.base.competencia_inicio,
-                )}
-              </dd>
+              <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+                Comparação
+              </h2>
+              <dl className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-2 text-sm">
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted">
+                    {analysisWindows
+                      ? businessComparison
+                        ? "Primeiro ano da base"
+                        : "Período de referência"
+                      : "Série: mês inicial"}
+                  </dt>
+                  <dd className="mt-1 truncate font-medium text-content">
+                    {analysisWindows
+                      ? `${competenceLabel(analysisWindows[0])}–${competenceLabel(analysisWindows[1])}`
+                      : competenceLabel(
+                          envelope?.metadata.period.start ??
+                            parsed.base.competencia_inicio,
+                        )}
+                  </dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted">
+                    {analysisWindows
+                      ? businessComparison
+                        ? "Últimos 12 meses da base"
+                        : "Período comparado"
+                      : "Série: mês final"}
+                  </dt>
+                  <dd className="mt-1 truncate font-medium text-content">
+                    {analysisWindows
+                      ? `${competenceLabel(analysisWindows[2])}–${competenceLabel(analysisWindows[3])}`
+                      : competenceLabel(
+                          envelope?.metadata.period.end ??
+                            parsed.base.competencia_fim,
+                        )}
+                  </dd>
+                </div>
+              </dl>
             </div>
             <div className="min-w-0">
-              <dt className="text-xs text-muted">Mês final</dt>
-              <dd className="mt-1 truncate font-medium text-content">
-                {competenceLabel(
-                  envelope?.metadata.period.end ?? parsed.base.competencia_fim,
-                )}
-              </dd>
+              <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+                Recorte
+              </h2>
+              <dl className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-3">
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted">Município</dt>
+                  <dd className="mt-1 truncate font-medium text-content">
+                    {filterLabel(
+                      appliedFilters.municipio,
+                      "Todos os municípios",
+                    )}
+                  </dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted">Bairro</dt>
+                  <dd className="mt-1 truncate font-medium text-content">
+                    {filterLabel(appliedFilters.bairro, "Todos os bairros")}
+                  </dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted">Classe</dt>
+                  <dd className="mt-1 truncate font-medium text-content">
+                    {filterLabel(appliedFilters.classe, "Todas as classes")}
+                  </dd>
+                </div>
+                {appliedFilters.alimentador ? (
+                  <div className="min-w-0">
+                    <dt className="text-xs text-muted">Alimentador legado</dt>
+                    <dd className="mt-1 flex items-center gap-2 truncate font-medium text-content">
+                      {appliedFilters.alimentador || "Todos os alimentadores"}
+                      {appliedFilters.alimentador ? (
+                        <button
+                          type="button"
+                          className="shrink-0 text-brand underline"
+                          onClick={() => {
+                            const next = new URLSearchParams(searchParams);
+                            next.delete("alimentador");
+                            setSearchParams(next, { preventScrollReset: true });
+                          }}
+                        >
+                          Remover filtro de alimentador
+                        </button>
+                      ) : null}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
             </div>
-            <div className="min-w-0">
-              <dt className="text-xs text-muted">Município</dt>
-              <dd className="mt-1 truncate font-medium text-content">
-                {filterLabel(appliedFilters.municipio, "Todos os municípios")}
-              </dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="text-xs text-muted">Bairro</dt>
-              <dd className="mt-1 truncate font-medium text-content">
-                {filterLabel(appliedFilters.bairro, "Todos os bairros")}
-              </dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="text-xs text-muted">Classe</dt>
-              <dd className="mt-1 truncate font-medium text-content">
-                {filterLabel(appliedFilters.classe, "Todas as classes")}
-              </dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="text-xs text-muted">Alimentador</dt>
-              <dd className="mt-1 truncate font-medium text-content">
-                {filterLabel(
-                  appliedFilters.alimentador,
-                  "Todos os alimentadores",
-                )}
-              </dd>
-            </div>
-          </dl>
+          </div>
           {(parsed.refinements.municipio ||
             parsed.refinements.bairro ||
             parsed.refinements.classe) && (
@@ -370,15 +440,20 @@ export default function ReceitaPage() {
         onClose={() => setFiltersOpen(false)}
         triggerRef={filtersTriggerRef}
         title="Ajustar filtros"
-        description="Escolha o período e os filtros para consultar a receita."
+        description={
+          analysisWindows
+            ? "Escolha município, bairro e classe. As janelas da comparação são as publicadas pela Gold."
+            : "Escolha o período e os filtros para consultar a receita."
+        }
         closeLabel="Fechar filtros"
         size="md"
         header="inline"
       >
         {filtersOpen ? (
           <RevenueFiltersForm
+            showPeriod={!analysisWindows}
             options={catalog.data?.data}
-            initialFilters={parsed.base}
+            initialFilters={{ ...parsed.base, ...parsed.refinements }}
             defaultFilters={defaults}
             searchKey={searchKey}
             envelope={envelope}
@@ -432,25 +507,174 @@ export default function ReceitaPage() {
         </div>
       ) : null}
 
+      <div className="flex flex-wrap items-center gap-3">
+        <div
+          role="tablist"
+          aria-label="Leituras da receita"
+          className="flex gap-1 overflow-x-auto rounded-xl bg-surface p-1.5"
+        >
+          {sections.map((item, index) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              id={`revenue-tab-${item.key}`}
+              aria-selected={section === item.key}
+              aria-controls={`revenue-panel-${item.key}`}
+              tabIndex={section === item.key ? 0 : -1}
+              onClick={() => selectSection(item.key)}
+              onKeyDown={(event) => {
+                const key = event.key;
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(key))
+                  return;
+                event.preventDefault();
+                const next =
+                  key === "Home"
+                    ? 0
+                    : key === "End"
+                      ? sections.length - 1
+                      : (index +
+                          (key === "ArrowRight" ? 1 : -1) +
+                          sections.length) %
+                        sections.length;
+                selectSection(sections[next].key, true);
+              }}
+              className={`min-h-11 flex-1 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-brand ${section === item.key ? "bg-brand text-[var(--accent-goiaba-text)]" : "text-muted hover:bg-surface-hover"}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <Button
+          ref={historyTriggerRef}
+          type="button"
+          variant="control"
+          size="sm"
+          onClick={() => {
+            const next = new URLSearchParams(searchParams);
+            next.set("historico", "aberto");
+            setSearchParams(next, { preventScrollReset: true });
+          }}
+        >
+          Ver histórico deste recorte
+        </Button>
+      </div>
+      <Modal
+        open={historyOpen}
+        onClose={() => {
+          const next = new URLSearchParams(searchParams);
+          next.delete("historico");
+          if (next.get("aba") === "evolucao") next.set("aba", "resumo");
+          setSearchParams(next, { preventScrollReset: true });
+        }}
+        triggerRef={historyTriggerRef}
+        title="Histórico do recorte"
+        closeLabel="Fechar histórico"
+        size="lg"
+        header="inline"
+      >
+        <RevenueHistory
+          key={`${parsed.base.competencia_inicio}:${parsed.base.competencia_fim}`}
+          envelope={envelope}
+          start={parsed.base.competencia_inicio}
+          end={parsed.base.competencia_fim}
+          competencies={catalog.data?.data.competencias ?? []}
+          onApply={(start, end) => {
+            const next = new URLSearchParams(searchParams);
+            next.set("competencia_inicio", start);
+            next.set("competencia_fim", end);
+            setSearchParams(next, { preventScrollReset: true });
+          }}
+        />
+      </Modal>
       {envelope ? (
-        <>
-          <RevenueSummary envelope={envelope} />
-          <div className="grid min-w-0 gap-4 min-[1850px]:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-            <RevenueDecomposition envelope={envelope} />
-            <RevenueBreakdown
-              key={JSON.stringify([
-                envelope.metadata.filters,
-                envelope.metadata.period,
-                parsed.groupBy,
-              ])}
-              envelope={envelope}
-              groupBy={parsed.groupBy}
-              onGroupByChange={applyGroupBy}
-              onExplore={exploreBreakdownItem}
-            />
-          </div>
-          <RevenueSeries envelope={envelope} />
-        </>
+        <section
+          role="tabpanel"
+          id={`revenue-panel-${section}`}
+          aria-labelledby={`revenue-tab-${section}`}
+          className="min-w-0"
+        >
+          {section === "resumo" ? (
+            envelope.data.window_decomposition ? (
+              <RevenueOverview
+                envelope={{
+                  ...envelope,
+                  data: { ...envelope.data, diagnosis: diagnosis.data },
+                }}
+                diagnosisLoading={diagnosis.isFetching}
+                diagnosisError={diagnosis.isError}
+                onRetryDiagnosis={() => void diagnosis.refetch()}
+                onInvestigate={() => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set("aba", "investigar");
+                  next.set("metrica", "volume");
+                  setSearchParams(next, { preventScrollReset: true });
+                  requestAnimationFrame(() =>
+                    document.getElementById("revenue-tab-investigar")?.focus(),
+                  );
+                }}
+              />
+            ) : (
+              <div className="grid gap-4">
+                <RevenueSummary envelope={envelope} />
+                <RevenueDecomposition envelope={envelope} />
+                <Button
+                  variant="accent"
+                  onClick={() => selectSection("investigar", true)}
+                >
+                  Investigar recortes →
+                </Button>
+              </div>
+            )
+          ) : null}
+          {section === "investigar" ? (
+            envelope.data.window_decomposition &&
+            envelope.data.window_decomposition.status !== "unavailable" ? (
+              <RevenueInvestigation
+                envelope={envelope}
+                groupBy={parsed.groupBy}
+                onGroupByChange={applyGroupBy}
+                onExplore={exploreWindowItem}
+                onViewDiagnosis={viewDiagnosis}
+                metric={
+                  ["volume", "preco", "receita"].includes(
+                    searchParams.get("metrica") ?? "",
+                  )
+                    ? searchParams.get("metrica")!
+                    : "volume"
+                }
+                onMetricChange={(value) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set("metrica", value);
+                  setSearchParams(next, { preventScrollReset: true });
+                }}
+              />
+            ) : (
+              <div className="grid gap-4">
+                {envelope.data.window_decomposition ? (
+                  <p role="status" className="text-sm text-muted">
+                    Decomposição por janelas indisponível. A investigação abaixo
+                    compara somente{" "}
+                    {competenceLabel(envelope.metadata.period.start)} e{" "}
+                    {competenceLabel(envelope.metadata.period.end)}; não
+                    representa os efeitos das janelas publicadas.
+                  </p>
+                ) : null}
+                <RevenueBreakdown
+                  key={JSON.stringify([
+                    envelope.metadata.filters,
+                    envelope.metadata.period,
+                    parsed.groupBy,
+                  ])}
+                  envelope={envelope}
+                  groupBy={parsed.groupBy}
+                  onGroupByChange={applyGroupBy}
+                  onExplore={exploreBreakdownItem}
+                />
+              </div>
+            )
+          ) : null}
+        </section>
       ) : null}
     </div>
   );

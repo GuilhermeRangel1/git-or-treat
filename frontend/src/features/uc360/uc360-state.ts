@@ -18,6 +18,8 @@ export type UC360SearchState = {
   section: UCHistorySection | "";
   searchPage: number;
   historyPage: number;
+  searchPageSize: number;
+  historyPageSize: number;
   invalid: string[];
 };
 function page(value: string | null) {
@@ -52,7 +54,9 @@ export function parseUC360SearchParams(
   const start = month(startRaw),
     end = month(endRaw),
     searchPage = page(one("search_page")),
-    historyPage = page(one("history_page"));
+    historyPage = page(one("history_page")),
+    searchPageSize = page(one("search_page_size") ?? "20"),
+    historyPageSize = page(one("history_page_size") ?? "20");
   if (start === null || end === null)
     invalid.push("Competência inválida. Use AAAA-MM.");
   if ((startRaw === null) !== (endRaw === null))
@@ -74,6 +78,13 @@ export function parseUC360SearchParams(
   if (searchPage === null || historyPage === null)
     invalid.push("Página inválida.");
   if (
+    searchPageSize === null ||
+    searchPageSize > 100 ||
+    historyPageSize === null ||
+    historyPageSize > 100
+  )
+    invalid.push("Quantidade por página inválida.");
+  if (
     sectionRaw &&
     !UC_HISTORY_SECTIONS.includes(sectionRaw as UCHistorySection)
   )
@@ -89,6 +100,8 @@ export function parseUC360SearchParams(
       UC_HISTORY_SECTIONS.find((section) => section === sectionRaw) ?? "",
     searchPage: searchPage ?? 1,
     historyPage: historyPage ?? 1,
+    searchPageSize: searchPageSize ?? 20,
+    historyPageSize: historyPageSize ?? 20,
     invalid,
   };
 }

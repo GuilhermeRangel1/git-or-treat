@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { decodeDetail, decodeQueue } from "./contract";
 import SuspicionDetail from "./SuspicionDetail";
@@ -94,7 +95,7 @@ it("recusa score nulo sem categoria textual", () => {
   ).toThrow();
 });
 
-it("mostra os dois trimestres como comparação proposta, sem alterar a prioridade", () => {
+it("mostra os dois trimestres como comparação proposta, sem alterar a prioridade", async () => {
   const result = decodeDetail({
     data: {
       ...item,
@@ -122,6 +123,8 @@ it("mostra os dois trimestres como comparação proposta, sem alterar a priorida
   });
   render(<SuspicionDetail data={result.data} metadata={result.metadata} />);
   expect(screen.getByText("Comparação proposta de consumo")).toBeVisible();
+  expect(screen.getByText(/-50%/)).not.toBeVisible();
+  await userEvent.click(screen.getByText("Comparação proposta de consumo"));
   expect(screen.getByText(/-50%/)).toBeVisible();
   expect(screen.getByText(/-50%/)).toHaveClass("text-danger");
   expect(

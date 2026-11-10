@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { Order } from "@/shared/api/orders";
 import { getOrderDetail, searchOrders } from "@/shared/api/orders";
 import Button from "@/shared/ui/Button";
+import Pagination from "@/shared/ui/Pagination";
 import FieldFiles from "@/shared/inspections/FieldFiles";
 import OrderActionsDialog from "./OrderActionsDialog";
 import OrderFoundationsDialog from "./OrderFoundationsDialog";
@@ -111,7 +112,7 @@ export default function OrdensPage() {
         <nav aria-label="Navegação das ordens">
           <Link
             ref={backToQueueRef}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="inline-flex h-11 w-52 max-w-full items-center justify-center gap-2 rounded-lg border border-control bg-surface px-4 text-sm font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             to="/inspecoes"
           >
             <ArrowLeft size={16} aria-hidden="true" />
@@ -225,92 +226,78 @@ export default function OrdensPage() {
                   <p>{savedFeedback}</p>
                 </div>
               ) : null}
-              {visibleOrders.length > 0 ? (
-                <OrdersTable
-                  orders={visibleOrders}
-                  onSelect={openActions}
-                  onFoundations={openFoundations}
-                />
-              ) : orders.data.pagination.total > 0 ? (
-                <div className="rounded-xl border border-border bg-surface p-6 text-sm text-muted">
-                  Esta página não contém ordens. O total do recorte é{" "}
-                  {orders.data.pagination.total}; volte a uma página anterior.
-                </div>
-              ) : (
-                <div className="grid gap-3 rounded-xl border border-border bg-surface p-6 text-sm text-muted">
-                  <p>
-                    {parsed.ucId ||
-                    parsed.status ||
-                    parsed.priority ||
-                    parsed.hasResult !== null
-                      ? "Nenhuma ordem corresponde aos filtros aplicados."
-                      : "Nenhuma ordem foi cadastrada ainda."}
-                  </p>
-                  <p>
-                    Ordens são criadas a partir de uma suspeita selecionada na
-                    fila de inspeção.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <Link
-                      className="min-h-11 inline-flex items-center underline underline-offset-4"
-                      to="/inspecoes"
-                    >
-                      Ir para a fila de inspeção
-                    </Link>
-                    {parsed.ucId ||
-                    parsed.status ||
-                    parsed.priority ||
-                    parsed.hasResult !== null ? (
+              <div className="space-y-4 rounded-xl bg-surface">
+                {visibleOrders.length > 0 ? (
+                  <OrdersTable
+                    orders={visibleOrders}
+                    onSelect={openActions}
+                    onFoundations={openFoundations}
+                  />
+                ) : orders.data.pagination.total > 0 ? (
+                  <div className="rounded-xl border border-border bg-surface p-6 text-sm text-muted">
+                    Esta página não contém ordens. O total do recorte é{" "}
+                    {orders.data.pagination.total}; volte a uma página anterior.
+                  </div>
+                ) : (
+                  <div className="grid gap-3 rounded-xl border border-border bg-surface p-6 text-sm text-muted">
+                    <p>
+                      {parsed.ucId ||
+                      parsed.status ||
+                      parsed.priority ||
+                      parsed.hasResult !== null
+                        ? "Nenhuma ordem corresponde aos filtros aplicados."
+                        : "Nenhuma ordem foi cadastrada ainda."}
+                    </p>
+                    <p>
+                      Ordens são criadas a partir de uma suspeita selecionada na
+                      fila de inspeção.
+                    </p>
+                    <div className="flex flex-wrap gap-3">
                       <Link
                         className="min-h-11 inline-flex items-center underline underline-offset-4"
-                        to="/ordens"
+                        to="/inspecoes"
                       >
-                        Limpar recorte
+                        Ir para a fila de inspeção
                       </Link>
-                    ) : null}
+                      {parsed.ucId ||
+                      parsed.status ||
+                      parsed.priority ||
+                      parsed.hasResult !== null ? (
+                        <Link
+                          className="min-h-11 inline-flex items-center underline underline-offset-4"
+                          to="/ordens"
+                        >
+                          Limpar recorte
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              <p className="sr-only" aria-live="polite">
-                {orders.data.pagination.total} ordem(ns) no recorte. Página{" "}
-                {orders.data.pagination.page} de{" "}
-                {orders.data.pagination.total_pages}.
-              </p>
-              {orders.data.pagination.total_pages > 1 ||
-              orders.data.pagination.page > 1 ? (
-                <nav
-                  aria-label="Paginação das ordens"
-                  className="flex flex-wrap items-center justify-between gap-3"
-                >
-                  <Button
-                    variant="outline"
-                    leftIcon={<ArrowLeft size={16} aria-hidden="true" />}
-                    disabled={orders.data.pagination.page <= 1}
-                    onClick={() => changePage(orders.data!.pagination.page - 1)}
-                  >
-                    Anterior
-                  </Button>
-                  <span className="text-sm text-muted">
-                    {orders.data.pagination.total} ordem(ns) · página{" "}
-                    {orders.data.pagination.page}
-                    {orders.data.pagination.total_pages > 0
-                      ? ` de ${orders.data.pagination.total_pages}`
-                      : " · sem páginas com resultados"}
-                  </span>
-                  <Button
-                    variant="outline"
-                    rightIcon={<ArrowRight size={16} aria-hidden="true" />}
-                    disabled={
-                      orders.data.pagination.page >=
-                      orders.data.pagination.total_pages
-                    }
-                    onClick={() => changePage(orders.data!.pagination.page + 1)}
-                  >
-                    Próxima
-                  </Button>
-                </nav>
-              ) : null}
+                <p className="sr-only" aria-live="polite">
+                  {orders.data.pagination.total} ordem(ns) no recorte. Página{" "}
+                  {orders.data.pagination.page} de{" "}
+                  {orders.data.pagination.total_pages}.
+                </p>
+                {orders.data.pagination.total > 0 ||
+                orders.data.pagination.page > 1 ? (
+                  <div className="px-4 pb-4">
+                    <Pagination
+                      label="Paginação das ordens"
+                      page={orders.data.pagination.page}
+                      totalPages={orders.data.pagination.total_pages}
+                      pageSize={parsed.pageSize}
+                      onPageChange={changePage}
+                      onPageSizeChange={(size) => {
+                        const next = new URLSearchParams(params);
+                        next.set("page_size", String(size));
+                        next.delete("page");
+                        setParams(next);
+                      }}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </>
           ) : null}
         </>

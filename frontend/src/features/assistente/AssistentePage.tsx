@@ -1358,7 +1358,7 @@ export default function AssistentePage() {
       aria-labelledby="assistant-heading"
       className="assistant-workspace mx-auto h-full min-h-0 w-full rounded-[20px] border border-divider bg-surface"
     >
-      <header className="assistant-toolbar flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-divider px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
+      <header className="assistant-toolbar flex min-h-12 shrink-0 flex-wrap items-end justify-between gap-2 border-b border-divider px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
         <div className="flex items-center gap-2.5">
           <span className="flex size-9 items-center justify-center rounded-full bg-brand/10 text-brand">
             <MessageCircle aria-hidden="true" className="size-4" />
