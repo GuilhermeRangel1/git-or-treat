@@ -61,13 +61,12 @@ const fetchMock = vi.fn();
 async function renderWith(
   diagnosis: Record<string, unknown> | null,
   scope = { municipio: "todos", classe: "todas" },
+  window: Record<string, unknown> = revenueWindow(),
 ) {
   fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), "http://localhost:5173");
     return new Response(
-      JSON.stringify(
-        revenueResponse(url, { window: revenueWindow(), diagnosis }),
-      ),
+      JSON.stringify(revenueResponse(url, { window, diagnosis })),
     );
   });
   render(
@@ -84,6 +83,16 @@ const card = (name: string) => screen.getByRole("region", { name });
 const priceCard = () =>
   screen.getByRole("region", { name: /^Preço observado adicionou/ });
 const cohortRows = () => within(block()).getAllByRole("listitem");
+const INSIGHT_TITLE = "Resposta ao Diretor";
+const insightCard = () => screen.queryByRole("region", { name: INSIGHT_TITLE });
+/** Bloco sem o cartão de resposta, que tem regras de texto próprias. */
+function blockWithoutInsight() {
+  const clone = block().cloneNode(true) as HTMLElement;
+  clone
+    .querySelectorAll("[data-diagnosis-insight]")
+    .forEach((element) => element.remove());
+  return clone;
+}
 
 beforeEach(() => {
   resetGoldPublication();
@@ -92,7 +101,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
 });
 
-it("organiza um único bloco com dois sub-blocos em duas colunas", async () => {
+it("com a resposta ao Diretor, empilha os sub-blocos à esquerda e põe o cartão à direita", async () => {
   await renderWith(revenueDiagnosis({ concentration, gd }));
 
   expect(block()).toHaveClass("rounded-xl", "border", "bg-surface");
@@ -101,13 +110,25 @@ it("organiza um único bloco com dois sub-blocos em duas colunas", async () => {
       .getAllByRole("heading", { level: 3 })
       .map((heading) => heading.textContent),
   ).toEqual([
+    INSIGHT_TITLE,
     expect.stringMatching(/^Preço observado adicionou/),
     CONCENTRATION_TITLE,
   ]);
-  const columns = priceCard().parentElement;
-  expect(columns).toHaveClass("grid", "md:grid-cols-2");
-  expect(columns).not.toHaveClass("items-start");
-  expect(columns).toContainElement(card(CONCENTRATION_TITLE));
+  const left = priceCard().parentElement!;
+  const right = insightCard()!.parentElement!;
+  const layout = left.parentElement!;
+  expect(right.parentElement).toBe(layout);
+  // Duas colunas em telas largas: 2/3 à esquerda e 1/3 à direita.
+  expect(layout).toHaveClass("grid", "lg:grid-cols-3");
+  expect(left).toHaveClass("grid", "lg:col-span-2", "lg:order-1");
+  expect(left).not.toHaveClass("md:grid-cols-2", "lg:grid-cols-2");
+  expect(right).toHaveClass("lg:order-2");
+  // Os dois sub-blocos ficam empilhados, na ordem Preço × Volume e concentração.
+  expect([...left.children]).toEqual([priceCard(), card(CONCENTRATION_TITLE)]);
+  // Telas estreitas: o cartão vem logo depois do título do bloco.
+  expect(layout.firstElementChild).toBe(right);
+  // A altura do cartão acompanha a coluna da esquerda.
+  expect(insightCard()).toHaveClass("h-full");
   for (const panel of [priceCard(), card(CONCENTRATION_TITLE)])
     expect(panel).toHaveClass(
       "flex",
@@ -122,6 +143,20 @@ it("organiza um único bloco com dois sub-blocos em duas colunas", async () => {
       name: GD_TITLE,
     }),
   ).toBeVisible();
+});
+
+it("sem a resposta ao Diretor, mantém os dois sub-blocos lado a lado", async () => {
+  await renderWith(
+    revenueDiagnosis({ concentration, gd }),
+    undefined,
+    revenueWindow({ total_change_brl: -50 }),
+  );
+
+  expect(insightCard()).toBeNull();
+  const columns = priceCard().parentElement;
+  expect(columns).toHaveClass("grid", "md:grid-cols-2");
+  expect(columns).not.toHaveClass("items-start");
+  expect(columns).toContainElement(card(CONCENTRATION_TITLE));
 });
 
 it("mostra os dois destaques juntos, com os números e nomes da API", async () => {
@@ -359,16 +394,27 @@ it("não usa article nem linguagem causal no bloco inteiro, com a nota aberta", 
       element.getAttribute("title"),
     ])
     .filter(Boolean);
-  expect(`${block().textContent} ${labels.join(" ")}`).not.toMatch(
+  // Os sub-blocos não usam nenhuma linguagem causal.
+  expect(
+    `${blockWithoutInsight().textContent} ${labels.join(" ")}`,
+  ).not.toMatch(
     /porque|devido a|causou|por causa de|em razão de|reduziu o ganho|anulou/i,
   );
+  // O cartão de resposta usa "Porque" uma única vez, só para explicar a conta.
+  const answer = insightCard()!.textContent!;
+  expect(answer).not.toMatch(
+    /devido a|causou|por causa de|em razão de|anulou|saldo\s*=/i,
+  );
+  expect(answer.match(/porque|por isso|já que/gi)).toEqual(["Porque"]);
+  expect(answer).toMatch(/Porque o volume devolveu 37,2% do ganho de preço\./);
 });
 
 it("usa só as cores semânticas suaves e neutros", async () => {
   await renderWith(revenueDiagnosis({ concentration, gd }));
 
+  // Sub-blocos: só as cores semânticas suaves; o cartão de resposta usa o acento.
   const classes = new Set(
-    Array.from(block().querySelectorAll("*")).flatMap((element) =>
+    Array.from(blockWithoutInsight().querySelectorAll("*")).flatMap((element) =>
       Array.from(element.classList),
     ),
   );
@@ -381,4 +427,29 @@ it("usa só as cores semânticas suaves e neutros", async () => {
     "bg-success/70",
     "text-[var(--status-success-text)]",
   ]);
+});
+
+it("o cartão de resposta usa só o acento suave e neutros, sem ícone nem selo de IA", async () => {
+  await renderWith(revenueDiagnosis({ concentration, gd }));
+
+  const answer = insightCard()!;
+  const colored = new Set(
+    Array.from(answer.querySelectorAll("*"))
+      .concat(answer)
+      .flatMap((element) => Array.from(element.classList))
+      .filter((name) =>
+        /success|danger|warning|brand|goiaba|pistache/.test(name),
+      ),
+  );
+  expect([...colored].sort()).toEqual([
+    "bg-[var(--accent-pistache-subtle)]",
+    "border-[var(--accent-pistache)]",
+    "text-[var(--accent-pistache)]",
+  ]);
+  expect(answer.querySelector(".lucide-sparkles")).toBeNull();
+  expect(answer.querySelector(".lucide-lightbulb")).not.toBeNull();
+  expect(within(answer).getByText("Calculado")).toBeVisible();
+  expect(within(answer).queryByText("IA")).toBeNull();
+  expect(within(answer).queryAllByRole("img")).toHaveLength(0);
+  expect(within(answer).queryByRole("button")).toBeNull();
 });

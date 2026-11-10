@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import TestProviders from "@/shared/test/TestProviders";
 import {
   acceptGoldIdentity,
@@ -172,12 +172,14 @@ it("usa a manchete como título, sem sinal, com faturamento, anotação e rodap�
   expect(visibleText(screen.getByText(/^Faturamento:/))).toMatch(
     /^Faturamento: R\$ 203,5 mi → R\$ 215,8 mi$/,
   );
-  expect(screen.queryByText(/Saldo:/)).toBeNull();
+  // O sub-bloco mostra o saldo como coluna; "Saldo:" em texto é do cartão de resposta.
+  const pricePanel = headline().closest("section")!;
+  expect(within(pricePanel).queryByText(/Saldo:/)).toBeNull();
   expect(screen.getByRole("img", { name: /^Saldo/ })).toBeVisible();
   expect(
     screen.getByText("O volume devolveu 37,2% do ganho de preço"),
   ).toHaveClass("text-content");
-  expect(screen.queryByText(/Base parcial/)).toBeNull();
+  expect(within(pricePanel).queryByText(/Base parcial/)).toBeNull();
 });
 
 it("desenha colunas na mesma escala, a partir do mesmo zero, sem acumular", async () => {
@@ -526,4 +528,118 @@ it("mantém o erro dentro do bloco e permite tentar novamente", async () => {
   expect(await screen.findByText(FOOTNOTE)).toBeVisible();
   expect(screen.queryByRole("alert")).toBeNull();
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+});
+
+describe("Resposta ao Diretor", () => {
+  const answerCard = () =>
+    screen.queryByRole("region", { name: "Resposta ao Diretor" });
+  const fullDiagnosis = revenueDiagnosis({
+    concentration: {
+      dimension: "municipio",
+      labels: ["RECIFE", "JABOATÃO DOS GUARARAPES"],
+      share_negative_volume_percent: 69.5,
+    },
+    gd: {
+      status: "available",
+      cohorts: [],
+      share_negative_volume_percent: 92.7,
+      limitations: [],
+    },
+  });
+
+  it("mostra cabeçalho, pergunta, parágrafos com frase-chave, próximo passo e rodapé", async () => {
+    respondWith({
+      window: revenueWindow({ change_percent: 8.1 }),
+      diagnosis: fullDiagnosis,
+    });
+    renderBlock();
+
+    const answer = await screen.findByRole("region", {
+      name: "Resposta ao Diretor",
+    });
+    expect(block()).toContainElement(answer);
+    // Título curto, sempre em uma linha (trunca em vez de quebrar).
+    const title = within(answer).getByRole("heading", {
+      name: "Resposta ao Diretor",
+    });
+    expect(title).toHaveClass("truncate");
+    // A legenda pode quebrar.
+    const caption = within(answer).getByText(
+      "Leitura do diagnóstico · calculada dos dados",
+    );
+    expect(caption).toBeVisible();
+    expect(caption).not.toHaveClass("truncate", "whitespace-nowrap");
+    expect(within(answer).getByText("Calculado")).toBeVisible();
+    expect(
+      within(answer).getByText("Por que a receita subiu só 8,1%?"),
+    ).toBeVisible();
+
+    const first = within(answer).getByText(
+      "Porque o volume devolveu 37,2% do ganho de preço.",
+    );
+    expect(first.tagName).toBe("STRONG");
+    expect(visibleText(first.parentElement!)).toBe(
+      "Porque o volume devolveu 37,2% do ganho de preço. O preço observado adicionou R$ 1,1 mil e o volume retirou R$ 402,00. Saldo: +R$ 796,00.",
+    );
+    const second = within(answer).getByText(
+      "Os dados apontam a GD como principal explicação da queda de volume:",
+    );
+    expect(second.tagName).toBe("STRONG");
+    expect(visibleText(second.parentElement!)).toBe(
+      "Os dados apontam a GD como principal explicação da queda de volume: 92,7% dela está em UCs com GD. No território, 69,5% está em Recife e Jaboatão dos Guararapes.",
+    );
+
+    const nextStep = within(answer).getByText("Próximo passo:").parentElement!;
+    expect(nextStep).toHaveClass(
+      "border-l-2",
+      "border-[var(--accent-pistache)]",
+    );
+    expect(nextStep).toHaveTextContent(
+      "Próximo passo: medir a energia gerada pelas UCs com GD; a causa ainda não está comprovada.",
+    );
+    expect(
+      within(answer).getByText("Preço observado não é tarifa"),
+    ).toBeVisible();
+  });
+
+  it("em base parcial, o rodapé do cartão avisa Base parcial", async () => {
+    respondWith({
+      window: revenueWindow({ status: "partial", incomplete_groups: 1 }),
+      diagnosis: fullDiagnosis,
+    });
+    renderBlock();
+
+    const answer = await screen.findByRole("region", {
+      name: "Resposta ao Diretor",
+    });
+    expect(
+      within(answer).getByText("Preço observado não é tarifa · Base parcial"),
+    ).toBeVisible();
+  });
+
+  it.each([
+    [
+      "o preço não adicionou",
+      { components: { ...revenueWindow().components, preco: -100 } },
+    ],
+    [
+      "o volume não retirou",
+      { components: { ...revenueWindow().components, volume: 100 } },
+    ],
+    ["o saldo não é positivo", { total_change_brl: -50 }],
+  ])(
+    "não mostra o cartão quando %s, mas mantém o bloco",
+    async (_name, window) => {
+      respondWith({ window: revenueWindow(window), diagnosis: fullDiagnosis });
+      renderBlock();
+
+      await screen.findByText(FOOTNOTE);
+      expect(answerCard()).toBeNull();
+      expect(
+        screen.getByRole("region", {
+          name: "Onde a queda de volume se concentra",
+        }),
+      ).toBeVisible();
+    },
+  );
 });
