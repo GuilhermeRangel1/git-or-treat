@@ -10,18 +10,28 @@ export function useUCSearch(
   classe: string,
   page: number,
   enabled: boolean,
+  pageSize = 20,
 ) {
   const publication = useGoldPublicationKey();
   const params = new URLSearchParams({
     page: String(page),
-    page_size: "20",
+    page_size: String(pageSize),
     order_by: "uc_id",
   });
   if (q) params.set("q", q);
   if (municipio) params.set("municipio", municipio);
   if (classe) params.set("classe", classe);
   return useQuery({
-    queryKey: ["uc360", "search", publication, q, municipio, classe, page],
+    queryKey: [
+      "uc360",
+      "search",
+      publication,
+      q,
+      municipio,
+      classe,
+      page,
+      pageSize,
+    ],
     enabled,
     queryFn: async ({ signal }) =>
       decodeUCSearch(
@@ -72,15 +82,29 @@ export function useUCHistory(
   end: string,
   page: number,
   enabled: boolean,
+  pageSize = 20,
 ) {
   const publication = useGoldPublicationKey();
-  const params = new URLSearchParams({ page: String(page), page_size: "20" });
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
   if (start && end) {
     params.set("start", start);
     params.set("end", end);
   }
   return useQuery({
-    queryKey: ["uc360", "history", publication, uc, section, start, end, page],
+    queryKey: [
+      "uc360",
+      "history",
+      publication,
+      uc,
+      section,
+      start,
+      end,
+      page,
+      pageSize,
+    ],
     enabled: enabled && Boolean(uc) && Boolean(section),
     queryFn: async ({ signal }) => {
       const result = decodeUCHistory(

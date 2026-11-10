@@ -189,6 +189,7 @@
       },
       "capability_id": "faturamento.receita",
       "required_capability_ids": [
+        "faturamento.receita",
         "consumo.mensal_uc"
       ],
       "accumulated_period_phrases": [],
@@ -1288,6 +1289,116 @@
           "decimal_shapes": {}
         }
       ]
+    },
+    {
+      "metric_id": "customer.units_by_class",
+      "label": "Unidades consumidoras por classe",
+      "definition": "Conta UCs distintas no cadastro publicado, agrupadas pela classe atual; não informa vigência histórica.",
+      "fixed_filter_values": {},
+      "dimension_operators": {
+        "customer.consumption_class": [
+          "eq",
+          "in"
+        ]
+      },
+      "capability_id": "cadastro.ucs_por_classe",
+      "required_capability_ids": [
+        "cadastro.ucs_por_classe"
+      ],
+      "accumulated_period_phrases": [
+        "cadastro atual do lote Gold"
+      ],
+      "granularities": [
+        "month",
+        "year"
+      ],
+      "max_window_days": null,
+      "aggregation": "count_distinct",
+      "unit": "UCs",
+      "unit_kind": "count",
+      "measure_type": "string",
+      "numerator_type": null,
+      "denominator_type": null,
+      "rounding": {
+        "decimals": 0,
+        "mode": "half_even"
+      },
+      "null_rule": "count_requires_certified_zero",
+      "required_dimension_ids": [],
+      "sources": [
+        {
+          "capability_id": "cadastro.ucs_por_classe",
+          "table": "visao_360_uc",
+          "temporal_column": null,
+          "temporal_transform": "identity",
+          "grain": [
+            "id_uc"
+          ],
+          "measure_column": "id_uc",
+          "numerator_column": null,
+          "denominator_column": null,
+          "nullable_columns": [],
+          "dimension_columns": {
+            "customer.consumption_class": "classe"
+          },
+          "decimal_shapes": {}
+        }
+      ]
+    },
+    {
+      "metric_id": "inspection.units_by_priority",
+      "label": "Unidades na fila por prioridade",
+      "definition": "Conta UCs distintas na fila publicada por prioridade; prioridade de inspeção não é ocorrência confirmada.",
+      "fixed_filter_values": {},
+      "dimension_operators": {
+        "inspection.priority": [
+          "eq",
+          "in"
+        ]
+      },
+      "capability_id": "apoio.fila_inspecao",
+      "required_capability_ids": [
+        "apoio.fila_inspecao"
+      ],
+      "accumulated_period_phrases": [
+        "fila de inspeção do lote Gold"
+      ],
+      "granularities": [
+        "month",
+        "year"
+      ],
+      "max_window_days": null,
+      "aggregation": "count_distinct",
+      "unit": "UCs",
+      "unit_kind": "count",
+      "measure_type": "string",
+      "numerator_type": null,
+      "denominator_type": null,
+      "rounding": {
+        "decimals": 0,
+        "mode": "half_even"
+      },
+      "null_rule": "count_requires_certified_zero",
+      "required_dimension_ids": [],
+      "sources": [
+        {
+          "capability_id": "apoio.fila_inspecao",
+          "table": "fila_inspecao",
+          "temporal_column": null,
+          "temporal_transform": "identity",
+          "grain": [
+            "id_uc"
+          ],
+          "measure_column": "id_uc",
+          "numerator_column": null,
+          "denominator_column": null,
+          "nullable_columns": [],
+          "dimension_columns": {
+            "inspection.priority": "prioridade_inspecao"
+          },
+          "decimal_shapes": {}
+        }
+      ]
     }
   ],
   "unavailable": [
@@ -1297,13 +1408,6 @@
         "definition_pending"
       ],
       "note": "Fonte faturas_uc disponível; distinguir valor nominal declarado e saldo indicativo. Controles consumidores ainda não mapeados; a fonte não prova saldo contábil."
-    },
-    {
-      "capability_id": "apoio.fila_inspecao",
-      "reasons": [
-        "definition_pending"
-      ],
-      "note": "Fila com motivo e prioridade disponível; seleção, rótulos e controles de uso pela IA ainda não mapeados."
     },
     {
       "capability_id": "apoio.medidor_uc",

@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/shared/auth/useSession";
 import { currentAuthorizationGeneration } from "@/shared/auth/authorization";
 import ConversationHistory from "./ConversationHistory";
+import QuestionFeedback from "./QuestionFeedback";
 import { createConversation, openConversation } from "./history";
 import {
   AlertCircle,
@@ -48,6 +49,7 @@ type RetryRequest = Pick<
   | "history_request_id"
   | "refresh_context"
 > & {
+  sqlF1Mode: boolean;
   userMessageId: number;
   assistantMessageId: number;
 };
@@ -139,6 +141,35 @@ function updateConversationInteraction(
 
 function formatFilterValue(value: string | number | boolean) {
   return typeof value === "boolean" ? (value ? "Sim" : "Não") : String(value);
+}
+
+function formatExactDecimal(value: string, unit: string | null) {
+  if (!/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(value))
+    return "Valor indisponível";
+  const negative = value.startsWith("-");
+  const unsigned = negative ? value.slice(1) : value;
+  const [integer, fraction] = unsigned.split(".");
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const formatted = `${negative ? "−" : ""}${grouped}${fraction ? `,${fraction}` : ""}`;
+  if (unit === "R$") return `R$ ${formatted}`;
+  if (unit === "%") return `${formatted}%`;
+  return unit === "kWh" || unit === "kWh por UC com leitura no mês"
+    ? `${formatted} ${unit}`
+    : formatted;
+}
+
+function formatSqlPublication(batchReference: string | null | undefined) {
+  const match = batchReference?.match(
+    /^gold-csv-v2:GOLD_(\d{4})(\d{2})(\d{2})T/,
+  );
+  if (!match) return "Gold v2";
+  const date = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+  );
+  return `Gold v2, publicação de ${new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeZone: "UTC",
+  }).format(date)}`;
 }
 
 const PERIOD_MONTHS = [
@@ -254,17 +285,424 @@ function AnalysisContext({ response }: { response: AIQuestionResponse }) {
   );
 }
 
+export function compoundChartData(
+  response: AIQuestionResponse,
+  municipalityIndex = 0,
+) {
+  const decompositions: React.ComponentProps<typeof VisualEvidence>["data"][] =
+    [];
+  const financial = response.sql_financial_comparison;
+  const compound = response.sql_compound_analysis;
+  const charts: React.ComponentProps<typeof VisualEvidence>["data"][] = [];
+  if (financial && financial.monthly.length > 1) {
+    const scope = [
+      financial.municipality,
+      formatPeriod(`${financial.start_month} a ${financial.end_month}`),
+    ].join(" · ");
+    const series = [
+      ["energy.consumption", "consumption_kwh", "Consumo medido", "kWh", 2],
+      ["billing.revenue", "revenue_brl", "Receita faturada", "R$", 2],
+      [
+        "billing.effective_tariff",
+        "observed_price_brl_per_kwh",
+        "Preço observado",
+        "R$/kWh",
+        4,
+      ],
+    ] as const;
+    for (const [metric, field, title, unit, precision] of series) {
+      if (
+        !financial.metric_ids.includes(metric) ||
+        financial.monthly.some((row) => row[field] === null)
+      )
+        continue;
+      charts.push({
+        kind: "line",
+        title,
+        unit,
+        precision,
+        scope,
+        points: financial.monthly.map((row) => ({
+          label: formatPeriod(row.period),
+          value: Number(row[field]),
+        })),
+      });
+    }
+  }
+  if (compound && compound.windows.p0_start !== compound.windows.p1_start) {
+    const { p0_start, p0_end, p1_start, p1_end } = compound.windows;
+    const scope = [
+      formatPeriod(`${p0_start} a ${p0_end}`),
+      formatPeriod(`${p1_start} a ${p1_end}`),
+    ].join(" vs. ");
+    const municipalities = compound.municipalities;
+    if (municipalities.length > 1) {
+      charts.push({
+        kind: "horizontal",
+        title: "Variação de consumo por município",
+        unit: "kWh",
+        scope,
+        points: municipalities.slice(0, 24).map((row) => ({
+          label: row.municipality,
+          value: Number(row.change_kwh),
+        })),
+        tablePoints: municipalities.map((row) => ({
+          label: row.municipality,
+          value: Number(row.change_kwh),
+        })),
+      });
+    }
+    const selectedMunicipality =
+      municipalities[municipalityIndex] ?? municipalities[0];
+    const classes = (selectedMunicipality?.revenue_by_class ?? []).map(
+      (effect) => ({
+        label: [
+          effect.neighborhood === "Todos" ? null : effect.neighborhood,
+          effect.consumption_class,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        value: Number(effect.variation_brl),
+      }),
+    );
+    if (
+      compound.method === "PARES_MES_UC_PRECO_OBSERVADO_VOLUME_INTERACAO_V3"
+    ) {
+      for (const row of municipalities) {
+        for (const effect of row.revenue_by_class) {
+          const components = [
+            effect.volume_effect_brl,
+            effect.price_effect_brl,
+            effect.interaction_effect_brl,
+          ];
+          if (
+            effect.state !== "CALCULADA_BASE_COMUM" ||
+            components.some((value) => value === null)
+          )
+            continue;
+          const title = [
+            row.municipality,
+            effect.neighborhood === "Todos" ? null : effect.neighborhood,
+            effect.consumption_class,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          decompositions.push({
+            kind: "waterfall",
+            title,
+            unit: "R$",
+            precision: 2,
+            scope,
+            categoryLabel: "Componente",
+            note: "A cascata acumula volume, preço e interação na base comum.",
+            points: ["Volume", "Preço", "Interação"].map((label, index) => ({
+              label,
+              value: Number(components[index]),
+            })),
+          });
+        }
+      }
+    }
+    if (classes.length > 1 && selectedMunicipality) {
+      const orderedClasses = [...classes].sort((a, b) => b.value - a.value);
+      charts.push({
+        kind: "horizontal",
+        title: "Variação de receita por classe",
+        unit: "R$",
+        precision: 2,
+        scope: `${selectedMunicipality.municipality} · ${scope}`,
+        categoryLabel: "Classe / recorte",
+        points: orderedClasses.slice(0, 24),
+        tablePoints: orderedClasses,
+        note: "Valores positivos indicam alta. Valores negativos indicam queda. O CSV inclui todas as classes do município selecionado.",
+      });
+    }
+  }
+  const published = response.sql_published_decomposition;
+  if (
+    published &&
+    new Set(published.components.map(([label]) => label)).size === 3 &&
+    published.components.length === 3
+  ) {
+    decompositions.push({
+      kind: "waterfall",
+      title: "Efeitos na base comum",
+      unit: "R$",
+      precision: 2,
+      scope: published.scope,
+      categoryLabel: "Componente",
+      points: published.components.map(([label, , value]) => ({
+        label,
+        value: Number(value),
+      })),
+    });
+  }
+  if (
+    compound &&
+    compound.windows.p0_start === compound.windows.p1_start &&
+    compound.windows.p0_end === compound.windows.p1_end
+  ) {
+    const municipalities = compound.municipalities;
+    const selected = municipalities[municipalityIndex] ?? municipalities[0];
+    const detailed =
+      municipalities.length > 1 &&
+      municipalities.some((row) => row.revenue_by_class.length > 1);
+    const period = formatPeriod(
+      `${compound.windows.p1_start} a ${compound.windows.p1_end}`,
+    );
+    const scope =
+      detailed && selected ? `${selected.municipality} · ${period}` : period;
+    const rows = (detailed && selected ? [selected] : municipalities).flatMap(
+      (row) =>
+        row.revenue_by_class.map((effect) => ({
+          label:
+            [
+              detailed ? null : row.municipality,
+              effect.neighborhood === "Todos" ? null : effect.neighborhood,
+              effect.consumption_class === "Todas"
+                ? null
+                : effect.consumption_class,
+            ]
+              .filter(Boolean)
+              .join(" · ") || row.municipality,
+          revenue: Number(effect.variation_brl),
+          average:
+            effect.average_consumption_kwh == null
+              ? null
+              : Number(effect.average_consumption_kwh),
+        })),
+    );
+    if (rows.length > 1) {
+      const add = (
+        title: string,
+        unit: string,
+        points: { label: string; value: number }[],
+      ) =>
+        charts.push({
+          kind: "horizontal",
+          title,
+          unit,
+          scope,
+          precision: 2,
+          points: [...points].sort((a, b) => b.value - a.value).slice(0, 24),
+          tablePoints: points,
+          categoryLabel: "Recorte",
+          note:
+            points.length > 24
+              ? "O gráfico mostra os 24 maiores valores. O CSV inclui todas as linhas do resultado."
+              : undefined,
+        });
+      add(
+        "Receita faturada por recorte",
+        "R$",
+        rows.map(({ label, revenue }) => ({ label, value: revenue })),
+      );
+      if (rows.every((row) => row.average !== null)) {
+        add(
+          "Consumo médio por UC com leitura",
+          "kWh/UC",
+          rows.map(({ label, average }) => ({ label, value: average! })),
+        );
+      } else if (!detailed && compound.municipalities.length > 1) {
+        add(
+          "Consumo medido por município",
+          "kWh",
+          compound.municipalities.map((row) => ({
+            label: row.municipality,
+            value: Number(row.current_consumption_kwh),
+          })),
+        );
+      }
+    }
+  }
+  const service = response.sql_service_summary;
+  if (service && service.monthly.length > 1) {
+    const scope = formatPeriod(`${service.start_month} a ${service.end_month}`);
+    charts.push(
+      {
+        kind: "line",
+        title: "Consumo medido mensal",
+        unit: "kWh",
+        scope,
+        points: service.monthly.map(([month, value]) => ({
+          label: formatPeriod(month),
+          value: Number(value),
+        })),
+      },
+      {
+        kind: "line",
+        title: "Satisfação média mensal",
+        unit: "pontos",
+        precision: 2,
+        scope,
+        points: service.monthly.map(([month, , value]) => ({
+          label: formatPeriod(month),
+          value: Number(value),
+        })),
+      },
+    );
+  }
+  return { charts, decompositions };
+}
+
+function CompoundCharts({ response }: { response: AIQuestionResponse }) {
+  const [decompositionIndex, setDecompositionIndex] = useState(0);
+  const [municipalityIndex, setMunicipalityIndex] = useState(0);
+  const { charts, decompositions } = compoundChartData(
+    response,
+    municipalityIndex,
+  );
+  const decomposition = decompositions[decompositionIndex] ?? decompositions[0];
+  if (decomposition) charts.push(decomposition);
+  const financial = response.sql_financial_comparison;
+  const compound = response.sql_compound_analysis;
+  const service = response.sql_service_summary;
+  const batch =
+    financial?.active_gold_batch ??
+    compound?.active_gold_batch ??
+    service?.active_gold_batch ??
+    response.sql_published_decomposition?.batch;
+  if (!charts.length) return null;
+  return (
+    <details open className="space-y-3">
+      <summary className="cursor-pointer text-sm font-medium text-content">
+        Gráficos da comparação
+      </summary>
+      {decompositions.length > 1 && (
+        <label className="block text-sm text-content">
+          Recorte da decomposição
+          <select
+            className="ml-2 rounded border border-divider bg-surface p-1"
+            value={
+              decompositionIndex < decompositions.length
+                ? decompositionIndex
+                : 0
+            }
+            onChange={(event) =>
+              setDecompositionIndex(Number(event.target.value))
+            }
+          >
+            {decompositions.map((item, index) => (
+              <option key={item.title} value={index}>
+                {item.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {compound &&
+        compound.municipalities.length > 1 &&
+        compound.municipalities.some(
+          (row) => row.revenue_by_class.length > 1,
+        ) && (
+          <label className="block text-sm text-content">
+            Município para detalhar os recortes
+            <select
+              className="ml-2 rounded border border-divider bg-surface p-1"
+              value={
+                municipalityIndex < compound.municipalities.length
+                  ? municipalityIndex
+                  : 0
+              }
+              onChange={(event) =>
+                setMunicipalityIndex(Number(event.target.value))
+              }
+            >
+              {compound.municipalities.map((row, index) => (
+                <option key={row.municipality} value={index}>
+                  {row.municipality}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      {charts.map((data) => (
+        <div key={data.title} className="space-y-2">
+          <VisualEvidence
+            key={data.scope}
+            data={data}
+            tableEnabled={false}
+            canExport={() =>
+              !!batch &&
+              verifyVisualExport({
+                metric:
+                  data.unit === "kWh/UC"
+                    ? "energy.average_consumption_per_uc"
+                    : data.unit === "pontos"
+                      ? "service.satisfaction"
+                      : data.unit === "kWh"
+                        ? "energy.consumption"
+                        : data.unit === "R$/kWh"
+                          ? "billing.effective_tariff"
+                          : "billing.revenue",
+                dimension_ids: service
+                  ? ["time.competency"]
+                  : financial
+                    ? ["time.competency", "geography.municipality"]
+                    : [
+                        "time.competency",
+                        "geography.municipality",
+                        ...(data.unit === "R$" || data.unit === "kWh/UC"
+                          ? ["customer.consumption_class"]
+                          : []),
+                        ...((data.unit === "R$" || data.unit === "kWh/UC") &&
+                        compound?.municipalities.some((row) =>
+                          row.revenue_by_class.some(
+                            (effect) => effect.neighborhood !== "Todos",
+                          ),
+                        )
+                          ? ["geography.neighborhood"]
+                          : []),
+                      ],
+                batch_reference: batch,
+              })
+            }
+          />
+        </div>
+      ))}
+    </details>
+  );
+}
+
 function AssistantResult({
   response,
   preliminary = false,
   interpretationFailed = false,
+  onChooseOption,
+  choicesDisabled = true,
 }: {
   response: AIQuestionResponse;
   preliminary?: boolean;
   interpretationFailed?: boolean;
+  onChooseOption?: (question: string) => void;
+  choicesDisabled?: boolean;
 }) {
   const answered = response.status === "answered";
   const state = RESPONSE_STATES[response.status];
+  const compound = response.sql_compound_analysis;
+  const observedCompound = compound?.method === "VARIACAO_OBSERVADA";
+  const compoundHasNeighborhood =
+    compound?.municipalities.some((municipality) =>
+      municipality.revenue_by_class.some(
+        (effect) => effect.neighborhood !== "Todos",
+      ),
+    ) ?? false;
+  const financialMetrics = new Set(
+    response.sql_financial_comparison?.metric_ids ?? [],
+  );
+  if (
+    !preliminary &&
+    !interpretationFailed &&
+    (response.status === "needs_clarification" || response.status === "refused")
+  ) {
+    return (
+      <QuestionFeedback
+        response={response}
+        onChoose={onChooseOption ?? (() => {})}
+        choicesDisabled={choicesDisabled || !onChooseOption}
+      />
+    );
+  }
   return (
     <div className="mt-3 space-y-3">
       <p className={`text-sm font-semibold ${state.appearance}`}>
@@ -277,6 +715,32 @@ function AssistantResult({
             ? "Os dados já estão disponíveis. Preparando a interpretação."
             : responseContent(response)}
       </p>
+      {answered &&
+        !preliminary &&
+        response.sql_presentation?.state === "ready" &&
+        response.sql_presentation.operation === "total" &&
+        response.sql_presentation.filters.length === 0 &&
+        response.sql_presentation.columns.some(
+          (column) => column.semantic_id === "revenue_total",
+        ) &&
+        /^(\d{4})-01 a \1-(?:0[2-9]|1[0-2])$/.test(
+          response.sql_presentation.period,
+        ) &&
+        onChooseOption && (
+          <button
+            type="button"
+            disabled={choicesDisabled}
+            className="rounded border border-line px-3 py-2 text-sm font-medium text-content disabled:opacity-50"
+            onClick={() =>
+              onChooseOption(
+                `Como evoluiu a receita faturada mês a mês de ${formatPeriod(response.sql_presentation!.period)}?`,
+              )
+            }
+          >
+            Ver evolução mensal
+          </button>
+        )}
+      {answered && <CompoundCharts response={response} />}
       {answered && response.visualization && (
         <VisualEvidence
           key={`${response.analysis_context?.batch_reference}-${response.visualization.metric}-${response.visualization.period}-${JSON.stringify(response.analysis_context?.filters)}`}
@@ -294,19 +758,614 @@ function AssistantResult({
             title: response.visualization.title,
             unit: response.visualization.unit,
             precision: response.visualization.precision,
-            scope: [
-              formatPeriod(response.visualization.period),
-              ...Object.entries(response.analysis_context?.filters ?? {}).map(
-                ([key, value]) =>
-                  `${response.analysis_context?.filter_labels?.[key] ?? "Filtro aplicado"}: ${formatFilterValue(value)}`,
-              ),
-            ].join(" · "),
+            scope: response.sql_presentation
+              ? [
+                  formatPeriod(response.sql_presentation.period),
+                  ...response.sql_presentation.filters,
+                  ...response.sql_presentation.universe.map(
+                    (item) => `Universo: ${item}`,
+                  ),
+                ].join(" · ")
+              : [
+                  formatPeriod(response.visualization.period),
+                  ...Object.entries(
+                    response.analysis_context?.filters ?? {},
+                  ).map(
+                    ([key, value]) =>
+                      `${response.analysis_context?.filter_labels?.[key] ?? "Filtro aplicado"}: ${formatFilterValue(value)}`,
+                  ),
+                ].join(" · "),
             categoryLabel: response.visualization.category_label,
             note: response.visualization.note,
             ...chatChartPoints(response.visualization, formatVisualLabel),
           }}
+          exportsEnabled={Boolean(response.analysis_context?.batch_reference)}
+          tableEnabled={!response.sql_presentation}
         />
       )}
+      {answered && response.sql_presentation && (
+        <section
+          aria-label="Tabela do resultado Text-to-SQL"
+          className="overflow-hidden rounded-xl border border-divider bg-surface"
+        >
+          <div className="border-b border-divider px-4 py-3">
+            <h3 className="font-semibold text-content">Resultado detalhado</h3>
+            <p className="mt-1 text-sm text-muted">
+              Período: {formatPeriod(response.sql_presentation.period)}
+            </p>
+            {response.sql_presentation.filters.map((filter) => (
+              <p key={filter} className="mt-1 text-sm text-muted">
+                {filter}
+              </p>
+            ))}
+            {response.sql_presentation.universe.map((item) => (
+              <p key={item} className="mt-1 text-sm text-muted">
+                Universo: {item}
+              </p>
+            ))}
+          </div>
+          <div
+            tabIndex={0}
+            aria-label="Resultados em tabela; use as setas para rolar"
+            className="max-h-96 max-w-full overflow-auto focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand"
+          >
+            <table className="min-w-full border-collapse text-left text-sm">
+              <caption className="sr-only">
+                Valores retornados pela consulta Text-to-SQL
+              </caption>
+              <thead className="sticky top-0 bg-canvas text-xs text-muted">
+                <tr>
+                  {response.sql_presentation.columns.map((column) => (
+                    <th
+                      key={column.key}
+                      scope="col"
+                      className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold"
+                    >
+                      {column.label}
+                      {column.unit ? ` (${column.unit})` : ""}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {response.sql_presentation.rows.map((row) => (
+                  <tr
+                    key={row.observation_id}
+                    className="border-b border-divider last:border-0"
+                  >
+                    {row.cells.map((cell, index) => {
+                      const column = response.sql_presentation!.columns[index];
+                      const display =
+                        cell === null
+                          ? "Sem valor disponível"
+                          : column.role === "measure"
+                            ? formatExactDecimal(cell, column.unit)
+                            : formatVisualLabel(cell);
+                      return (
+                        <td
+                          key={`${row.observation_id}-${column.key}`}
+                          className="whitespace-nowrap px-3 py-2 text-content"
+                        >
+                          {display}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+                {response.sql_presentation.rows.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={response.sql_presentation.columns.length}
+                      className="px-3 py-4 text-muted"
+                    >
+                      {response.sql_presentation.state === "empty"
+                        ? "A consulta não retornou linhas neste recorte."
+                        : "Não há valores de faturamento disponíveis nas linhas retornadas."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      {answered &&
+        response.sql_compound_analysis &&
+        response.sql_compound_analysis.windows.p0_start ===
+          response.sql_compound_analysis.windows.p1_start && (
+          <section
+            aria-label="Consumo e receita no período"
+            className="overflow-hidden rounded-xl border border-divider bg-surface"
+          >
+            <div className="border-b border-divider px-4 py-3">
+              <h3 className="font-semibold text-content">
+                Consumo e receita faturada
+              </h3>
+              <p className="mt-1 text-sm text-muted">
+                {formatPeriod(response.sql_compound_analysis.windows.p1_start)}
+              </p>
+              <p className="mt-2 text-sm text-content">
+                {response.sql_compound_analysis.answer}
+              </p>
+            </div>
+            <div className="max-w-full overflow-auto">
+              <table className="min-w-full border-collapse text-left text-sm">
+                <caption className="sr-only">
+                  Consumo e receita por município e classe
+                </caption>
+                <thead className="bg-canvas text-xs text-muted">
+                  <tr>
+                    {["Município", "Classe", "Consumo", "Receita faturada"].map(
+                      (label) => (
+                        <th
+                          key={label}
+                          scope="col"
+                          className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold"
+                        >
+                          {label}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {response.sql_compound_analysis.municipalities.flatMap(
+                    (row) =>
+                      row.revenue_by_class.map((effect) => (
+                        <tr
+                          key={`${row.municipality}-${effect.consumption_class}`}
+                          className="border-b border-divider last:border-0"
+                        >
+                          <td className="whitespace-nowrap px-3 py-2 text-content">
+                            {row.municipality}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-content">
+                            {effect.consumption_class}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-content">
+                            {effect.consumption_class === "Todas"
+                              ? formatExactDecimal(
+                                  row.current_consumption_kwh,
+                                  "kWh",
+                                )
+                              : effect.average_consumption_kwh == null
+                                ? "Indisponível"
+                                : formatExactDecimal(
+                                    effect.average_consumption_kwh,
+                                    "kWh/UC com leitura",
+                                  )}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-content">
+                            {formatExactDecimal(effect.variation_brl, "R$")}
+                          </td>
+                        </tr>
+                      )),
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+      {answered &&
+        response.sql_service_summary &&
+        response.sql_service_summary.monthly.length > 0 && (
+          <section
+            aria-label="Consumo e satisfação mensal"
+            className="overflow-hidden rounded-xl border border-divider bg-surface"
+          >
+            <div className="border-b border-divider px-4 py-3">
+              <h3 className="font-semibold text-content">
+                Consumo e satisfação por mês
+              </h3>
+              <p className="mt-1 text-sm text-muted">
+                {formatPeriod(
+                  `${response.sql_service_summary.start_month} a ${response.sql_service_summary.end_month}`,
+                )}
+              </p>
+            </div>
+            <div className="max-w-full overflow-auto">
+              <table className="min-w-full border-collapse text-left text-sm">
+                <caption className="sr-only">
+                  Consumo medido e nota média por competência
+                </caption>
+                <thead className="bg-canvas text-xs text-muted">
+                  <tr>
+                    {["Mês", "Consumo medido", "Satisfação média"].map(
+                      (label) => (
+                        <th
+                          key={label}
+                          scope="col"
+                          className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold"
+                        >
+                          {label}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {response.sql_service_summary.monthly.map(
+                    ([period, kwh, rating]) => (
+                      <tr
+                        key={period}
+                        className="border-b border-divider last:border-0"
+                      >
+                        <th
+                          scope="row"
+                          className="whitespace-nowrap px-3 py-2 font-medium text-content"
+                        >
+                          {formatPeriod(period)}
+                        </th>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {formatExactDecimal(kwh, "kWh")}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-content">
+                          {formatExactDecimal(rating, "pontos")}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="border-t border-divider px-4 py-3 text-sm text-muted">
+              Atendimentos registrados no período:{" "}
+              {response.sql_service_summary.protocols.toLocaleString("pt-BR")}.
+            </p>
+          </section>
+        )}
+      {answered && response.sql_financial_comparison && (
+        <section
+          aria-label="Consumo, faturamento e preço observado"
+          className="overflow-hidden rounded-xl border border-divider bg-surface"
+        >
+          <div className="border-b border-divider px-4 py-3">
+            <h3 className="font-semibold text-content">
+              Consumo, faturamento e preço observado
+            </h3>
+            <p className="mt-1 text-sm text-muted">
+              {response.sql_financial_comparison.municipality} ·{" "}
+              {formatPeriod(
+                `${response.sql_financial_comparison.start_month} a ${response.sql_financial_comparison.end_month}`,
+              )}
+            </p>
+            <p className="mt-2 text-sm text-content">
+              {response.sql_financial_comparison.answer}
+            </p>
+          </div>
+          <div className="max-w-full overflow-auto">
+            <table className="min-w-full border-collapse text-left text-sm">
+              <caption className="sr-only">
+                Consumo, faturamento e tarifa efetiva observada por mês
+              </caption>
+              <thead className="bg-canvas text-xs text-muted">
+                <tr>
+                  {[
+                    "Mês",
+                    ...(financialMetrics.has("energy.consumption")
+                      ? ["Consumo medido"]
+                      : []),
+                    ...(financialMetrics.has("billing.revenue")
+                      ? ["Faturamento"]
+                      : []),
+                    ...(financialMetrics.has("billing.effective_tariff")
+                      ? ["Preço observado na base comparável"]
+                      : []),
+                  ].map((label) => (
+                    <th
+                      key={label}
+                      scope="col"
+                      className="whitespace-nowrap border-b border-divider px-3 py-2 font-semibold"
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {response.sql_financial_comparison.monthly.map((row) => (
+                  <tr
+                    key={row.period}
+                    className="border-b border-divider last:border-0"
+                  >
+                    <th
+                      scope="row"
+                      className="whitespace-nowrap px-3 py-2 font-medium text-content"
+                    >
+                      {formatPeriod(row.period)}
+                    </th>
+                    {financialMetrics.has("energy.consumption") && (
+                      <td className="whitespace-nowrap px-3 py-2 text-content">
+                        {row.consumption_kwh == null
+                          ? "Indisponível"
+                          : formatExactDecimal(row.consumption_kwh, "kWh")}
+                      </td>
+                    )}
+                    {financialMetrics.has("billing.revenue") && (
+                      <td className="whitespace-nowrap px-3 py-2 text-content">
+                        {row.revenue_brl == null
+                          ? "Indisponível"
+                          : formatExactDecimal(row.revenue_brl, "R$")}
+                      </td>
+                    )}
+                    {financialMetrics.has("billing.effective_tariff") && (
+                      <td className="whitespace-nowrap px-3 py-2 text-content">
+                        {row.observed_price_brl_per_kwh == null
+                          ? "Sem base comparável"
+                          : formatExactDecimal(
+                              row.observed_price_brl_per_kwh,
+                              "R$/kWh",
+                            )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ul className="space-y-1 border-t border-divider px-4 py-3 text-sm text-muted">
+            {response.sql_financial_comparison.limitations.map((limitation) => (
+              <li key={limitation}>{limitation}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {answered &&
+        response.sql_compound_analysis &&
+        response.sql_compound_analysis.windows.p0_start !==
+          response.sql_compound_analysis.windows.p1_start && (
+          <section
+            aria-label="Análise composta de consumo e faturamento"
+            className="overflow-hidden rounded-xl border border-divider bg-surface"
+          >
+            <div className="border-b border-divider px-4 py-3">
+              <h3 className="font-semibold text-content">
+                {response.sql_compound_analysis.method === "VARIACAO_OBSERVADA"
+                  ? "Variação de consumo e receita"
+                  : "Consumo e decomposição da receita"}
+              </h3>
+              <p className="mt-1 text-sm text-muted">
+                {[
+                  [
+                    response.sql_compound_analysis.windows.p0_start,
+                    response.sql_compound_analysis.windows.p0_end,
+                  ],
+                  [
+                    response.sql_compound_analysis.windows.p1_start,
+                    response.sql_compound_analysis.windows.p1_end,
+                  ],
+                ]
+                  .map(([start, end]) =>
+                    formatPeriod(start === end ? start : `${start} a ${end}`),
+                  )
+                  .join(" vs. ")}
+              </p>
+              <details className="mt-2 text-xs text-muted">
+                <summary className="min-h-9 cursor-pointer py-2 font-medium text-content focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+                  Origem e método da análise
+                </summary>
+                <div className="space-y-1 break-words pb-2">
+                  <p>
+                    Gold ativa:{" "}
+                    {formatSqlPublication(
+                      response.sql_compound_analysis.active_gold_batch,
+                    )}
+                  </p>
+                  <p>
+                    {response.sql_compound_analysis.staging_manifest_digest
+                      ? "Decomposição lida de staging local."
+                      : "Comparação baseada nos dados publicados."}
+                  </p>
+                  <p>Método técnico: {response.sql_compound_analysis.method}</p>
+                  <p>
+                    Evidência: {response.sql_compound_analysis.evidence_digest}
+                  </p>
+                  {response.sql_compound_analysis.staging_manifest_digest ? (
+                    <p>
+                      Manifesto:{" "}
+                      {response.sql_compound_analysis.staging_manifest_digest}
+                    </p>
+                  ) : null}
+                </div>
+              </details>
+            </div>
+            <div
+              tabIndex={0}
+              aria-label="Detalhamento da análise composta; use as setas para rolar"
+              className="max-h-96 max-w-full overflow-auto focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand"
+            >
+              <table className="min-w-full border-collapse text-left text-sm">
+                <caption className="sr-only">
+                  Consumo por município e variação de faturamento por classe
+                </caption>
+                <thead className="sticky top-0 bg-canvas text-xs text-muted">
+                  <tr>
+                    {[
+                      "Município",
+                      ...(compoundHasNeighborhood ? ["Bairro"] : []),
+                      "Classe",
+                      "Variação de consumo (kWh)",
+                      "Variação de receita (R$)",
+                      ...(!observedCompound
+                        ? [
+                            "Volume (R$)",
+                            "Preço observado (R$)",
+                            "Interação (R$)",
+                          ]
+                        : []),
+                    ].map((label) => (
+                      <th
+                        key={label}
+                        scope="col"
+                        className={`${
+                          label === "Município" ||
+                          label === "Bairro" ||
+                          label === "Classe"
+                            ? "whitespace-nowrap"
+                            : "max-w-[135px] whitespace-normal leading-4"
+                        } border-b border-divider px-3 py-2 font-semibold`}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {response.sql_compound_analysis.municipalities.flatMap(
+                    (municipality) =>
+                      municipality.revenue_by_class.map((effect) => (
+                        <tr
+                          key={`${municipality.municipality}-${effect.neighborhood}-${effect.consumption_class}`}
+                          className="border-b border-divider last:border-0"
+                        >
+                          <td className="whitespace-nowrap px-3 py-2 text-content">
+                            {municipality.municipality}
+                          </td>
+                          {compoundHasNeighborhood && (
+                            <td className="whitespace-nowrap px-3 py-2 text-content">
+                              {effect.neighborhood}
+                            </td>
+                          )}
+                          <td className="whitespace-nowrap px-3 py-2 text-content">
+                            {effect.consumption_class}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-content">
+                            {effect.consumption_change_kwh == null
+                              ? "—"
+                              : formatExactDecimal(
+                                  effect.consumption_change_kwh,
+                                  "kWh",
+                                )}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-content">
+                            {formatExactDecimal(effect.variation_brl, "R$")}
+                          </td>
+                          {!observedCompound && (
+                            <td className="whitespace-nowrap px-3 py-2 text-content">
+                              {effect.volume_effect_brl === null
+                                ? effect.state === "DECOMPOSICAO_INDISPONIVEL"
+                                  ? "Indisponível"
+                                  : "Sem base comparável"
+                                : formatExactDecimal(
+                                    effect.volume_effect_brl,
+                                    "R$",
+                                  )}
+                            </td>
+                          )}
+                          {!observedCompound && (
+                            <td className="whitespace-nowrap px-3 py-2 text-content">
+                              {effect.price_effect_brl === null
+                                ? effect.state === "DECOMPOSICAO_INDISPONIVEL"
+                                  ? "Indisponível"
+                                  : "Sem base comparável"
+                                : formatExactDecimal(
+                                    effect.price_effect_brl,
+                                    "R$",
+                                  )}
+                            </td>
+                          )}
+                          {!observedCompound && (
+                            <td className="whitespace-nowrap px-3 py-2 text-content">
+                              {effect.interaction_effect_brl === null
+                                ? effect.state === "DECOMPOSICAO_INDISPONIVEL"
+                                  ? "Indisponível"
+                                  : "Sem base comparável"
+                                : formatExactDecimal(
+                                    effect.interaction_effect_brl,
+                                    "R$",
+                                  )}
+                            </td>
+                          )}
+                        </tr>
+                      )),
+                  )}
+                  {response.sql_compound_analysis.municipalities.length ===
+                    0 && (
+                    <tr>
+                      <td
+                        colSpan={
+                          observedCompound
+                            ? compoundHasNeighborhood
+                              ? 5
+                              : 4
+                            : compoundHasNeighborhood
+                              ? 8
+                              : 7
+                        }
+                        className="px-3 py-4 text-muted"
+                      >
+                        Nenhum município apresentou queda de consumo nas janelas
+                        comparadas.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+      {answered && response.sql_continuity_pair_analysis && (
+        <section
+          aria-label="Resultados de DEC e FEC"
+          className="overflow-hidden rounded-xl border border-divider bg-surface"
+        >
+          <div className="border-b border-divider px-4 py-3">
+            <h3 className="font-semibold text-content">DEC e FEC</h3>
+            <p className="mt-1 text-sm text-muted">
+              Período:{" "}
+              {response.sql_continuity_pair_analysis.dec.presentation.period}
+            </p>
+          </div>
+          <div className="grid gap-3 p-4 md:grid-cols-2">
+            <article className="rounded-lg border border-divider p-3">
+              <h4 className="font-semibold text-content">DEC</h4>
+              <p className="mt-2 text-sm text-content">
+                {response.sql_continuity_pair_analysis.dec.presentation.answer}
+              </p>
+            </article>
+            <article className="rounded-lg border border-divider p-3">
+              <h4 className="font-semibold text-content">FEC</h4>
+              <p className="mt-2 text-sm text-content">
+                {response.sql_continuity_pair_analysis.fec.presentation.answer}
+              </p>
+            </article>
+          </div>
+          <details className="border-t border-divider px-4 py-3 text-xs text-muted">
+            <summary className="min-h-9 cursor-pointer py-2 font-medium text-content focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+              Origem e limitações
+            </summary>
+            <div className="space-y-1 break-words pb-2">
+              <p>
+                Publicação Gold:{" "}
+                {formatSqlPublication(
+                  response.sql_continuity_pair_analysis.active_gold_batch,
+                )}
+              </p>
+              <p>
+                Evidência:{" "}
+                {response.sql_continuity_pair_analysis.evidence_digest}
+              </p>
+              {response.sql_continuity_pair_analysis.limitations.map(
+                (limitation) => (
+                  <p key={limitation}>{limitation}</p>
+                ),
+              )}
+            </div>
+          </details>
+        </section>
+      )}
+      {answered &&
+        response.sql_presentation?.state === "ready" &&
+        !response.visualization &&
+        ["monthly_series", "grouped_total", "ranking"].includes(
+          response.sql_presentation.operation,
+        ) && (
+          <p className="text-sm text-muted">
+            O gráfico foi omitido porque a série pode conter lacunas ou os
+            valores excedem a precisão segura de visualização. A tabela mantém
+            os valores exatos retornados.
+          </p>
+        )}
       {response.evidence.some((item) => item.is_demo) && (
         <p className="flex items-center gap-2 text-sm font-medium text-[var(--status-warning-text)]">
           <Info aria-hidden="true" className="size-4" />
@@ -325,8 +1384,28 @@ function AssistantResult({
                     (item) => item.source === "documentation.indicators",
                   )
                 ? "Documentação interna"
-                : "Fonte de dados interna"}
+                : "Fonte: dados internos da Grid 360"}
           </p>
+          {response.sql_analysis_mode && response.analysis_context && (
+            <details className="text-xs text-muted">
+              <summary className="min-h-9 cursor-pointer py-2 font-medium text-content focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+                Detalhes da fonte
+              </summary>
+              <div className="space-y-1 break-words pb-2">
+                <p>Fonte técnica: Diagnóstico de receita</p>
+                <p>
+                  {formatSqlPublication(
+                    response.analysis_context.batch_reference,
+                  )}
+                </p>
+                {response.audit_reference && (
+                  <p className="break-all">
+                    Registro de auditoria: {response.audit_reference}
+                  </p>
+                )}
+              </div>
+            </details>
+          )}
           {response.evidence
             .filter(
               (item) =>
@@ -360,9 +1439,13 @@ function AssistantResult({
 function MessageCard({
   message,
   onRetry,
+  onChooseOption,
+  choicesDisabled,
 }: {
   message: ChatMessage;
   onRetry: (request: RetryRequest) => void;
+  onChooseOption: (question: string) => void;
+  choicesDisabled: boolean;
 }) {
   if (message.role === "user") {
     return (
@@ -438,6 +1521,8 @@ function MessageCard({
         <AssistantResult
           response={message.response}
           preliminary={message.preliminary}
+          onChooseOption={onChooseOption}
+          choicesDisabled={choicesDisabled}
         />
       )}
       {message.response?.status === "recoverable_error" &&
@@ -458,6 +1543,8 @@ function MessageCard({
 }
 
 export default function AssistentePage() {
+  const sqlF1ModeAvailable =
+    import.meta.env.VITE_GENAI_SQL_ANALYSIS_ENABLED === "true";
   const session = useSession();
   const historyEnabled = session.configured && Boolean(session.user);
   const queryClient = useQueryClient();
@@ -475,6 +1562,7 @@ export default function AssistentePage() {
   >("idle");
   const isSending = requestPhase !== "idle";
   const [draft, setDraft] = useState("");
+  const sqlF1Mode = sqlF1ModeAvailable;
   const [conversationId, setConversationId] = useState<string>(() =>
     crypto.randomUUID(),
   );
@@ -488,7 +1576,14 @@ export default function AssistentePage() {
       request: Parameters<typeof askAIQuestion>[0];
       onData: (response: AIQuestionResponse) => void;
       signal: AbortSignal;
-    }) => askAIQuestion(input.request, input.onData, input.signal),
+      sqlF1Mode: boolean;
+    }) =>
+      askAIQuestion(
+        input.request,
+        input.onData,
+        input.signal,
+        input.sqlF1Mode ? "sql_f1" : "legacy",
+      ),
     retry: false,
   });
   const identityKey = `${user?.id ?? ""}:${user?.profile ?? ""}:${user?.permissions.join(",") ?? ""}`;
@@ -577,6 +1672,7 @@ export default function AssistentePage() {
             refresh_context: false,
           }
         : {}),
+      sqlF1Mode,
       continuation_token:
         [...messages]
           .reverse()
@@ -585,8 +1681,7 @@ export default function AssistentePage() {
               message.contextEligible &&
               message.response != null &&
               (["answered", "no_evidence"].includes(message.response.status) ||
-                (message.response.status === "needs_clarification" &&
-                  message.response.continuation_token != null)),
+                message.response.continuation_token != null),
           )?.response?.continuation_token ?? undefined,
       userMessageId,
       assistantMessageId,
@@ -608,14 +1703,15 @@ export default function AssistentePage() {
     requestAbort.current = abortController;
     setRequestPhase("consulting");
     try {
-      if (historyEnabled && !savedIdRef.current) {
+      const saveHistory = historyEnabled;
+      if (saveHistory && !savedIdRef.current) {
         const created = await createConversation(conversationId);
         if (!current()) return;
         savedIdRef.current = created.id;
         setActiveSavedId(created.id);
         setConversationId(created.id);
       }
-      if (historyEnabled) retryRequest.conversation_id = savedIdRef.current!;
+      if (saveHistory) retryRequest.conversation_id = savedIdRef.current!;
       const response = await mutation.mutateAsync({
         request: {
           contract_version: "v1",
@@ -623,7 +1719,7 @@ export default function AssistentePage() {
           context: context.slice(-3),
           conversation_id: retryRequest.conversation_id,
           continuation_token: retryRequest.continuation_token,
-          ...(historyEnabled
+          ...(saveHistory
             ? {
                 history_request_id: retryRequest.history_request_id,
                 refresh_context: retryRequest.refresh_context,
@@ -631,6 +1727,7 @@ export default function AssistentePage() {
             : {}),
         },
         signal: abortController.signal,
+        sqlF1Mode: retryRequest.sqlF1Mode,
         onData: (data) => {
           if (!current()) return;
           setRequestPhase("interpreting");
@@ -865,7 +1962,7 @@ export default function AssistentePage() {
       aria-labelledby="assistant-heading"
       className="assistant-workspace mx-auto h-full min-h-0 w-full rounded-[20px] border border-divider bg-surface"
     >
-      <header className="assistant-toolbar flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-divider px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
+      <header className="assistant-toolbar flex min-h-12 shrink-0 flex-wrap items-end justify-between gap-2 border-b border-divider px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
         <div className="flex items-center gap-2.5">
           <span className="flex size-9 items-center justify-center rounded-full bg-brand/10 text-brand">
             <MessageCircle aria-hidden="true" className="size-4" />
@@ -961,7 +2058,7 @@ export default function AssistentePage() {
               <h1 id="assistant-heading" className="sr-only">
                 Conversa com o Assistente Grid 360
               </h1>
-              {messages.map((message) => (
+              {messages.map((message, index) => (
                 <div
                   key={message.id}
                   id={`assistant-message-${message.id}`}
@@ -970,6 +2067,10 @@ export default function AssistentePage() {
                 >
                   <MessageCard
                     message={message}
+                    onChooseOption={(question) =>
+                      void send(question, conversationContext, true)
+                    }
+                    choicesDisabled={isSending || index !== messages.length - 1}
                     onRetry={(request) =>
                       void send(
                         request.question,
@@ -1029,6 +2130,13 @@ export default function AssistentePage() {
               {!isSending && <Send aria-hidden="true" className="size-6" />}
             </Button>
           </div>
+          {sqlF1Mode && (
+            <p className="mt-2 px-1 text-xs leading-4 text-muted">
+              {historyEnabled
+                ? "Esta conversa ficará no seu histórico privado."
+                : "Esta conversa ficará disponível apenas durante esta sessão."}
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs leading-4 text-muted">
             <span>Enter envia · Shift + Enter quebra linha</span>
             <span className="inline-flex items-center gap-1.5">

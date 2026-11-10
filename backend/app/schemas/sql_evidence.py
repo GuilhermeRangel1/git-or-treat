@@ -1,0 +1,554 @@
+"""Evidência F1 de execução; contrato espelhado e independente do plano legado.
+
+Digest confere integridade, não concede autorização nem certifica dados.
+"""
+
+import hashlib
+import json
+import re
+from typing import Annotated, Literal, Self
+
+from pydantic import Field, StrictStr, StringConstraints, model_validator
+
+from app.schemas.sql_generation import (
+    ClosedModel,
+    ParameterName,
+    SqlInterpretation,
+    SqlResultColumn,
+)
+
+Digest = Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{64}$")]
+Batch = Annotated[
+    str,
+    StringConstraints(
+        strict=True,
+        pattern=(
+            r"^gold-csv-v2:GOLD_[0-9]{8}T[0-9]{6}Z_[a-f0-9]{8}:"
+            r"[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+        ),
+    ),
+]
+Version = Annotated[str, StringConstraints(strict=True, min_length=1, max_length=200)]
+Cell = Annotated[StrictStr, Field(max_length=16384)] | None
+Row = Annotated[tuple[Cell, ...], Field(min_length=1, max_length=32)]
+Meaning = Literal[
+    "revenue_total",
+    "energy_total",
+    "average_consumption_per_uc",
+    "average_ticket",
+    "effective_tariff",
+    "attendance_total",
+    "attendance_accumulated_total",
+    "gd_units_total",
+    "gd_consumption_drop_units",
+    "units_count",
+    "dec_value",
+    "fec_value",
+    "feeders_included",
+    "feeders_excluded",
+    "satisfaction_average",
+    "period_0_total",
+    "period_1_total",
+    "satisfaction_accumulated_average",
+    "period_0_minus_period_1",
+    "period_1_minus_period_0",
+    "period_0_growth_percent",
+]
+DimensionMeaning = Literal[
+    "competency", "municipality", "neighborhood", "consumption_class", "feeder", "inspection_priority"
+]
+_DECIMAL = re.compile(r"-?(?:0|[1-9][0-9]{0,100})(?:\.[0-9]{1,100})?\Z")
+
+
+def sql_evidence_digest(payload: dict) -> str:
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+class SqlEvidence(ClosedModel):
+    evidence_contract_version: Literal[
+        "text-to-sql-f1-evidence-v1",
+        "text-to-sql-f1-evidence-v2",
+        "text-to-sql-f1-evidence-v3",
+        "text-to-sql-f1-evidence-v4",
+        "text-to-sql-f1-evidence-v5",
+        "text-to-sql-f1-evidence-v6",
+        "text-to-sql-f1-evidence-v7",
+        "text-to-sql-f1-evidence-v8",
+        "text-to-sql-f1-evidence-v9",
+        "text-to-sql-f1-evidence-v10",
+        "text-to-sql-f1-evidence-v11",
+        "text-to-sql-f1-evidence-v12",
+        "text-to-sql-f1-evidence-v13",
+        "text-to-sql-f1-evidence-v14",
+    ]
+    source_id: Literal["gold.local"]
+    source_table: Literal[
+        "gold_v2.diagnostico_receita",
+        "gold_v2.atendimentos_uc",
+        "gold_v2.indicadores_dec_fec",
+        "gold_v2.consumo_receita_bairro",
+        "gold_v2.visao_360_uc",
+        "gold_v2.variacao_consumo_uc",
+        "gold_v2.fila_inspecao",
+    ]
+    metric_id: Literal[
+        "billing.revenue",
+        "energy.consumption",
+        "energy.average_consumption_per_uc",
+        "billing.average_ticket",
+        "billing.effective_tariff",
+        "service.attendance",
+        "network.equivalent_interruption_duration",
+        "network.equivalent_interruption_frequency",
+        "service.accumulated_attendance",
+        "service.satisfaction",
+        "service.accumulated_satisfaction",
+        "energy.gd_units",
+        "energy.gd_consumption_drop",
+        "customer.units_by_class",
+        "inspection.units_by_priority",
+    ]
+    coverage_quality: Literal["certified", "observed_uncertified"] = "certified"
+    batch_ref: Batch
+    context_version: Digest
+    admission_digest: Digest
+    execution_digest: Digest
+    result_digest: Digest
+    evidence_digest: Digest
+    mapping_version: Version
+    dictionary_version: Version
+    interpretation: SqlInterpretation
+    columns: tuple[SqlResultColumn, ...] = Field(min_length=1, max_length=32)
+    measure_semantics: dict[ParameterName, Meaning] = Field(min_length=1, max_length=32)
+    dimension_semantics: dict[ParameterName, DimensionMeaning] = Field(max_length=3)
+    rows: tuple[Row, ...] = Field(max_length=100)
+    status: Literal["empty", "all_measures_null", "available"]
+
+    @model_validator(mode="after")
+    def check_evidence(self) -> Self:
+        names = [column.name for column in self.columns]
+        measures = {column.name for column in self.columns if column.role == "measure"}
+        dimensions = set(names) - measures
+        if (
+            len(names) != len(set(names))
+            or not measures
+            or set(self.measure_semantics) != measures
+            or set(self.dimension_semantics) != dimensions
+            or len(set(self.dimension_semantics.values())) != len(dimensions)
+            or set(self.dimension_semantics.values())
+            != set(self.interpretation.group_by)
+        ):
+            raise ValueError("linhagem/colunas incompatíveis com a evidência F1")
+        continuity = self.metric_id in {
+            "network.equivalent_interruption_duration",
+            "network.equivalent_interruption_frequency",
+        }
+        if continuity:
+            expected_meaning = (
+                "dec_value"
+                if self.metric_id == "network.equivalent_interruption_duration"
+                else "fec_value"
+            )
+            if self.interpretation.operation == "weighted_continuity":
+                if (
+                    self.source_table != "gold_v2.indicadores_dec_fec"
+                    or self.interpretation.aggregation != "weighted_ratio"
+                    or self.evidence_contract_version != "text-to-sql-f1-evidence-v12"
+                    or set(self.measure_semantics.values())
+                    != {expected_meaning, "feeders_included", "feeders_excluded"}
+                    or len(self.measure_semantics) != 3
+                ):
+                    raise ValueError("DEC/FEC ponderado exige contrato e linhagem v12")
+            elif (
+                self.source_table != "gold_v2.indicadores_dec_fec"
+                or self.interpretation.operation != "grain_read"
+                or self.interpretation.aggregation != "key_grain_read"
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v5"
+                or set(self.measure_semantics.values()) != {expected_meaning}
+                or self.coverage_quality == "observed_uncertified"
+                and (
+                    len(self.interpretation.periods) != 1
+                    or self.interpretation.periods[0].start.year
+                    != self.interpretation.periods[0].end.year
+                    or self.interpretation.periods[0].start.month
+                    != self.interpretation.periods[0].end.month
+                    or len(self.interpretation.filters) != 1
+                    or self.interpretation.filters[0].dimension_id != "network.feeder"
+                    or self.interpretation.filters[0].operator != "eq"
+                )
+            ):
+                raise ValueError(
+                    "DEC/FEC exige fonte, grão, evidência e qualidade compatíveis"
+                )
+        elif self.coverage_quality != "certified":
+            raise ValueError(
+                "qualidade observacional sem certificação só vale para DEC/FEC"
+            )
+        if self.metric_id == "energy.gd_units":
+            gd_filters = [
+                item
+                for item in self.interpretation.filters
+                if item.dimension_id == "generation.distributed"
+            ]
+            if (
+                self.source_table != "gold_v2.variacao_consumo_uc"
+                or self.interpretation.operation != "snapshot_total"
+                or self.interpretation.aggregation != "count_non_null"
+                or self.interpretation.periods
+                or len(gd_filters) != 1
+                or gd_filters[0].operator != "eq"
+                or gd_filters[0].values != ("Sim",)
+                or set(self.measure_semantics.values()) != {"gd_units_total"}
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v8"
+            ):
+                raise ValueError("GD exige contagem cadastral do lote sem período")
+        elif self.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}:
+            expected_table = (
+                "gold_v2.visao_360_uc"
+                if self.metric_id == "customer.units_by_class"
+                else "gold_v2.fila_inspecao"
+            )
+            expected_dimension = (
+                "customer.consumption_class"
+                if self.metric_id == "customer.units_by_class"
+                else "inspection.priority"
+            )
+            if (
+                self.source_table != expected_table
+                or self.interpretation.operation != "snapshot_total"
+                or self.interpretation.aggregation != "count_distinct"
+                or self.interpretation.periods
+                or any(item.dimension_id != expected_dimension for item in self.interpretation.filters)
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v14"
+                or set(self.measure_semantics.values()) != {"units_count"}
+            ):
+                raise ValueError("contagem de UCs exige retrato e fonte Gold aprovados")
+        elif self.metric_id == "energy.gd_consumption_drop":
+            gd_filters = [
+                item
+                for item in self.interpretation.filters
+                if item.dimension_id == "generation.distributed"
+            ]
+            if (
+                self.source_table != "gold_v2.variacao_consumo_uc"
+                or self.interpretation.operation != "snapshot_total"
+                or self.interpretation.aggregation != "count_gd_drop"
+                or self.interpretation.periods
+                or len(gd_filters) != 1
+                or gd_filters[0].operator != "eq"
+                or gd_filters[0].values != ("Sim",)
+                or set(self.measure_semantics.values()) != {"gd_consumption_drop_units"}
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v10"
+            ):
+                raise ValueError("queda de GD exige contagem do recorte Gold aprovado")
+        elif self.metric_id == "service.satisfaction":
+            if (
+                self.source_table != "gold_v2.atendimentos_uc"
+                or self.interpretation.operation != "average"
+                or self.interpretation.aggregation != "average_non_null"
+                or set(self.measure_semantics.values()) != {"satisfaction_average"}
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v7"
+            ):
+                raise ValueError("satisfação exige média mensal da fonte autorizada")
+        elif self.metric_id == "service.attendance":
+            if (
+                self.source_table != "gold_v2.atendimentos_uc"
+                or self.interpretation.operation != "total"
+                or self.interpretation.aggregation != "count_non_null"
+                or set(self.measure_semantics.values()) != {"attendance_total"}
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v4"
+            ):
+                raise ValueError(
+                    "atendimento exige contagem mensal da fonte autorizada"
+                )
+        elif self.metric_id == "service.accumulated_attendance":
+            if (
+                self.source_table != "gold_v2.visao_360_uc"
+                or self.interpretation.operation != "accumulated_total"
+                or self.interpretation.periods
+                or self.interpretation.aggregation != "sum"
+                or set(self.measure_semantics.values())
+                != {
+                    "attendance_accumulated_total",
+                }
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v6"
+            ):
+                raise ValueError(
+                    "atendimento acumulado exige histórico sem período e fonte autorizada"
+                )
+        elif self.metric_id == "service.accumulated_satisfaction":
+            if (
+                self.source_table != "gold_v2.atendimentos_uc"
+                or self.interpretation.operation != "accumulated_average"
+                or self.interpretation.periods
+                or self.interpretation.aggregation != "average_non_null"
+                or set(self.measure_semantics.values())
+                != {
+                    "satisfaction_accumulated_average",
+                }
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v9"
+            ):
+                raise ValueError(
+                    "satisfação acumulada exige média sem período e fonte autorizada"
+                )
+        elif self.metric_id == "energy.average_consumption_per_uc":
+            if (
+                self.source_table != "gold_v2.diagnostico_receita"
+                or self.interpretation.operation != "ratio_of_sums"
+                or self.interpretation.aggregation != "ratio_of_sums"
+                or set(self.measure_semantics.values()) != {"average_consumption_per_uc"}
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v11"
+            ):
+                raise ValueError("consumo médio exige razão de somas da fonte autorizada")
+        elif self.metric_id in {"billing.average_ticket", "billing.effective_tariff"}:
+            expected_meaning = (
+                "average_ticket"
+                if self.metric_id == "billing.average_ticket"
+                else "effective_tariff"
+            )
+            if (
+                self.source_table != "gold_v2.diagnostico_receita"
+                or self.interpretation.operation != "ratio_of_sums"
+                or self.interpretation.aggregation != "ratio_of_sums"
+                or set(self.measure_semantics.values()) != {expected_meaning}
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v13"
+            ):
+                raise ValueError("métrica de razão exige fonte e contrato autorizados")
+        elif (
+            self.metric_id == "billing.revenue"
+            and self.source_table == "gold_v2.consumo_receita_bairro"
+        ):
+            if self.evidence_contract_version not in {
+                "text-to-sql-f1-evidence-v1",
+                "text-to-sql-f1-evidence-v2",
+            }:
+                raise ValueError(
+                    "receita por bairro exige contrato de receita compatível"
+                )
+        elif (
+            self.metric_id == "energy.consumption"
+            and self.source_table == "gold_v2.consumo_receita_bairro"
+        ):
+            if not any(
+                item.dimension_id == "geography.neighborhood"
+                for item in self.interpretation.filters
+            ):
+                raise ValueError(
+                    "consumo no recorte por bairro exige filtro territorial explícito"
+                )
+        elif (
+            not continuity
+            and self.metric_id
+            not in {
+                "service.accumulated_attendance",
+                "service.accumulated_satisfaction",
+                "energy.gd_units",
+                "energy.gd_consumption_drop",
+            }
+            and self.source_table != "gold_v2.diagnostico_receita"
+        ):
+            raise ValueError("fonte SQL diverge da métrica F1")
+        if self.interpretation.operation == "comparison":
+            delta_meanings = {
+                "period_0_minus_period_1",
+                "period_1_minus_period_0",
+            }
+            present = set(self.measure_semantics.values())
+            base_meanings = {
+                "period_0_total",
+                "period_1_total",
+            } | (present & delta_meanings)
+            has_growth = "period_0_growth_percent" in self.measure_semantics.values()
+            expected_meanings = base_meanings | (
+                {"period_0_growth_percent"} if has_growth else set()
+            )
+            expected_version = (
+                "text-to-sql-f1-evidence-v3"
+                if self.metric_id == "energy.consumption"
+                else "text-to-sql-f1-evidence-v2"
+                if has_growth
+                else "text-to-sql-f1-evidence-v1"
+            )
+            if (
+                len(measures) != len(expected_meanings)
+                or set(self.measure_semantics.values()) != expected_meanings
+                or len(present & delta_meanings) != 1
+                or self.evidence_contract_version != expected_version
+            ):
+                raise ValueError(
+                    "comparação exige dois totais e diferença com linhagem"
+                )
+        elif self.interpretation.operation == "weighted_continuity":
+            expected_meaning = (
+                "dec_value"
+                if self.metric_id == "network.equivalent_interruption_duration"
+                else "fec_value"
+            )
+            if (
+                set(self.measure_semantics.values())
+                != {expected_meaning, "feeders_included", "feeders_excluded"}
+                or len(self.measure_semantics) != 3
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v12"
+            ):
+                raise ValueError("DEC/FEC ponderado exige valor e base elegível/excluída")
+        elif set(self.measure_semantics.values()) != {
+            "energy_total"
+            if self.metric_id == "energy.consumption"
+            else "average_consumption_per_uc"
+            if self.metric_id == "energy.average_consumption_per_uc"
+            else "average_ticket"
+            if self.metric_id == "billing.average_ticket"
+            else "effective_tariff"
+            if self.metric_id == "billing.effective_tariff"
+            else "attendance_total"
+            if self.metric_id == "service.attendance"
+            else "attendance_accumulated_total"
+            if self.metric_id == "service.accumulated_attendance"
+            else "satisfaction_accumulated_average"
+            if self.metric_id == "service.accumulated_satisfaction"
+            else "gd_units_total"
+            if self.metric_id == "energy.gd_units"
+            else "gd_consumption_drop_units"
+            if self.metric_id == "energy.gd_consumption_drop"
+            else "units_count"
+            if self.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}
+            else "satisfaction_average"
+            if self.metric_id == "service.satisfaction"
+            else "dec_value"
+            if self.metric_id == "network.equivalent_interruption_duration"
+            else "fec_value"
+            if self.metric_id == "network.equivalent_interruption_frequency"
+            else "revenue_total",
+        } or self.evidence_contract_version != (
+            "text-to-sql-f1-evidence-v4"
+            if self.metric_id == "service.attendance"
+            else "text-to-sql-f1-evidence-v7"
+            if self.metric_id == "service.satisfaction"
+            else "text-to-sql-f1-evidence-v6"
+            if self.metric_id == "service.accumulated_attendance"
+            else "text-to-sql-f1-evidence-v9"
+            if self.metric_id == "service.accumulated_satisfaction"
+            else "text-to-sql-f1-evidence-v8"
+            if self.metric_id == "energy.gd_units"
+            else "text-to-sql-f1-evidence-v10"
+            if self.metric_id == "energy.gd_consumption_drop"
+            else "text-to-sql-f1-evidence-v13"
+            if self.metric_id in {"billing.average_ticket", "billing.effective_tariff"}
+            else "text-to-sql-f1-evidence-v14"
+            if self.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}
+            else "text-to-sql-f1-evidence-v11"
+            if self.metric_id == "energy.average_consumption_per_uc"
+            else "text-to-sql-f1-evidence-v12"
+            if continuity and self.interpretation.operation == "weighted_continuity"
+            else "text-to-sql-f1-evidence-v5"
+            if continuity
+            else "text-to-sql-f1-evidence-v3"
+            if self.metric_id == "energy.consumption"
+            else "text-to-sql-f1-evidence-v1"
+        ):
+            raise ValueError("medida condicional exige comparação")
+        for column in self.columns:
+            meaning = self.measure_semantics.get(column.name)
+            expected_unit = (
+                "%"
+                if meaning == "period_0_growth_percent"
+                else "protocolos"
+                if self.metric_id
+                in {
+                    "service.attendance",
+                    "service.accumulated_attendance",
+                }
+                else "UCs"
+                if self.metric_id == "energy.gd_units"
+                else "UCs"
+                if self.metric_id == "energy.gd_consumption_drop"
+                else "UCs"
+                if self.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}
+                else "pontos"
+                if self.metric_id == "service.satisfaction"
+                else "pontos"
+                if self.metric_id == "service.accumulated_satisfaction"
+                else "horas por UC"
+                if meaning == "dec_value"
+                else "interrupções por UC"
+                if meaning == "fec_value"
+                else "alimentadores"
+                if meaning in {"feeders_included", "feeders_excluded"}
+                else "kWh"
+                if self.metric_id == "energy.consumption"
+                else "kWh por UC com leitura no mês"
+                if self.metric_id == "energy.average_consumption_per_uc"
+                else "R$ por UC faturada no mês"
+                if self.metric_id == "billing.average_ticket"
+                else "R$/kWh"
+                if self.metric_id == "billing.effective_tariff"
+                else "R$"
+            )
+            if column.role == "measure" and column.unit != expected_unit:
+                raise ValueError("unidade diverge da semântica da medida")
+        present = False
+        for row in self.rows:
+            if len(row) != len(names):
+                raise ValueError("linha diverge das colunas da evidência")
+            for column, value in zip(self.columns, row, strict=True):
+                if column.role == "measure" and value is not None:
+                    if not _DECIMAL.fullmatch(value):
+                        raise ValueError("medida exige decimal canônico em texto")
+                    present = True
+        expected = (
+            "empty"
+            if not self.rows
+            else "available"
+            if present
+            else "all_measures_null"
+        )
+        if self.status != expected:
+            raise ValueError("estado diverge das medidas da evidência")
+        payload = self.model_dump(mode="json", exclude={"evidence_digest"})
+        if self.evidence_contract_version not in {
+            "text-to-sql-f1-evidence-v5",
+            "text-to-sql-f1-evidence-v6",
+            "text-to-sql-f1-evidence-v7",
+            "text-to-sql-f1-evidence-v8",
+            "text-to-sql-f1-evidence-v9",
+            "text-to-sql-f1-evidence-v10",
+            "text-to-sql-f1-evidence-v11",
+            "text-to-sql-f1-evidence-v12",
+            "text-to-sql-f1-evidence-v13",
+            "text-to-sql-f1-evidence-v14",
+        }:
+            # Existing v1-v4 digests predate the quality field; the validator
+            # fixes those legacy contracts to the certified value above.
+            payload.pop("coverage_quality", None)
+        try:
+            encoded = json.dumps(
+                self.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")
+            ).encode("utf-8")
+            size = len(encoded)
+            valid_digest = sql_evidence_digest(payload) == self.evidence_digest
+            result = {
+                "columns": names,
+                "measure_semantics": [
+                    [name, self.measure_semantics[name]]
+                    for name in names
+                    if name in measures
+                ],
+                "rows": self.rows,
+                "status": self.status,
+            }
+            serialized = json.dumps(
+                result, ensure_ascii=False, separators=(",", ":")
+            ).encode("utf-8")
+            valid_result = hashlib.sha256(serialized).hexdigest() == self.result_digest
+        except (ValueError, UnicodeError):
+            raise ValueError("evidência não serializável") from None
+        if size > 32768 or not valid_digest or not valid_result:
+            raise ValueError("evidência excede limite ou digest divergente")
+        return self

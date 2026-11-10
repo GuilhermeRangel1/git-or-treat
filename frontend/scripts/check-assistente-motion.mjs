@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 // Prova de apresentação: respostas artificiais; não substitui o aceite Gold.
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHANNEL
+    ? { channel: process.env.PLAYWRIGHT_CHANNEL }
+    : {}),
+});
 try {
   for (const reducedMotion of ["no-preference", "reduce"]) {
     const context = await browser.newContext({ reducedMotion });
@@ -26,13 +31,37 @@ try {
               user: {
                 id: "motion-test",
                 username: "Teste visual",
-                permissions: ["orders:read"],
+                profile: "commercial",
+                permissions: ["panorama:read", "revenue:read", "ai:ask"],
               },
               expires_at: new Date(Date.now() + 3600000).toISOString(),
             },
           });
         }
-        if (path === "/api/v1/ai/questions") {
+        if (
+          path === "/api/v1/ai/conversations" &&
+          route.request().method() === "GET"
+        ) {
+          return route.fulfill({ json: { items: [], has_more: false } });
+        }
+        if (
+          path === "/api/v1/ai/conversations" &&
+          route.request().method() === "POST"
+        ) {
+          const now = new Date().toISOString();
+          return route.fulfill({
+            json: {
+              id: "11111111-1111-4111-8111-111111111111",
+              title: "Nova conversa",
+              revision: 1,
+              created_at: now,
+              updated_at: now,
+              expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+              message_count: 0,
+            },
+          });
+        }
+        if (path.endsWith("/questions")) {
           requests++;
           await pending;
           return route.fulfill({
@@ -69,11 +98,22 @@ try {
       );
       const field = page.getByRole("textbox", { name: "Escreva sua pergunta" });
       await field.fill("Qual foi o consumo em janeiro de 2025?");
+      const requestStarted = page.waitForRequest(
+        (request) => new URL(request.url()).pathname.endsWith("/questions"),
+        { timeout: 5000 },
+      );
       await field.press("Enter");
+      const didStart = await requestStarted.then(() => true).catch(() => false);
+      if (!didStart) {
+        console.error(
+          `Sem chamada ao endpoint; tela: ${await page.locator("body").innerText()}`,
+        );
+        throw new Error("O Assistente não iniciou a consulta.");
+      }
       await page
         .getByRole("status")
-        .filter({ hasText: "Analisando a pergunta" })
-        .waitFor();
+        .filter({ hasText: "Consultando os dados" })
+        .waitFor({ timeout: 5000 });
       assert.equal(await field.isDisabled(), true);
       assert.equal(
         await page
@@ -81,16 +121,18 @@ try {
           .isDisabled(),
         true,
       );
-      const animations = await page
-        .locator("svg.animate-spin")
+      const dotAnimations = await page
+        .locator(".assistant-processing-dot")
         .evaluateAll((icons) =>
           icons.map((icon) => getComputedStyle(icon).animationName),
         );
-      assert.equal(
-        animations.length,
-        2,
-        "Conferir indicador da conversa e do botão",
-      );
+      const buttonAnimations = await page
+        .locator("button svg.animate-spin")
+        .evaluateAll((icons) =>
+          icons.map((icon) => getComputedStyle(icon).animationName),
+        );
+      assert.equal(dotAnimations.length, 3, "Conferir pontos de processamento");
+      assert.equal(buttonAnimations.length, 1, "Conferir indicador do botão");
       assert.equal(
         await page.evaluate(
           () => matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -98,10 +140,10 @@ try {
         reducedMotion === "reduce",
       );
       assert.ok(
-        animations.every((name) =>
+        [...dotAnimations, ...buttonAnimations].every((name) =>
           reducedMotion === "reduce" ? name === "none" : name !== "none",
         ),
-        `Movimento ${reducedMotion}: ${animations.join(", ")}`,
+        `Movimento ${reducedMotion}: ${[...dotAnimations, ...buttonAnimations].join(", ")}`,
       );
       releaseResponse();
       await page
@@ -118,17 +160,14 @@ try {
         await page.getByRole("log").getAttribute("aria-live"),
         "polite",
       );
-      const details = page.getByLabel("Fundamento da resposta");
-      await details.locator("summary").focus();
-      await page.keyboard.press("Enter");
-      assert.equal(await details.getAttribute("open"), "");
+      await page.getByLabel("Fundamento da resposta").waitFor();
       await page
         .getByText("Valores fictícios usados somente nesta prova visual.", {
           exact: true,
         })
         .waitFor();
       console.log(
-        `PASS ${reducedMotion}: dois indicadores, envio por Enter, bloqueio durante consulta, foco de retorno, fundamentos por teclado e limitações.`,
+        `PASS ${reducedMotion}: movimento, envio por Enter, bloqueio durante consulta, foco de retorno, fundamento e limitações visíveis.`,
       );
     } finally {
       await context.close();

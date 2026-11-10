@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useRef, useState } from "react";
 import Modal from "@/shared/ui/Modal";
 import type { OperationPeriod, OperationStatus } from "./contract";
 import { formatMonth, formatNumber, monthsInPeriod } from "./operation-format";
+import { describeVariation, trendOf, type Trend } from "./series-trend";
 import "./operation-series.css";
 
 type SeriesPoint = {
@@ -82,25 +83,25 @@ function coordinates(
   return { width, maximum, points };
 }
 
-function lineGroups(points: ChartPoint[]) {
-  const groups: ChartPoint[][] = [];
-  let current: ChartPoint[] = [];
-  for (const point of points) {
-    if (point.value === null || point.y === null) {
-      if (current.length > 0) groups.push(current);
-      current = [];
-    } else {
-      current.push(point);
-    }
-  }
-  if (current.length > 0) groups.push(current);
-  return groups;
-}
+// Em DEC e FEC, valor maior é pior: subir = vermelho, cair = verde. A cor nunca
+// vai sozinha: triângulo para cima/baixo e a legenda reforçam o sentido.
+const TREND_STROKE: Record<Trend, string> = {
+  worse: "stroke-danger",
+  better: "stroke-success",
+  flat: "stroke-muted",
+  none: "stroke-muted",
+};
+const TREND_FILL: Record<Trend, string> = {
+  worse: "fill-danger",
+  better: "fill-success",
+  flat: "fill-muted",
+  none: "fill-muted",
+};
 
-function linePath(points: ChartPoint[]) {
-  return points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
-    .join(" ");
+function trianglePoints(x: number, y: number, trend: "worse" | "better") {
+  return trend === "worse"
+    ? `${x},${y - 7} ${x + 7},${y + 5} ${x - 7},${y + 5}`
+    : `${x - 7},${y - 5} ${x + 7},${y - 5} ${x},${y + 7}`;
 }
 
 function SeriesChart({
@@ -126,11 +127,22 @@ function SeriesChart({
     availableWidth,
   );
   const activePoint = points.find((point) => point.month === activeMonth);
+  const previousValue = (index: number) =>
+    index > 0 ? (points[index - 1]?.value ?? null) : null;
+  const trends = points.map((point, index) =>
+    trendOf(point.value, previousValue(index)),
+  );
+  const variations = points.map((point, index) =>
+    describeVariation(point.value, previousValue(index), unit),
+  );
+  const activeIndex = points.findIndex((point) => point.month === activeMonth);
+  const activeVariation = activeIndex >= 0 ? variations[activeIndex] : null;
+  const tooltipHeight = activeVariation ? 66 : 48;
   const half = maximum / 2;
   const accessibleSummary = points
     .map(
-      ({ month, value }) =>
-        `${formatMonth(month)}: ${value === null ? `indisponível ${unit}` : `${formatNumber(value)} ${unit}`}`,
+      ({ month, value }, index) =>
+        `${formatMonth(month)}: ${value === null ? `indisponível ${unit}` : `${formatNumber(value)} ${unit}`}${variations[index] ? ` (${variations[index]!.sentence})` : ""}`,
     )
     .join("; ");
   const tickValues = [maximum, half, 0];
@@ -149,7 +161,10 @@ function SeriesChart({
       )
     : 0;
   const tooltipTop = activePoint?.y
-    ? Math.min(chart.height - 54, Math.max(chart.top + 6, activePoint.y - 62))
+    ? Math.min(
+        chart.height - tooltipHeight - 6,
+        Math.max(chart.top + 6, activePoint.y - 62),
+      )
     : chart.top + 6;
 
   useLayoutEffect(() => {
@@ -212,51 +227,75 @@ function SeriesChart({
                 </g>
               );
             })}
-            {lineGroups(points).map((group) =>
-              group.length > 1 ? (
+            {points.map((point, index) => {
+              const from = points[index - 1];
+              if (
+                !from ||
+                from.value === null ||
+                from.y === null ||
+                point.value === null ||
+                point.y === null
+              )
+                return null;
+              return (
                 <path
-                  key={`line-${group[0]?.month}`}
-                  d={linePath(group)}
+                  key={`line-${from.month}-${point.month}`}
+                  d={`M ${from.x} ${from.y} L ${point.x} ${point.y}`}
                   pathLength="1"
                   fill="none"
-                  className="operation-series__line stroke-brand"
+                  className={`operation-series__line ${TREND_STROKE[trends[index] ?? "none"]}`}
                   strokeWidth="3"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-              ) : null,
-            )}
-            {points.map((point) =>
-              point.value === null || point.y === null ? null : (
+              );
+            })}
+            {points.map((point, index) => {
+              if (point.value === null || point.y === null) return null;
+              const trend = trends[index] ?? "none";
+              const variation = variations[index];
+              const interactive = {
+                tabIndex: 0,
+                role: "img",
+                "aria-describedby":
+                  activeMonth === point.month ? tooltipId : undefined,
+                "aria-label": `Exibir ${formatMonth(point.month)}, ${label} ${formatNumber(point.value)} ${unit}${variation ? `, ${variation.sentence}` : ""}`,
+                onMouseEnter: () => setActiveMonth(point.month),
+                onMouseLeave: () => setActiveMonth(null),
+                onFocus: () => setActiveMonth(point.month),
+                onBlur: () => setActiveMonth(null),
+              };
+              return (
                 <g key={point.month}>
                   <circle
                     cx={point.x}
                     cy={point.y}
                     r="8"
-                    className="fill-brand"
+                    className={TREND_FILL[trend]}
                     opacity="0.14"
                     pointerEvents="none"
                   />
-                  <circle
-                    cx={point.x}
-                    cy={point.y}
-                    r="4.5"
-                    className="operation-series__point fill-surface stroke-brand"
-                    strokeWidth="3"
-                    tabIndex={0}
-                    role="img"
-                    aria-describedby={
-                      activeMonth === point.month ? tooltipId : undefined
-                    }
-                    aria-label={`Exibir ${formatMonth(point.month)}, ${label} ${formatNumber(point.value)} ${unit}`}
-                    onMouseEnter={() => setActiveMonth(point.month)}
-                    onMouseLeave={() => setActiveMonth(null)}
-                    onFocus={() => setActiveMonth(point.month)}
-                    onBlur={() => setActiveMonth(null)}
-                  />
+                  {trend === "worse" || trend === "better" ? (
+                    <polygon
+                      points={trianglePoints(point.x, point.y, trend)}
+                      className={`operation-series__point stroke-surface ${TREND_FILL[trend]}`}
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                      {...interactive}
+                    />
+                  ) : (
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      r="4.5"
+                      className={`operation-series__point fill-surface ${TREND_STROKE[trend]}`}
+                      strokeWidth="3"
+                      {...interactive}
+                    />
+                  )}
                 </g>
-              ),
-            )}
+              );
+            })}
             {points.map((point, index) => {
               const lastIndex = points.length - 1;
               const isEndpoint = index === 0 || index === lastIndex;
@@ -289,7 +328,7 @@ function SeriesChart({
               <g
                 id={tooltipId}
                 role="tooltip"
-                aria-label={`${formatMonth(activePoint.month)}: ${formatNumber(activePoint.value)} ${unit}`}
+                aria-label={`${formatMonth(activePoint.month)}: ${formatNumber(activePoint.value)} ${unit}${activeVariation ? `; ${activeVariation.sentence}` : ""}`}
                 pointerEvents="none"
               >
                 <line
@@ -314,7 +353,7 @@ function SeriesChart({
                   x={tooltipLeft}
                   y={tooltipTop}
                   width="176"
-                  height="48"
+                  height={tooltipHeight}
                   rx="9"
                   fill="var(--bg-surface)"
                   stroke="var(--line)"
@@ -336,6 +375,17 @@ function SeriesChart({
                 >
                   {formatNumber(activePoint.value)} {unit}
                 </text>
+                {activeVariation ? (
+                  <text
+                    x={tooltipLeft + 12}
+                    y={tooltipTop + 55}
+                    className={TREND_FILL[activeVariation.trend]}
+                    fontSize="10"
+                    fontWeight="600"
+                  >
+                    {activeVariation.short}
+                  </text>
+                ) : null}
               </g>
             ) : null}
             {points.every((point) => point.value === null) ? (
@@ -351,17 +401,40 @@ function SeriesChart({
             ) : null}
           </svg>
           <ul className="sr-only">
-            {points.map(({ month, value }) => (
+            {points.map(({ month, value }, index) => (
               <li key={month}>
                 {formatMonth(month)}:{" "}
                 {value === null
                   ? `indisponível ${unit}`
                   : `${formatNumber(value)} ${unit}`}
+                {variations[index] ? ` (${variations[index]!.sentence})` : ""}
               </li>
             ))}
           </ul>
         </div>
       </div>
+      <ul
+        aria-label="Legenda de cores do gráfico"
+        className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted"
+      >
+        <li className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className="text-danger">
+            ▲
+          </span>
+          Piorou em relação ao mês anterior
+        </li>
+        <li className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className="text-success">
+            ▼
+          </span>
+          Melhorou em relação ao mês anterior
+        </li>
+        <li className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true">●</span>
+          Estável ou sem comparação
+        </li>
+        <li>Em DEC e FEC, valor maior é pior.</li>
+      </ul>
       <button
         ref={triggerRef}
         type="button"

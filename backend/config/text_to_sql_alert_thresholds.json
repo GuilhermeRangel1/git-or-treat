@@ -1,0 +1,12 @@
+{
+  "version": "text-to-sql-alert-policy-v1",
+  "minimum_http_requests": 20,
+  "http_error_ratio_percent": 5,
+  "provider_minimum_calls": 10,
+  "provider_failure_ratio_percent": 5,
+  "request_p95_warning_ms": 45000,
+  "request_p95_critical_ms": 54000,
+  "sql_p95_warning_ms": 4000,
+  "database_failure_warning_count": 1,
+  "database_failure_critical_count": 3
+}

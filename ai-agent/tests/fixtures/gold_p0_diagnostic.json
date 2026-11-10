@@ -1,0 +1,1206 @@
+{
+  "dataset_version": "p0-1.1.0-oracle-audit-1",
+  "scope": "P0 diagnostic: 32 existing controls, 8 initial demands, 6 conversational cases; artificial January–March 2025 coverage",
+  "limitations": [
+    "Nonrepresentative author sample, not real user frequency or general accuracy.",
+    "No SQL, numerical reconciliation, provider, portal, or end-to-end latency evaluated.",
+    "aggregation_scope, ranking_axis and derived_calculations are expected business semantics for missing capabilities, not approved wire-contract field proposals.",
+    "New questions become development data after this run. Existing gold_language_holdout.json remains unexecuted by this diagnostic.",
+    "Period coverage intentionally has three months; 12-month clarifications cannot establish support for annual distribution."
+  ],
+  "cases": [
+    {
+      "id": "REV-01",
+      "category": "canonical",
+      "question": "Qual foi a receita faturada em Recife em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "REV-02",
+      "category": "passive",
+      "question": "Preciso saber o valor que foi faturado em Recife no mês 03 de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "REV-03",
+      "category": "politeness",
+      "question": "Por favor, queria saber quanto faturamos em Olinda em mar/2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "REV-04",
+      "category": "order",
+      "question": "Em março de 2025, Olinda: qual foi o faturamento comercial?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "COMERCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "ENE-01",
+      "category": "canonical",
+      "question": "Qual foi o consumo em Olinda em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "ENE-02",
+      "category": "passive",
+      "question": "Me mostra quanta energia foi consumida em Olinda em março de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "ENE-03",
+      "category": "plural",
+      "question": "Os clientes comerciais em Recife consumiram quanto em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "COMERCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "ENE-04",
+      "category": "order",
+      "question": "Quanto consumimos em Recife em MAR. de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "unit": "kWh",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "RANK-01",
+      "category": "canonical",
+      "question": "Qual município teve a maior receita em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "comparison_periods": null,
+        "limit": 1
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "RANK-02",
+      "category": "plural",
+      "question": "Quais cidades tiveram menos faturamento em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "asc"
+        },
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "RANK-03",
+      "category": "count",
+      "question": "Mostre os cinco municípios com mais receita residencial em março de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "customer.consumption_class",
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          }
+        ],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "comparison_periods": null,
+        "limit": 5
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "RANK-04",
+      "category": "count",
+      "question": "Top 2 cidades por faturamento em março de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "unit": "R$",
+        "dimension_ids": [
+          "geography.municipality"
+        ],
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "comparison_periods": null,
+        "limit": 2
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "ATE-01",
+      "category": "service",
+      "question": "Por favor, quantos protocolos foram abertos em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "service.attendance",
+        "unit": "protocolos",
+        "dimension_ids": [],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "ATE-02",
+      "category": "service",
+      "question": "Quero saber a nota de satisfação em março de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "service.satisfaction",
+        "unit": "pontos",
+        "dimension_ids": [],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "DEC-01",
+      "category": "network",
+      "question": "Pode mostrar o DEC do alimentador AL-01 em março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "network.equivalent_interruption_duration",
+        "unit": "horas por UC",
+        "dimension_ids": [
+          "network.feeder"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "network.feeder",
+            "operator": "eq",
+            "values": [
+              "AL-01"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "FEC-01",
+      "category": "network",
+      "question": "Em março de 2025, qual foi o FEC do alimentador AL-01?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "network.equivalent_interruption_frequency",
+        "unit": "interrupções por UC",
+        "dimension_ids": [
+          "network.feeder"
+        ],
+        "group_by_dimension_ids": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        },
+        "filters": [
+          {
+            "dimension_id": "network.feeder",
+            "operator": "eq",
+            "values": [
+              "AL-01"
+            ]
+          }
+        ],
+        "order": null,
+        "comparison_periods": null,
+        "limit": 100
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "GUARD-01",
+      "category": "unknown_entity",
+      "question": "Qual foi o consumo em Reciffe em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "local",
+        "geografia"
+      ]
+    },
+    {
+      "id": "GUARD-02",
+      "category": "missing_period",
+      "question": "Quero saber quanto foi faturado em Recife.",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "período"
+      ]
+    },
+    {
+      "id": "GUARD-03",
+      "category": "missing_metric",
+      "question": "Pode me ajudar com os dados de Recife em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "indicador",
+        "assunto"
+      ]
+    },
+    {
+      "id": "GUARD-04",
+      "category": "payment",
+      "question": "Quanto faturamos e recebemos em Recife em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "pagamento",
+        "arrecadação"
+      ]
+    },
+    {
+      "id": "GUARD-05",
+      "category": "payment",
+      "question": "Qual foi o valor recebido em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "pagamento",
+        "arrecadação"
+      ]
+    },
+    {
+      "id": "GUARD-06",
+      "category": "ambiguous_unit",
+      "question": "Quanto foi o gasto na conta de luz em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "consumo",
+        "faturado"
+      ]
+    },
+    {
+      "id": "GUARD-07",
+      "category": "solar",
+      "question": "Consumo das UCs com solar em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "não confirmam",
+        "não confirma"
+      ]
+    },
+    {
+      "id": "GUARD-08",
+      "category": "multiple_metrics",
+      "question": "Receita e consumo em Recife em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "primeiro"
+      ]
+    },
+    {
+      "id": "GUARD-09",
+      "category": "exclusion",
+      "question": "Receita exceto residencial em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "exclusão"
+      ]
+    },
+    {
+      "id": "GUARD-10",
+      "category": "unknown_entity",
+      "question": "Consumo em Recife e Atlantis em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "local",
+        "geografia"
+      ]
+    },
+    {
+      "id": "GUARD-11",
+      "category": "unsupported_limit",
+      "question": "Receita acima de R$ 100 em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "filtro por valor",
+        "limite numérico"
+      ]
+    },
+    {
+      "id": "GUARD-12",
+      "category": "missing_filter",
+      "question": "DEC em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "alimentador"
+      ]
+    },
+    {
+      "id": "GUARD-13",
+      "category": "invalid_calendar",
+      "question": "Receita em 31 de março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "meses completos",
+        "mês e o ano",
+        "competência",
+        "período"
+      ]
+    },
+    {
+      "id": "GUARD-14",
+      "category": "invalid_calendar",
+      "question": "Receita em 13/2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "meses completos",
+        "mês e o ano",
+        "competência",
+        "período"
+      ]
+    },
+    {
+      "id": "GUARD-15",
+      "category": "unknown_operation",
+      "question": "Qual bairro tem a maior receita e o menor consumo em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "primeiro"
+      ]
+    },
+    {
+      "id": "GUARD-16",
+      "category": "unit_mismatch",
+      "question": "Quanto foi faturado em kWh em Recife em março de 2025?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "origin": "existing_regression",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "unidade",
+        "em reais"
+      ]
+    },
+    {
+      "id": "P0-33",
+      "category": "period_coverage",
+      "question": "Qual foi o faturamento nos últimos 12 meses?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "expected_business_intent": "Receita mensal nos 12 meses inclusivos até a última competência; fixture só informa três meses, portanto esclarecer cobertura.",
+      "origin": "authored_diagnostic",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "janela mensal completa",
+        "competências ausentes",
+        "cobertura"
+      ]
+    },
+    {
+      "id": "P0-34",
+      "category": "period_coverage",
+      "question": "Nos últimos 12 meses, olhando o recorte geral de faturamento do ano, quanto foi dividido o faturamento das classes?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "expected_business_intent": "Distribuição consolidada por classe; esclarecer ano civil versus janela móvel se conflitantes. A fixture não possui 12 meses; não usar esse caso para concluir capacidade de consolidação.",
+      "origin": "user_demand_paraphrase",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "janela mensal completa",
+        "competências ausentes",
+        "cobertura"
+      ]
+    },
+    {
+      "id": "P0-35",
+      "category": "window_ranking",
+      "question": "Qual classe teve o maior faturamento entre janeiro e março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "group_by_dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "aggregation_scope": "window",
+        "limit": 1,
+        "filters": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-01-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
+      },
+      "expected_business_intent": "Somar os três meses por classe e escolher maior total, não maior linha mensal.",
+      "origin": "authored_diagnostic",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "P0-36",
+      "category": "window_ranking",
+      "question": "Liste os cinco municípios que mais faturaram entre janeiro e março de 2025.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "aggregation_scope": "window",
+        "limit": 5,
+        "filters": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-01-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
+      },
+      "expected_business_intent": "Top cinco municípios por receita consolidada; desempate estável pelo rótulo.",
+      "origin": "authored_diagnostic",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "P0-37",
+      "category": "temporal_ranking",
+      "question": "Qual mês teve o maior faturamento entre janeiro e março de 2025?",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "ranking_axis": "period",
+        "limit": 1,
+        "filters": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-01-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
+      },
+      "expected_business_intent": "Somar por mês e escolher maior mês, sem agrupamento por município ou classe.",
+      "origin": "authored_diagnostic",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "P0-38",
+      "category": "window_distribution",
+      "question": "Como ficou dividido o faturamento entre as classes de janeiro a março de 2025? Quero o total de cada uma e a participação no faturamento geral.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "group_by_dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "aggregation_scope": "window",
+        "derived_calculations": [
+          "share_of_total"
+        ],
+        "filters": [],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-01-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
+      },
+      "expected_business_intent": "Total consolidado e participação por classe no mesmo universo; não apresentar uma série mensal como distribuição do intervalo.",
+      "origin": "user_demand_paraphrase",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated"
+    },
+    {
+      "id": "P0-39",
+      "category": "multiple_metrics",
+      "question": "Mostre a receita faturada e o consumo medido em Recife em março de 2025.",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "expected_business_intent": "Duas métricas explícitas; fluxo atual solicita qual consultar primeiro, sem descartar uma silenciosamente.",
+      "origin": "authored_diagnostic",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "primeiro"
+      ]
+    },
+    {
+      "id": "P0-40",
+      "category": "missing_metric",
+      "question": "Em Recife, entre janeiro e março de 2025, qual foi o maior?",
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "expected_business_intent": "Pergunta sem métrica e sem eixo de ranking; pedir esclarecimento sem inventar indicador.",
+      "origin": "authored_diagnostic",
+      "evaluation_scope": "planning_only; SQL and numerical answer not evaluated",
+      "expected_message_any": [
+        "indicador",
+        "assunto"
+      ]
+    },
+    {
+      "id": "P0-41",
+      "category": "follow_up_period",
+      "question": "Em março de 2025?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Receita residencial em Olinda em janeiro de 2025?"
+        },
+        {
+          "role": "assistant",
+          "content": "Resultado da consulta."
+        }
+      ],
+      "origin": "existing_behavior_paraphrase",
+      "expected_business_intent": "Trocar competência preservando receita, classe residencial e Olinda.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
+      }
+    },
+    {
+      "id": "P0-42",
+      "category": "follow_up_period",
+      "question": "Só em março de 2025?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Receita residencial em Olinda em janeiro de 2025?"
+        },
+        {
+          "role": "assistant",
+          "content": "Resultado da consulta."
+        }
+      ],
+      "origin": "existing_behavior_paraphrase",
+      "expected_business_intent": "Trocar competência preservando receita, classe residencial e Olinda.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
+      }
+    },
+    {
+      "id": "P0-43",
+      "category": "follow_up_period",
+      "question": "março de 2025",
+      "context": [
+        {
+          "role": "user",
+          "content": "Receita residencial em Olinda em janeiro de 2025?"
+        },
+        {
+          "role": "assistant",
+          "content": "Resultado da consulta."
+        }
+      ],
+      "origin": "existing_behavior_paraphrase",
+      "expected_business_intent": "Trocar competência preservando receita, classe residencial e Olinda.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-03-01",
+          "end": "2025-03-31",
+          "granularity": "month"
+        }
+      }
+    },
+    {
+      "id": "P0-44",
+      "category": "follow_up_metric",
+      "question": "E o consumo?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Receita residencial em Olinda em janeiro de 2025?"
+        },
+        {
+          "role": "assistant",
+          "content": "Resultado da consulta."
+        }
+      ],
+      "origin": "authored_diagnostic",
+      "expected_business_intent": "Preservar período e filtros na troca curta de métrica; pergunta completa nova não herda classe ou município anteriores.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-01-01",
+          "end": "2025-01-31",
+          "granularity": "month"
+        }
+      }
+    },
+    {
+      "id": "P0-45",
+      "category": "follow_up_metric",
+      "question": "Agora o consumo medido?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Receita residencial em Olinda em janeiro de 2025?"
+        },
+        {
+          "role": "assistant",
+          "content": "Resultado da consulta."
+        }
+      ],
+      "origin": "authored_diagnostic",
+      "expected_business_intent": "Preservar período e filtros na troca curta de métrica; pergunta completa nova não herda classe ou município anteriores.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "filters": [
+          {
+            "dimension_id": "customer.consumption_class",
+            "operator": "eq",
+            "values": [
+              "RESIDENCIAL"
+            ]
+          },
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Olinda"
+            ]
+          }
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-01-01",
+          "end": "2025-01-31",
+          "granularity": "month"
+        }
+      }
+    },
+    {
+      "id": "P0-46",
+      "category": "topic_switch",
+      "question": "Qual foi o consumo em Recife em fevereiro de 2025?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Receita residencial em Olinda em janeiro de 2025?"
+        },
+        {
+          "role": "assistant",
+          "content": "Resultado da consulta."
+        }
+      ],
+      "origin": "authored_diagnostic",
+      "expected_business_intent": "Preservar período e filtros na troca curta de métrica; pergunta completa nova não herda classe ou município anteriores.",
+      "expected": {
+        "status": "planned",
+        "metric_id": "energy.consumption",
+        "filters": [
+          {
+            "dimension_id": "geography.municipality",
+            "operator": "eq",
+            "values": [
+              "Recife"
+            ]
+          }
+        ],
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-02-01",
+          "end": "2025-02-28",
+          "granularity": "month"
+        }
+      }
+    }
+  ]
+}

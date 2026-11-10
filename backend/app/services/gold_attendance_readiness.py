@@ -12,6 +12,8 @@ from time import monotonic
 
 from sqlalchemy import Table, select
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.sql import visitors
 
 from app.core.genai_limits import GOLD_REQUEST_TIMEOUT_SECONDS
 from app.models.gold_v2_load import TABLES
@@ -27,6 +29,61 @@ from app.services.gold_domain_controls import (
     ANALYTICAL_CONTROLS,
     observe_domain_controls,
 )
+
+_CONTROL_COLUMNS = {
+    "diagnostico_receita": (
+        "competencia", "municipio", "classe_consumo", "consumo_total_kwh",
+        "receita_total_reais", "qtd_ucs_distintas_faturadas_no_mes",
+    ),
+    "consumo_mensal_uc": (
+        "id_uc", "competencia", "consumo_kwh", "receita_reais", "tem_fatura",
+        "tem_leitura", "qtd_faturas", "qtd_leituras_observadas",
+    ),
+    "consumo_receita_bairro": (
+        "competencia", "municipio", "bairro", "consumo_total_kwh",
+        "receita_total_reais", "qtd_ucs_distintas_faturadas_no_mes",
+    ),
+    "visao_360_uc": (
+        "id_uc", "municipio", "classe", "alimentador", "possui_gd",
+        "media_consumo_historico", "total_chamados_callcenter",
+        "media_satisfacao_atendimento",
+    ),
+    "fila_inspecao": ("id_uc", "prioridade_inspecao"),
+    "variacao_consumo_uc": (
+        "id_uc", "municipio", "possui_gd", "consumo_medio_inicial",
+        "meses_com_leitura_p1", "consumo_medio_final", "meses_com_leitura_p2",
+        "variacao_pct", "queda_consumo_superior_30_pct",
+    ),
+    "indicadores_dec_fec": (
+        "id_alimentador", "competencia", "total_ucs_alimentador", "ucs_interrompidas",
+        "frequencia_total_interrupcoes", "duracao_total_interrupcoes_horas", "DEC", "FEC",
+    ),
+    "cobertura_dominios": (
+        "dominio", "competencia", "recorte", "estado_cobertura", "qtd_registros",
+        "qtd_sem_competencia", "zero_registros_confirmado", "data_corte_evidencia",
+        "referencia_evidencia", "natureza_certificacao", "reconciliacao_extracao_json",
+        "run_id_silver", "lote_bronze_silver",
+    ),
+}
+
+_CONTROL_TABLES = {
+    "C01": {"visao_360_uc", "consumo_mensal_uc", "diagnostico_receita"},
+    "C02": {"visao_360_uc", "consumo_mensal_uc", "diagnostico_receita"},
+    "C03": {"consumo_mensal_uc"},
+    "C04": {"visao_360_uc", "consumo_mensal_uc", "diagnostico_receita"},
+    "C05": {"visao_360_uc"},
+    "C06": {"visao_360_uc", "fila_inspecao"},
+    "C07": {"visao_360_uc", "fila_inspecao"},
+    "C08": {"visao_360_uc", "consumo_mensal_uc", "variacao_consumo_uc"},
+    "C09": {"visao_360_uc", "consumo_mensal_uc", "variacao_consumo_uc"},
+    "C10": {"visao_360_uc", "consumo_mensal_uc"},
+    "C11": {"visao_360_uc", "ocorrencias_uc", "indicadores_dec_fec"},
+    "C12": {"visao_360_uc", "consumo_mensal_uc", "diagnostico_receita",
+            "consumo_receita_bairro"},
+    "C13": {"consumo_receita_bairro"},
+    "C14": {"visao_360_uc", "atendimentos_uc"},
+    "C15": {"visao_360_uc", "atendimentos_uc", "cobertura_dominios"},
+}
 
 
 @contextmanager
@@ -67,7 +124,8 @@ def _remaining_sql(connection, expires):
 
 def _rows(connection, table, expires):
     _remaining_sql(connection, expires)
-    result = connection.execution_options(yield_per=1000).execute(select(table) if isinstance(table, Table) else table)
+    statement = select(table) if isinstance(table, Table) else table
+    result = connection.execute(statement.execution_options(stream_results=True)).yield_per(1000)
     try:
         for row in result.mappings():
             if monotonic() >= expires:
@@ -113,48 +171,99 @@ def _observe_publication(
         raise GoldPublicationInvalid("Prontidão de atendimento exige publicação v2.")
     with _snapshot(engine, context) as connection:
         coverage_rows = None
+        unreadable_sources = set()
+
+        def source_names(statement):
+            if isinstance(statement, Table):
+                return {statement.name}
+            try:
+                return {source.name for source in visitors.iterate(statement)
+                        if isinstance(source, Table)}
+            except AttributeError:
+                return set()
 
         def read_rows(table):
             # A cobertura é compartilhada pelos recortes do mesmo snapshot.
             # Evita reler a tabela inteira para cada alimentador, sem cache entre consultas.
             nonlocal coverage_rows
+
+            def readable(statement):
+                sources = source_names(statement)
+                if sources & unreadable_sources:
+                    return False
+                try:
+                    # LIMIT 0 valida privilégios das colunas em savepoint, sem abrir
+                    # cursor streaming dentro dele. A leitura completa fica fora do savepoint.
+                    with connection.begin_nested():
+                        _remaining_sql(connection, expires)
+                        probe = select(statement) if isinstance(statement, Table) else statement
+                        connection.execute(probe.limit(0)).close()
+                except ProgrammingError as exc:
+                    if getattr(exc.orig, "sqlstate", None) != "42501":
+                        raise
+                    unreadable_sources.update(sources)
+                    return False
+                return True
+
             if table is TABLES["cobertura_dominios"]:
                 if coverage_rows is None:
-                    coverage_rows = tuple(_rows(connection, table, expires))
+                    columns = [table.c[name] for name in _CONTROL_COLUMNS[table.name]]
+                    statement = select(*columns)
+                    coverage_rows = (
+                        tuple(_rows(connection, statement, expires))
+                        if readable(statement) else ()
+                    )
                 for row in coverage_rows:
                     if monotonic() >= expires:
                         raise GenAITimeout
                     yield row
-            else:
+            elif isinstance(table, Table) and table.name in _CONTROL_COLUMNS:
+                statement = select(*(table.c[name] for name in _CONTROL_COLUMNS[table.name]))
+                if readable(statement):
+                    yield from _rows(connection, statement, expires)
+            elif readable(table):
                 yield from _rows(connection, table, expires)
 
         _remaining_sql(connection, expires)
         origin = publication_lineage(connection, context.batch_ref)
         tables = {}
         for name, table in TABLES.items():
-            _remaining_sql(connection, expires)
-            periods = []
-            column = table.c.get("competencia")
-            if column is not None:
-                # A presença de qualquer competência (inclusive NULL) também prova
-                # existência de linhas; não executar uma segunda consulta por tabela.
-                observed = list(connection.execute(select(column).distinct().limit(1202)).scalars())
-                has_rows = bool(observed)
-                periods = sorted(value for value in observed if value is not None)
-                if len(periods) > 1200:
-                    raise ValueError("Cobertura excede o limite do contrato.")
+            try:
+                with connection.begin_nested():
+                    _remaining_sql(connection, expires)
+                    periods = []
+                    column = table.c.get("competencia")
+                    if column is not None:
+                        observed = list(connection.execute(
+                            select(column).distinct().limit(1202)
+                        ).scalars())
+                        has_rows = bool(observed)
+                        periods = sorted(value for value in observed if value is not None)
+                        if len(periods) > 1200:
+                            raise ValueError("Cobertura excede o limite do contrato.")
+                    else:
+                        has_rows = connection.execute(
+                            select(1).select_from(table).limit(1)
+                        ).first() is not None
+            except ProgrammingError as exc:
+                if getattr(exc.orig, "sqlstate", None) != "42501":
+                    raise
+                tables[name] = {"present": False, "has_rows": False,
+                                "batch_ref": None, "periods": []}
             else:
-                has_rows = connection.execute(select(1).select_from(table).limit(1)).first() is not None
-            tables[name] = {"present": True, "has_rows": has_rows,
-                            "batch_ref": context.batch_ref, "periods": periods}
+                tables[name] = {"present": True, "has_rows": has_rows,
+                                "batch_ref": context.batch_ref, "periods": periods}
+        unreadable_sources.update(
+            name for name, observation in tables.items() if not observation["present"]
+        )
         summary = {}
         detail = defaultdict(lambda: [0, Decimal(0), 0])
         monthly = Counter()
         undated = 0
         c14_ok = c15_ok = True
-        for row in _rows(connection, select(*(TABLES["visao_360_uc"].c[name] for name in (
+        for row in read_rows(select(*(TABLES["visao_360_uc"].c[name] for name in (
             "id_uc", "total_chamados_callcenter", "media_satisfacao_atendimento",
-        ))), expires):
+        )))):
             uc, count, mean = row["id_uc"], row["total_chamados_callcenter"], row["media_satisfacao_atendimento"]
             if (not uc or uc.upper().startswith("TESTE") or uc in summary
                     or not _valid_number(count) or count < 0 or int(count) != count
@@ -162,10 +271,10 @@ def _observe_publication(
                 c14_ok = False
                 continue
             summary[uc] = (count, mean)
-        for row in _rows(connection, select(*(TABLES["atendimentos_uc"].c[name] for name in (
+        for row in read_rows(select(*(TABLES["atendimentos_uc"].c[name] for name in (
             "id_uc", "nota_satisfacao", "protocolo", "_nota_invalida", "_nota_negativa",
             "data_abertura", "_abertura_futura",
-        ))), expires):
+        )))):
             uc, note = row["id_uc"], row["nota_satisfacao"]
             if (not uc or uc.upper().startswith("TESTE") or not row["protocolo"]
                     or (note is not None and (not _valid_number(note) or note < 0))):
@@ -245,6 +354,14 @@ def _observe_publication(
                 "status":"passed" if value else "failed", "approved":key in approved_controls}
                 for key,value in results.items()})
             facts["coverage"].update(coverage)
+        # Uma métrica pode parecer consistente sobre um conjunto vazio quando a fonte
+        # não pôde ser lida. Nunca aprove o controle sem observar suas dependências.
+        for control, dependencies in _CONTROL_TABLES.items():
+            if control in facts["control_results"] and (
+                not all(tables[name]["present"] for name in dependencies)
+                or dependencies & unreadable_sources
+            ):
+                facts["control_results"][control]["status"] = "failed"
         if not requested_periods:
             # Histórico acumulado não declara cobertura de nenhum mês.
             facts["coverage"] = {}

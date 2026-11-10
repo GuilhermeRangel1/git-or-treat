@@ -1,0 +1,385 @@
+{
+  "version": "genai-feedback-reserve-v1",
+  "boundary": "authorial reserve written by the implementer (not independent, not blind); must not be used to tune prompts; a human reserve is still pending",
+  "cases": [
+    {
+      "id": "FB-RES-01",
+      "group": "external_mixed",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "Quanto rendeu a bilheteria do show da Taylor Swift no Recife em 2025?",
+      "context": [],
+      "allowed_outcomes": [
+        {
+          "status": "unsupported",
+          "reason_code": "out_of_domain"
+        }
+      ],
+      "expected_reason": "out_of_domain",
+      "pending_fields": [],
+      "resolved_fields": [],
+      "forbidden_behaviors": [
+        "sql",
+        "quantitative_evidence",
+        "ask_municipality_class"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 0
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-02",
+      "group": "external_mixed",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "Qual a receita da NBA em janeiro de 2025?",
+      "context": [],
+      "allowed_outcomes": [
+        {
+          "status": "unsupported",
+          "reason_code": "out_of_domain"
+        },
+        {
+          "status": "needs_clarification",
+          "reason_code": "ambiguous_subject"
+        }
+      ],
+      "expected_reason": null,
+      "pending_fields": [
+        "context"
+      ],
+      "resolved_fields": [],
+      "forbidden_behaviors": [
+        "sql",
+        "quantitative_evidence",
+        "ask_municipality_class"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 0
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-03",
+      "group": "external_mixed",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "Qual o faturamento do Mercado Livre em dezembro de 2024?",
+      "context": [],
+      "allowed_outcomes": [
+        {
+          "status": "unsupported",
+          "reason_code": "out_of_domain"
+        }
+      ],
+      "expected_reason": "out_of_domain",
+      "pending_fields": [],
+      "resolved_fields": [],
+      "forbidden_behaviors": [
+        "sql",
+        "quantitative_evidence",
+        "ask_municipality_class"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 0
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-04",
+      "group": "external_mixed",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "Qual a receita do BBB em março de 2025?",
+      "context": [],
+      "allowed_outcomes": [
+        {
+          "status": "unsupported",
+          "reason_code": "out_of_domain"
+        },
+        {
+          "status": "needs_clarification",
+          "reason_code": "ambiguous_subject"
+        }
+      ],
+      "expected_reason": null,
+      "pending_fields": [
+        "context"
+      ],
+      "resolved_fields": [],
+      "forbidden_behaviors": [
+        "sql",
+        "quantitative_evidence",
+        "ask_municipality_class"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 0
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-05",
+      "group": "legitimate_near_external",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "Qual o faturamento total em fevereiro de 2025, mês de chuvas fortes e quedas de energia?",
+      "context": [],
+      "allowed_outcomes": [
+        {
+          "status": "sql_candidate"
+        }
+      ],
+      "expected_reason": null,
+      "pending_fields": [],
+      "resolved_fields": [],
+      "forbidden_behaviors": [
+        "quantitative_evidence_without_sql",
+        "refuse",
+        "ask_resolved_field"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 1
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-06",
+      "group": "legitimate_near_external",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "Qual o faturamento total da classe industrial em Recife em abril de 2025, mês de feriados?",
+      "context": [],
+      "allowed_outcomes": [
+        {
+          "status": "sql_candidate"
+        }
+      ],
+      "expected_reason": null,
+      "pending_fields": [],
+      "resolved_fields": [],
+      "forbidden_behaviors": [
+        "quantitative_evidence_without_sql",
+        "refuse",
+        "ask_resolved_field"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 1
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-07",
+      "group": "legitimate_near_external",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "Qual o consumo médio por UC em Olinda em janeiro de 2025, pós-festas?",
+      "context": [],
+      "allowed_outcomes": [
+        {
+          "status": "sql_candidate"
+        }
+      ],
+      "expected_reason": null,
+      "pending_fields": [],
+      "resolved_fields": [],
+      "forbidden_behaviors": [
+        "quantitative_evidence_without_sql",
+        "refuse",
+        "ask_resolved_field"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 1
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-08",
+      "group": "ambiguity_continuation",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "Qual o ticket médio em março?",
+      "context": [],
+      "allowed_outcomes": [
+        {
+          "status": "needs_clarification",
+          "reason_code": "missing_context"
+        }
+      ],
+      "expected_reason": "missing_context",
+      "pending_fields": [
+        "period"
+      ],
+      "resolved_fields": [
+        "metric"
+      ],
+      "forbidden_behaviors": [
+        "sql",
+        "quantitative_evidence",
+        "ask_resolved_field"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 0
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-09",
+      "group": "ambiguity_continuation",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "E só para a classe comercial?",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual foi o faturamento total de Recife em março de 2025?"
+        },
+        {
+          "role": "assistant",
+          "content": "O recorte consultado foi faturamento total do município de Recife na competência março de 2025."
+        }
+      ],
+      "allowed_outcomes": [
+        {
+          "status": "sql_candidate"
+        }
+      ],
+      "expected_reason": null,
+      "pending_fields": [],
+      "resolved_fields": [
+        "metric",
+        "period",
+        "filter"
+      ],
+      "forbidden_behaviors": [
+        "quantitative_evidence_without_sql",
+        "refuse",
+        "ask_resolved_field"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 1
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-10",
+      "group": "ambiguity_continuation",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "2024",
+      "context": [
+        {
+          "role": "user",
+          "content": "Qual o faturamento total de Olinda em agosto?"
+        },
+        {
+          "role": "assistant",
+          "content": "Agosto de qual ano?"
+        }
+      ],
+      "allowed_outcomes": [
+        {
+          "status": "sql_candidate"
+        }
+      ],
+      "expected_reason": null,
+      "pending_fields": [],
+      "resolved_fields": [
+        "metric",
+        "filter",
+        "period"
+      ],
+      "forbidden_behaviors": [
+        "quantitative_evidence_without_sql",
+        "refuse",
+        "ask_resolved_field"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 1
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-11",
+      "group": "limits",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "Qual a receita total de Olinda de janeiro a dezembro de 2026?",
+      "context": [],
+      "allowed_outcomes": [
+        {
+          "status": "needs_clarification",
+          "reason_code": "insufficient_coverage"
+        },
+        {
+          "status": "unsupported",
+          "reason_code": "insufficient_coverage"
+        }
+      ],
+      "expected_reason": "insufficient_coverage",
+      "pending_fields": [
+        "period"
+      ],
+      "resolved_fields": [],
+      "forbidden_behaviors": [
+        "sql",
+        "quantitative_evidence",
+        "present_partial_as_full"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 0
+      },
+      "notes": ""
+    },
+    {
+      "id": "FB-RES-12",
+      "group": "limits",
+      "split": "authorial_reserve",
+      "origin": "authorial",
+      "label_status": "draft_pending_catalog_review",
+      "question": "Qual a previsão de consumo de Recife para 2027?",
+      "context": [],
+      "allowed_outcomes": [
+        {
+          "status": "unsupported",
+          "reason_code": "unsupported_capability"
+        }
+      ],
+      "expected_reason": "unsupported_capability",
+      "pending_fields": [],
+      "resolved_fields": [],
+      "forbidden_behaviors": [
+        "sql",
+        "quantitative_evidence",
+        "refuse_as_external"
+      ],
+      "expected_source_calls": {
+        "max_model_calls": 1,
+        "max_source_queries": 0
+      },
+      "notes": ""
+    }
+  ]
+}

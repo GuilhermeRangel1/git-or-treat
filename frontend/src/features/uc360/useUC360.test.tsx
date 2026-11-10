@@ -3,7 +3,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { apiClient } from "@/shared/api/client";
-import { useUCOverview, useUCSearch, useUCSeries } from "./useUC360";
+import {
+  useUCHistory,
+  useUCOverview,
+  useUCSearch,
+  useUCSeries,
+} from "./useUC360";
 
 vi.mock("@/shared/api/client", () => ({ apiClient: vi.fn() }));
 vi.mock("./contract", () => ({
@@ -13,6 +18,29 @@ vi.mock("./contract", () => ({
 }));
 
 afterEach(() => vi.resetAllMocks());
+
+it("envia o tamanho escolhido nas consultas de busca e histórico", async () => {
+  vi.mocked(apiClient).mockResolvedValue({ data: { items: [] }, metadata: {} });
+  const { result } = renderHook(
+    () => ({
+      search: useUCSearch("UC", "", "", 1, true, 5),
+      history: useUCHistory("UC", "consumption", "", "", 1, true, 50),
+    }),
+    { wrapper },
+  );
+  await waitFor(() =>
+    expect(
+      result.current.search.isSuccess && result.current.history.isSuccess,
+    ).toBe(true),
+  );
+  const endpoints = vi.mocked(apiClient).mock.calls.map(([url]) => String(url));
+  expect(
+    endpoints.some(
+      (url) => url.includes("page_size=5") && !url.includes("page_size=50"),
+    ),
+  ).toBe(true);
+  expect(endpoints.some((url) => url.includes("page_size=50"))).toBe(true);
+});
 
 it("applies municipality and class to a search without a text query", async () => {
   vi.mocked(apiClient).mockResolvedValue({ data: { items: [] } });

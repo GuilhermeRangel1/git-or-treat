@@ -16,44 +16,81 @@ from app.core.platform_access import PlatformProfile
 from app.core.platform_identity import PlatformIdentity, bearer, get_platform_identity
 from app.schemas.genai_internal import AccessScope
 
-GOLD_METRICS = frozenset({
-    "billing.price_volume",
-    "network.interruption_events",
-    "energy.gd_consumption_drop",
-    "energy.gd_units",
-    "billing.revenue", "energy.consumption", "billing.average_ticket",
-    "billing.effective_tariff", "energy.average_consumption_per_uc",
-    "service.attendance", "service.satisfaction",
-    "service.accumulated_attendance", "service.accumulated_satisfaction",
-    "network.equivalent_interruption_duration",
-    "network.equivalent_interruption_frequency",
-})
-GOLD_DIMENSIONS = frozenset({
-    "geography.municipality", "geography.neighborhood", "customer.consumption_class",
-    "tariff.subgroup", "tariff.flag", "generation.distributed", "network.feeder",
-})
+GOLD_METRICS = frozenset(
+    {
+        "billing.price_volume",
+        "network.interruption_events",
+        "energy.gd_consumption_drop",
+        "customer.units_by_class",
+        "inspection.units_by_priority",
+        "energy.gd_units",
+        "billing.revenue",
+        "energy.consumption",
+        "billing.average_ticket",
+        "billing.effective_tariff",
+        "energy.average_consumption_per_uc",
+        "service.attendance",
+        "service.satisfaction",
+        "service.accumulated_attendance",
+        "service.accumulated_satisfaction",
+        "network.equivalent_interruption_duration",
+        "network.equivalent_interruption_frequency",
+    }
+)
+GOLD_DIMENSIONS = frozenset(
+    {
+        "geography.municipality",
+        "geography.neighborhood",
+        "customer.consumption_class",
+        "tariff.subgroup",
+        "tariff.flag",
+        "generation.distributed",
+        "inspection.priority",
+        "network.feeder",
+    }
+)
 
-COMMERCIAL_METRICS = frozenset({
-    "billing.revenue",
-    "energy.consumption",
-    "billing.average_ticket",
-    "billing.effective_tariff",
-    "energy.average_consumption_per_uc",
-})
+COMMERCIAL_METRICS = frozenset(
+    {
+        "billing.revenue",
+        "energy.consumption",
+        "energy.gd_units",
+        "energy.gd_consumption_drop",
+        "billing.average_ticket",
+        "billing.effective_tariff",
+        "energy.average_consumption_per_uc",
+        "customer.units_by_class",
+    }
+)
 COMMERCIAL_DIMENSIONS = GOLD_DIMENSIONS - {"network.feeder"}
-OPERATIONS_METRICS = frozenset({
-    "network.equivalent_interruption_duration",
-    "network.equivalent_interruption_frequency",
-})
-OPERATIONS_DIMENSIONS = frozenset({
-    "geography.municipality", "network.feeder",
-})
+OPERATIONS_METRICS = frozenset(
+    {
+        "network.equivalent_interruption_duration",
+        "network.equivalent_interruption_frequency",
+    }
+)
+OPERATIONS_DIMENSIONS = frozenset(
+    {
+        "geography.municipality",
+        "network.feeder",
+    }
+)
 _PROFILE_GOLD_SCOPE = {
     PlatformProfile.COMMERCIAL: (COMMERCIAL_METRICS, COMMERCIAL_DIMENSIONS),
     PlatformProfile.OPERATIONS: (OPERATIONS_METRICS, OPERATIONS_DIMENSIONS),
-    # O catálogo e a leitura autorizados não definem capacidade de atendimento
-    # nem de perdas. ai:ask concede acesso ao chat, não a essas medidas Gold.
-    PlatformProfile.CUSTOMER_SERVICE: (frozenset(), frozenset()),
+    # Atendimento não libera dimensões de UC; cada métrica habilitada mantém
+    # sua própria operação e validação no contrato SQL F1.
+    PlatformProfile.CUSTOMER_SERVICE: (
+        frozenset(
+            {
+                "service.attendance",
+                "service.accumulated_attendance",
+                "service.satisfaction",
+                "service.accumulated_satisfaction",
+            }
+        ),
+        frozenset(),
+    ),
     PlatformProfile.LOSSES: (frozenset(), frozenset()),
     PlatformProfile.ADMIN: (GOLD_METRICS, GOLD_DIMENSIONS),
 }
@@ -68,9 +105,11 @@ def build_profile_access_scope(identity: PlatformIdentity) -> AccessScope:
     metrics, dimensions = _PROFILE_GOLD_SCOPE[identity.profile]
     return AccessScope(
         caller_ref="session:" + sha256(identity.actor.encode()).hexdigest(),
-        profile_id="v-energy-grid-360-gold", source_id="gold.local",
+        profile_id="v-energy-grid-360-gold",
+        source_id="gold.local",
         allowed_operations=frozenset({"read"}),
-        allowed_metric_ids=metrics, allowed_dimension_ids=dimensions,
+        allowed_metric_ids=metrics,
+        allowed_dimension_ids=dimensions,
     )
 
 

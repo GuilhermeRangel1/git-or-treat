@@ -286,7 +286,7 @@ class ReadPlanValidator:
             or (plan.group_by_dimension_ids and (
                 not set(plan.group_by_dimension_ids)
                 <= set(metric.comparison_grouping_dimension_ids)
-                or plan.order is None or plan.order.direction != SortDirection.ASC
+                or plan.order is None
             ))
             or (plan.order is not None and not plan.group_by_dimension_ids)
         ):

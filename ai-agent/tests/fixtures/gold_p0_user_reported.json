@@ -1,0 +1,292 @@
+{
+  "dataset_version": "user-reported-1.0.0-oracle-audit-1",
+  "scope": "Two real reported failures, four authored controls, one clarification continuation; artificial complete coverage",
+  "limitations": [
+    "Reported usage has no denominator: do not infer all unevaluated questions fail.",
+    "Original sectors ambiguity is not converted into a universal alias; user explicitly confirmed consumption classes.",
+    "No SQL, numerical answer or provider measured.",
+    "Plan expectations of controls describe logical fields only; no returned value validated."
+  ],
+  "cases": [
+    {
+      "id": "REAL-01",
+      "category": "reported",
+      "question": "Qual foi o municipio com maio faturamento de maio de 2025?",
+      "competencies": [
+        "2024-01",
+        "2024-02",
+        "2024-03",
+        "2024-04",
+        "2024-05",
+        "2024-06",
+        "2024-07",
+        "2024-08",
+        "2024-09",
+        "2024-10",
+        "2024-11",
+        "2024-12",
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05"
+      ],
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "expected_message_any": [
+        "maior faturamento",
+        "quis dizer"
+      ],
+      "expected_business_intent": "Confirmar possível erro de digitação maio/maior; não exigir extremos de intervalo inexistente."
+    },
+    {
+      "id": "REAL-01A",
+      "category": "canonical_control",
+      "question": "Qual foi o município com maior faturamento em maio de 2025?",
+      "competencies": [
+        "2024-01",
+        "2024-02",
+        "2024-03",
+        "2024-04",
+        "2024-05",
+        "2024-06",
+        "2024-07",
+        "2024-08",
+        "2024-09",
+        "2024-10",
+        "2024-11",
+        "2024-12",
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05"
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-05-01",
+          "end": "2025-05-31",
+          "granularity": "month"
+        },
+        "group_by_dimension_ids": [
+          "geography.municipality"
+        ],
+        "order": {
+          "field_id": "billing.revenue",
+          "direction": "desc"
+        },
+        "limit": 1,
+        "filters": []
+      }
+    },
+    {
+      "id": "REAL-01B",
+      "category": "aggregation_control",
+      "question": "Qual foi o faturamento total em maio de 2025?",
+      "competencies": [
+        "2024-01",
+        "2024-02",
+        "2024-03",
+        "2024-04",
+        "2024-05",
+        "2024-06",
+        "2024-07",
+        "2024-08",
+        "2024-09",
+        "2024-10",
+        "2024-11",
+        "2024-12",
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05"
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2025-05-01",
+          "end": "2025-05-31",
+          "granularity": "month"
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": 100,
+        "filters": []
+      }
+    },
+    {
+      "id": "REAL-02",
+      "category": "reported",
+      "question": "Quanto foi o faturamento total de 2024 em janeiro, dividido por setores?",
+      "competencies": [
+        "2024-01",
+        "2024-02",
+        "2024-03",
+        "2024-04",
+        "2024-05",
+        "2024-06",
+        "2024-07",
+        "2024-08",
+        "2024-09",
+        "2024-10",
+        "2024-11",
+        "2024-12",
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05"
+      ],
+      "expected": {
+        "status": "needs_clarification"
+      },
+      "expected_message_any": [
+        "setores",
+        "classe de consumo",
+        "classes de consumo"
+      ],
+      "expected_business_intent": "Reconhecer janeiro/2024 e esclarecer dimensão setores. Usuário confirmou classes de consumo; não presumir que setores sempre significa classes."
+    },
+    {
+      "id": "REAL-02A",
+      "category": "period_control",
+      "question": "Quanto foi o faturamento total em janeiro de 2024?",
+      "competencies": [
+        "2024-01",
+        "2024-02",
+        "2024-03",
+        "2024-04",
+        "2024-05",
+        "2024-06",
+        "2024-07",
+        "2024-08",
+        "2024-09",
+        "2024-10",
+        "2024-11",
+        "2024-12",
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05"
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2024-01-01",
+          "end": "2024-01-31",
+          "granularity": "month"
+        },
+        "group_by_dimension_ids": [],
+        "order": null,
+        "limit": 100,
+        "filters": []
+      }
+    },
+    {
+      "id": "REAL-02B",
+      "category": "dimension_control",
+      "question": "Quanto foi o faturamento por classe de consumo em janeiro de 2024?",
+      "competencies": [
+        "2024-01",
+        "2024-02",
+        "2024-03",
+        "2024-04",
+        "2024-05",
+        "2024-06",
+        "2024-07",
+        "2024-08",
+        "2024-09",
+        "2024-10",
+        "2024-11",
+        "2024-12",
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05"
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2024-01-01",
+          "end": "2024-01-31",
+          "granularity": "month"
+        },
+        "group_by_dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "order": null,
+        "limit": 100,
+        "filters": []
+      }
+    },
+    {
+      "id": "REAL-02C",
+      "category": "user_clarification",
+      "question": "Classes de consumo",
+      "context": [
+        {
+          "role": "user",
+          "content": "Quanto foi o faturamento total de 2024 em janeiro, dividido por setores?"
+        },
+        {
+          "role": "assistant",
+          "content": "Por setores você quer dizer classes de consumo ou divisão geográfica?"
+        }
+      ],
+      "competencies": [
+        "2024-01",
+        "2024-02",
+        "2024-03",
+        "2024-04",
+        "2024-05",
+        "2024-06",
+        "2024-07",
+        "2024-08",
+        "2024-09",
+        "2024-10",
+        "2024-11",
+        "2024-12",
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05"
+      ],
+      "expected": {
+        "status": "planned",
+        "metric_id": "billing.revenue",
+        "window": {
+          "kind": "bounded",
+          "phrase": null,
+          "start": "2024-01-01",
+          "end": "2024-01-31",
+          "granularity": "month"
+        },
+        "group_by_dimension_ids": [
+          "customer.consumption_class"
+        ],
+        "order": null,
+        "limit": 100,
+        "filters": []
+      },
+      "expected_business_intent": "Aplicar confirmação expressa do usuário sem perder receita ou janeiro de 2024."
+    }
+  ]
+}

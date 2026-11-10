@@ -52,6 +52,7 @@ _DIMENSION_FIELDS = {
     "generation.distributed": "distributed_generation",
     "network.feeder": "feeder",
     "customer.consumer_unit": "consumer_unit",
+    "inspection.priority": "inspection_priority",
 }
 
 
@@ -96,10 +97,26 @@ _DIMENSIONS = (
         "customer.consumption_class",
         "Classe de consumo",
         "classification",
-        ("classe", "classe de consumo", "classes", "classes de consumo"),
         (
-            {"value": "RESIDENCIAL", "aliases": ("residencial", "residenciais")},
-            {"value": "COMERCIAL", "aliases": ("comercial", "comerciais")},
+            "classe", "classe de consumo", "classes", "classes de consumo",
+            "setor", "setores", "setor de consumo", "setores de consumo",
+        ),
+        (
+            {
+                "value": "RESIDENCIAL",
+                "aliases": (
+                    "residencial", "residenciais", "casa", "casas", "residência",
+                    "residências", "unidade residencial", "unidades residenciais",
+                    "domicílio", "domicílios", "família", "famílias",
+                ),
+            },
+            {
+                "value": "COMERCIAL",
+                "aliases": (
+                    "comercial", "comerciais", "comércio", "estabelecimento comercial",
+                    "estabelecimentos comerciais",
+                ),
+            },
             {"value": "INDUSTRIAL", "aliases": ("industrial", "industriais")},
             {"value": "PODER PUBLICO", "aliases": ("poder público",)},
             {"value": "RURAL", "aliases": ("rural", "rurais")},
@@ -125,6 +142,22 @@ _DIMENSIONS = (
         ),
     ),
     _dimension("network.feeder", "Alimentador", "other", ("alimentador", "alimentadores")),
+    _dimension(
+        "inspection.priority",
+        "Prioridade de inspeção",
+        "classification",
+        ("prioridade", "prioridades", "prioridade de inspeção", "fila de inspeção"),
+        (
+            {"value": "ALTA - HISTORICO IRREGULAR", "aliases": ("alta por histórico irregular",)},
+            {"value": "ALTA - CONSUMO ZERO", "aliases": ("alta por consumo zero", "consumo zero")},
+            {"value": "BAIXA", "aliases": ("baixa prioridade",)},
+            {"value": "MEDIA - NUNCA INSPECIONADO", "aliases": ("média, nunca inspecionado",)},
+            {
+                "value": "REVISAR - SEM HISTORICO DE CONSUMO",
+                "aliases": ("revisar sem histórico de consumo",),
+            },
+        ),
+    ),
     # Identificador da unidade: interno, não anônimo; acesso real depende de GENAI-06/07.
     _dimension(
         "customer.consumer_unit",
@@ -256,6 +289,16 @@ _BUSINESS_METRICS["energy.gd_units"] = (
         "não informa vigência histórica nem origem solar."
     ),
 )
+_BUSINESS_METRICS["customer.units_by_class"] = (
+    "Unidades consumidoras por classe",
+    "Conta UCs distintas no cadastro publicado, agrupadas pela classe atual; "
+    "não informa vigência histórica.",
+)
+_BUSINESS_METRICS["inspection.units_by_priority"] = (
+    "Unidades na fila por prioridade",
+    "Conta UCs distintas na fila publicada por prioridade; prioridade de inspeção "
+    "não é ocorrência confirmada.",
+)
 
 def _metric(
     id_: str,
@@ -287,10 +330,13 @@ def _metric(
             if id_ == "billing.revenue" else
             ("geography.neighborhood", "geography.municipality",
              "customer.consumption_class", "generation.distributed")
-            if id_ == "energy.consumption" else ()
+            if id_ == "energy.consumption" else
+            ("customer.consumption_class",) if id_ == "customer.units_by_class" else
+            ("inspection.priority",) if id_ == "inspection.units_by_priority" else ()
         ),
         "comparison_grouping_dimension_ids": (
-            ("geography.neighborhood",) if id_ == "energy.consumption" else ()
+            ("geography.neighborhood", "geography.municipality", "customer.consumption_class")
+            if id_ in {"energy.consumption", "billing.revenue"} else ()
         ),
         "grouping_requires_comparison": False,
         "required_filter_dimension_ids": (
@@ -305,14 +351,44 @@ def _metric(
 
 
 _METRICS = (
+    {
+        **_metric(
+            "customer.units_by_class", "consumption",
+            (
+                "quantidade de ucs por classe", "ucs por classe",
+                "unidades consumidoras por classe", "unidades por classe de consumo",
+            ),
+            "UCs", ("count",), ("customer.consumption_class",),
+            ("Retrato do cadastro atual; sem competência histórica.",),
+            accumulated=True,
+        ),
+        "default_period_phrase": "cadastro atual do lote Gold",
+        "accumulated_period_phrases": ("cadastro atual do lote Gold",),
+    },
+    {
+        **_metric(
+            "inspection.units_by_priority", "consumption",
+            (
+                "quantidade de ucs por prioridade", "ucs por prioridade",
+                "unidades na fila de inspeção", "fila de inspeção por prioridade",
+            ),
+            "UCs", ("count",), ("inspection.priority",),
+            ("Retrato da fila publicada; não confirma irregularidade nem consumo zero.",),
+            accumulated=True,
+        ),
+        "default_period_phrase": "fila de inspeção do lote Gold",
+        "accumulated_period_phrases": ("fila de inspeção do lote Gold",),
+    },
     _metric(
         "billing.revenue",
         "revenue",
         (
             "faturamento",
             "receita",
+            "receitas",
             "receita faturada",
             "valor faturado",
+            "valor das faturas",
             "faturamos",
             "faturou",
             "faturaram",
@@ -327,8 +403,8 @@ _METRICS = (
     _metric(
         "energy.consumption",
         "consumption",
-        ("consumo", "consumo de energia", "energia consumida", "volume residencial",
-         "volume comercial", "volume de consumo", "consumiu", "consumiram",
+        ("consumo", "consumo de energia", "energia consumida", "volume de consumo",
+         "consumiu", "consumiram",
          "consumimos", "consumido", "consumida", "consumidos", "consumidas",
          "energia gasta", "energia utilizada", "energia usada", "energia foi utilizada",
          "energia foi usada", "energia foi gasta"),
@@ -360,10 +436,14 @@ _METRICS = (
     _metric(
         "billing.effective_tariff",
         "revenue",
-        ("tarifa média efetiva", "tarifa efetiva", "preço médio por kWh",
-         "preço médio observado da energia", "preço observado", "preço médio observado"),
+        (
+            "tarifa média efetiva", "tarifa efetiva", "preço médio por kWh",
+            "preço médio do kWh", "custo médio do kWh", "custo médio por kWh",
+            "quanto custou o kWh em média", "quanto custou em média cada kWh",
+            "preço médio observado da energia", "preço observado", "preço médio observado",
+        ),
         "R$/kWh",
-        ("currency",),
+        ("currency", "energy"),
         _COMMERCIAL_WITH_UC,
         (
             "Preço observado: receita da base comparável dividida pelo consumo da mesma "
@@ -420,7 +500,11 @@ _METRICS = (
     _metric(
         "service.attendance",
         "service",
-        ("chamados", "atendimentos", "protocolos"),
+        (
+            "chamados", "atendimentos", "protocolos", "volume de chamados",
+            "volume de protocolos", "solicitações de atendimento",
+            "solicitação de atendimento", "pedidos de atendimento",
+        ),
         "protocolos",
         ("count",),
         ("customer.consumer_unit",),
@@ -429,7 +513,16 @@ _METRICS = (
     _metric(
         "service.satisfaction",
         "service",
-        ("satisfação", "nota de satisfação", "satisfação média"),
+        (
+            "satisfação", "nota de satisfação", "satisfação média",
+            "avaliou o atendimento", "avaliaram o atendimento",
+            "como avaliaram o atendimento", "como o pessoal avaliou o atendimento",
+            "avaliação do atendimento", "nota do atendimento", "nota média do atendimento",
+            "que nota os clientes deram ao atendimento",
+            "nota dos clientes para o atendimento",
+            "o que os clientes acharam do atendimento",
+            "o que os clientes pensam do atendimento",
+        ),
         "pontos",
         ("score",),
         ("customer.consumer_unit",),
@@ -501,7 +594,17 @@ _METRICS += (
         **_metric(
             "network.interruption_events",
             "network",
-            ("quantas interrupções", "número de interrupções", "contagem de interrupções"),
+            (
+                "quantas interrupções", "número de interrupções", "contagem de interrupções",
+                "quantas vezes a luz caiu", "quantas vezes faltou luz",
+                "quantas vezes caiu a energia", "quantas vezes a energia caiu",
+                "vezes que a luz caiu", "vezes que faltou luz",
+                "vezes que caiu a energia", "vezes que a energia caiu",
+                "quantos apagões", "quantos apagões ocorreram",
+                "número de ocorrências de falta de energia",
+                "contagem de ocorrências de falta de energia",
+                "ocorrências de falta de luz", "ocorrências de apagão",
+            ),
             "ocorrências",
             ("count",),
             ("network.feeder",),
@@ -619,14 +722,31 @@ def _build_profile() -> DomainProfile:
         for dimension in _DIMENSIONS
     )
     # Frases relativas; o planejador resolve limites com as competências do lote recebido.
-    values["period_phrases"] = (
+    fixed_period_phrases = (
         "últimos 12 meses",
         "último ano",
         "ano passado",
         "último trimestre",
         "últimos três meses",
         "últimos 3 meses",
+        "últimos seis meses",
+        "últimos 6 meses",
+        "últimos nove meses",
+        "últimos 9 meses",
         "mês passado",
+        "mês retrasado",
+        "há um mês",
+        "há 1 mês",
+        "um mês atrás",
+        "1 mês atrás",
+        "há dois meses",
+        "há 2 meses",
+        "dois meses atrás",
+        "2 meses atrás",
+        "há três meses",
+        "há 3 meses",
+        "três meses atrás",
+        "3 meses atrás",
         "este ano",
         "neste ano",
         "histórico acumulado",
@@ -634,6 +754,27 @@ def _build_profile() -> DomainProfile:
         _GD_SNAPSHOT,
         _PRICE_VOLUME_WINDOW,
     )
+    generated_period_phrases = tuple(
+        phrase
+        for count, word in enumerate(
+            (
+                "um", "dois", "três", "quatro", "cinco", "seis", "sete",
+                "oito", "nove", "dez", "onze", "doze",
+            ),
+            start=1,
+        )
+        for number in (str(count),)
+        for period_count in (word, number)
+        for unit in ("mês" if count == 1 else "meses",)
+        for phrase in (
+            f"há {period_count} {unit}",
+            f"{period_count} {unit} atrás",
+            *((f"últimos {period_count} {unit}",) if count > 1 else ()),
+        )
+    )
+    values["period_phrases"] = tuple(dict.fromkeys(
+        (*fixed_period_phrases, *generated_period_phrases)
+    ))
     values["period_windows"] = ()
     values["default_period_phrase"] = None
     values["structured_dimension_filters"] = True
@@ -645,9 +786,10 @@ def _build_profile() -> DomainProfile:
     # pede a comparação em vez de responder só o mês citado.
     values["comparison_terms"] = (
         *values["comparison_terms"], "perdeu", "variou", "variar", "variaram",
+        "crescimento", "cresceu", "cresceram", "aumento", "aumentou",
         "em relação a", "em relação ao", "comparando", "mudou", "mudaram",
     )
-    values["non_location_phrases"] = ()
+    values["non_location_phrases"] = ("em média",)
     values["ambiguities"] = (
         *values["ambiguities"],
         {
@@ -714,6 +856,79 @@ def _build_profile() -> DomainProfile:
             ),
         },
         {
+            "phrases": (
+                "volume residencial", "volume comercial", "volume faturado",
+                "volume de energia faturada",
+            ),
+            "resolved_metric_ids": ("energy.consumption",),
+            "clarification": (
+                "Neste contexto, volume residencial/comercial significa energia faturada em kWh. "
+                "A Gold v2 não publica essa medida, e consumo medido é outro indicador. "
+                "Quer consultar o consumo medido em kWh?"
+            ),
+        },
+        {
+            "phrases": ("volume de receita", "volume da receita", "volume em receita"),
+            "clarification": (
+                "Volume de receita pode significar quantidade de energia ou valor monetário. "
+                "Você quer consumo em kWh ou valor de receita faturada em reais?"
+            ),
+        },
+        {
+            "phrases": (
+                "conta da luz", "conta de energia", "conta de energia elétrica",
+            ),
+            "clarification": (
+                "‘Conta de luz’ pode significar consumo em kWh, valor faturado em reais ou "
+                "valor pago. A Gold v2 publica consumo medido e faturamento, mas não comprova "
+                "pagamentos. Qual desses você quer consultar?"
+            ),
+        },
+        {
+            "phrases": ("volume",),
+            "resolved_metric_ids": (
+                "energy.consumption", "service.attendance", "billing.price_volume",
+            ),
+            "clarification": (
+                "Quando você diz volume, quer consumo medido em kWh ou energia faturada em kWh? "
+                "Não vou presumir uma medida."
+            ),
+        },
+        {
+            "phrases": (
+                "tarifa homologada", "tarifa regulada", "tarifa regulamentada",
+                "tarifa autorizada pela aneel",
+            ),
+            "alternative_metric_ids": ("billing.effective_tariff",),
+            "clarification": (
+                "A tarifa homologada é diferente do preço médio observado. A medida regulatória "
+                "não está disponível neste catálogo Gold v2."
+            ),
+        },
+        {
+            "phrases": (
+                "quanto tempo ficou sem luz", "por quanto tempo ficou sem luz",
+                "tempo que ficou sem luz", "duração da falta de luz",
+                "duração da falta de energia", "tempo sem luz",
+                "quanto tempo os moradores ficaram sem luz",
+                "quanto tempo ficaram sem luz", "por quanto tempo ficaram sem luz",
+                "tempo que os moradores ficaram sem luz",
+            ),
+            "alternative_metric_ids": ("network.equivalent_interruption_duration",),
+            "clarification": (
+                "Entendi que você quer a duração da falta de energia. A Gold v2 não publica a "
+                "duração individual; publica o DEC em horas por UC, por alimentador e mês. "
+                "Quer consultar o DEC?"
+            ),
+        },
+        {
+            "phrases": ("reclamação", "reclamações", "queixa", "queixas"),
+            "clarification": (
+                "O catálogo conta protocolos abertos, mas não publica a categoria de "
+                "reclamações. Quer consultar todos os protocolos de atendimento?"
+            ),
+        },
+        {
             "resolved_metric_ids": (
                 "network.interruption_events", "network.equivalent_interruption_duration",
                 "network.equivalent_interruption_frequency",
@@ -722,8 +937,8 @@ def _build_profile() -> DomainProfile:
                 "interrupção",
                 "interrupções",
                 "falta de luz",
-                "quantas vezes faltou luz",
-                "vezes que faltou luz",
+                "faltou luz",
+                "onde mais faltou luz",
                 "faltas de luz",
                 "falta de energia",
                 "faltas de energia",
@@ -733,8 +948,9 @@ def _build_profile() -> DomainProfile:
                 "apagões",
             ),
             "clarification": (
-                "Sobre interrupções, consulto DEC (horas por UC) ou FEC (interrupções por UC) "
-                "por alimentador e mês. Qual dos dois você quer?"
+                "Falta de energia: ocorrências, duração (DEC, horas por UC), frequência (FEC) "
+                "ou UCs afetadas. Essa última medida não está publicada. Informe alimentador e "
+                "mês; apagão não indica causa ou porte."
             ),
         },
     )

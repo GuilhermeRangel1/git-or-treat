@@ -271,9 +271,11 @@ class QuestionAnalysisPlanner:
         contextual_profile = self._profile_with_dimension_values(dimensions)
         yield from spelling_suggestions(question, contextual_profile)
         normalized = _normalize(question)
-        for rule in self.profile.ambiguities:
-            if not any(_normalize(phrase) in normalized for phrase in rule.phrases):
-                continue
+        ambiguities = [
+            rule for rule in self.profile.ambiguities
+            if any(_find_phrases(question, (phrase,)) for phrase in rule.phrases)
+        ]
+        for rule in ambiguities:
             replacement = rule.confirmation_phrase
             alternative = None
             if replacement is None and len(rule.alternative_metric_ids) == 1:
@@ -288,6 +290,8 @@ class QuestionAnalysisPlanner:
             ):
                 yield candidate
             yield from rule.examples
+        if ambiguities:
+            return
         recognized_metrics = [metric for metric in self.profile.metrics
                               if _find_phrases(question, metric.aliases)]
         metrics = recognized_metrics or self.profile.metrics

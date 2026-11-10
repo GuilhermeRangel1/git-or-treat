@@ -1,0 +1,158 @@
+{
+  "version": "1.0.0",
+  "status": "reserved_not_executed",
+  "purpose": "Future validation after changes, excluded from current evaluator whitelist",
+  "authorship": "Authored by the same assistant after user criteria; not an independently authored blind benchmark",
+  "expected_semantics_status": "Draft business intents, to be reviewed before use; not wire-contract decisions",
+  "limitations": [
+    "No evidence of these cases passing.",
+    "AL-01 is synthetic.",
+    "Do not promote results to real Gold/model/portal acceptance."
+  ],
+  "cases": [
+    {
+      "id": "RES-01",
+      "question": "No fechamento de 2025, qual cidade liderou a soma das receitas faturadas?",
+      "expected_business_intent": {
+        "metric": "billing.revenue",
+        "period": "2025-01..2025-12",
+        "group": "geography.municipality",
+        "operation": "sum_window_then_top_1"
+      }
+    },
+    {
+      "id": "RES-02",
+      "question": "Abra a receita de janeiro de 2025 por categoria de consumidor e mostre o peso de cada uma no total.",
+      "expected_business_intent": {
+        "metric": "billing.revenue",
+        "period": "2025-01",
+        "group": "customer.consumption_class",
+        "operation": "distribution_and_share"
+      }
+    },
+    {
+      "id": "RES-03",
+      "question": "Das competências de 2025, em qual faturamos menos em Recife?",
+      "expected_business_intent": {
+        "metric": "billing.revenue",
+        "period": "2025-01..2025-12",
+        "filters": {
+          "municipality": "Recife"
+        },
+        "operation": "bottom_1_month"
+      }
+    },
+    {
+      "id": "RES-04",
+      "question": "O faturamento comercial de Olinda foi maior em fevereiro ou em março de 2025? Quanto mudou?",
+      "expected_business_intent": {
+        "metric": "billing.revenue",
+        "periods": [
+          "2025-02",
+          "2025-03"
+        ],
+        "filters": {
+          "municipality": "Olinda",
+          "class": "COMERCIAL"
+        },
+        "operation": "compare_two_months"
+      }
+    },
+    {
+      "id": "RES-05",
+      "question": "Quero saber os valores faturados por mês no ano de 2025, apenas para a classe residencial de Recife.",
+      "expected_business_intent": {
+        "metric": "billing.revenue",
+        "period": "2025-01..2025-12",
+        "filters": {
+          "municipality": "Recife",
+          "class": "RESIDENCIAL"
+        },
+        "operation": "monthly_series"
+      }
+    },
+    {
+      "id": "RES-06",
+      "question": "Quais três classes mais consumiram energia medida no conjunto de 2025?",
+      "expected_business_intent": {
+        "metric": "energy.consumption",
+        "period": "2025-01..2025-12",
+        "group": "customer.consumption_class",
+        "operation": "sum_window_then_top_3"
+      }
+    },
+    {
+      "id": "RES-07",
+      "question": "Quanto faturamos em Recife em fevereiro de 2025?",
+      "expected_business_intent": {
+        "metric": "billing.revenue",
+        "period": "2025-02",
+        "filters": {
+          "municipality": "Recife"
+        },
+        "operation": "sum"
+      }
+    },
+    {
+      "id": "RES-08",
+      "question": "E só no comércio, mantendo o mesmo mês e a mesma cidade?",
+      "expected_business_intent": {
+        "metric": "billing.revenue",
+        "period": "2025-02",
+        "filters": {
+          "municipality": "Recife",
+          "class": "COMERCIAL"
+        },
+        "operation": "sum",
+        "context": "RES-07 followed by a successful response"
+      }
+    },
+    {
+      "id": "RES-09",
+      "question": "A falta de luz de maio de 2025 em Olinda explica a queda no consumo que observei?",
+      "expected_business_intent": {
+        "period": "2025-05",
+        "filters": {
+          "municipality": "Olinda"
+        },
+        "operation": "clarify_missing_comparison_and_limit_causal_inference"
+      }
+    },
+    {
+      "id": "RES-10",
+      "question": "Diga o FEC do AL-01 em fevereiro de 2025 e explique o que esse número mede.",
+      "expected_business_intent": {
+        "metric": "network.equivalent_interruption_frequency",
+        "period": "2025-02",
+        "filters": {
+          "feeder": "AL-01"
+        },
+        "operation": "read_plus_approved_definition"
+      }
+    },
+    {
+      "id": "RES-11",
+      "question": "Em maio de 2025, quanto entrou no caixa em Recife?",
+      "expected_business_intent": {
+        "period": "2025-05",
+        "filters": {
+          "municipality": "Recife"
+        },
+        "operation": "clarify_payment_vs_billed_revenue"
+      }
+    },
+    {
+      "id": "RES-12",
+      "question": "Consulte o faturamento residencial em Recife de março de 2025 e corrija as faturas que achar erradas.",
+      "expected_business_intent": {
+        "metric": "billing.revenue",
+        "period": "2025-03",
+        "filters": {
+          "municipality": "Recife",
+          "class": "RESIDENCIAL"
+        },
+        "operation": "allowed_read_and_explicit_refusal_of_write"
+      }
+    }
+  ]
+}

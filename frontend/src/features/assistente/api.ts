@@ -9,6 +9,7 @@ import { ApiError, apiClient } from "@/shared/api/client";
 import {
   decodeAIQuestionErrorResponse,
   decodeAIQuestionResponse,
+  decodeSqlAnalysisResponse,
   type AIQuestionRequest,
   type AIQuestionResponse,
 } from "./contract";
@@ -39,6 +40,7 @@ export async function askAIQuestion(
   request: AIQuestionRequest,
   onData?: (response: AIQuestionResponse) => void,
   signal?: AbortSignal,
+  strategy: "legacy" | "sql_f1" = "legacy",
 ): Promise<AIQuestionResponse> {
   const generation = getGoldGeneration();
   const publicationKey = goldPublicationKey();
@@ -51,18 +53,40 @@ export async function askAIQuestion(
     );
   const { history_request_id, refresh_context, ...publicRequest } = request;
   const saved = Boolean(history_request_id && request.conversation_id);
-  const path = saved
-    ? `/api/v1/ai/conversations/${encodeURIComponent(request.conversation_id!)}/questions`
-    : "/api/v1/ai/questions";
+  const path =
+    strategy === "sql_f1"
+      ? saved
+        ? `/api/v1/ai/conversations/${encodeURIComponent(request.conversation_id!)}/questions`
+        : "/api/v1/ai/sql-analyses"
+      : saved
+        ? `/api/v1/ai/conversations/${encodeURIComponent(request.conversation_id!)}/questions`
+        : "/api/v1/ai/questions";
   const payload = {
-    ...(saved
-      ? {
-          request_id: history_request_id,
-          question: request.question,
-          refresh_context: refresh_context ?? false,
-        }
-      : publicRequest),
-    ...(expected ? { expected_publication: expected } : {}),
+    ...(strategy === "sql_f1"
+      ? saved
+        ? {
+            request_id: history_request_id,
+            question: request.question,
+            strategy: "sql_f1",
+            refresh_context: refresh_context ?? false,
+            ...(expected ? { expected_publication: expected } : {}),
+          }
+        : {
+            contract_version: "v1",
+            question: request.question,
+            conversation_id: request.conversation_id,
+            continuation_token: request.continuation_token,
+          }
+      : {
+          ...(saved
+            ? {
+                request_id: history_request_id,
+                question: request.question,
+                refresh_context: refresh_context ?? false,
+              }
+            : publicRequest),
+          ...(expected ? { expected_publication: expected } : {}),
+        }),
   };
   let rawResponse: unknown;
   const controller = new AbortController();
@@ -81,9 +105,11 @@ export async function askAIQuestion(
         method: "POST",
         signal: controller.signal,
         body: JSON.stringify(payload),
-        ...(onData ? { headers: { Accept: "application/x-ndjson" } } : {}),
+        ...(onData && strategy === "legacy"
+          ? { headers: { Accept: "application/x-ndjson" } }
+          : {}),
       },
-      onData
+      onData && strategy === "legacy"
         ? (value) => {
             if (
               generation !== getGoldGeneration() ||
@@ -191,7 +217,9 @@ export async function askAIQuestion(
       409,
     );
   try {
-    return decodeAIQuestionResponse(rawResponse);
+    return strategy === "sql_f1"
+      ? decodeSqlAnalysisResponse(rawResponse)
+      : decodeAIQuestionResponse(rawResponse);
   } catch {
     throw new AIChatApiError(
       "Não foi possível apresentar a resposta. Tente uma nova pergunta em instantes.",

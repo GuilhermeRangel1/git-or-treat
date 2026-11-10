@@ -1,5 +1,15 @@
 # Serviço: backend e banco local
 
+Revisão de Receita em 06/11/2026: `include_diagnosis` adiciona achados determinísticos a pedido do Resumo; chamadas normais não executam as consultas extras. O repositório agrega população faturada e pares UC/mês por conexão de GD, e `revenue_diagnosis.py` confere reconciliação, recorte e denominadores antes de publicar o achado. Variação financeira e efeitos têm elegibilidades separadas; subgrupo parcial não bloqueia sozinho a variação agregada conhecida. [Contrato atualizado](../contracts/revenue-dev03.md#achados-determinísticos-e-histórico-sob-demanda--06112026).
+
+Atualização Receita de 05/11/2026: o serviço Gold expõe bases P0/P1, percentuais observados elegíveis e agrupamento dos componentes V3 por município/bairro/classe, usando os mesmos fatos da decomposição, sem N+1. A comparação mensal preserva sua política anterior. Sem configuração de janelas, não consulta a tabela de decomposição e mantém a exploração mensal disponível. Contrato e limites em [Receita](../contracts/revenue-dev03.md#extensão-de-leitura-por-janelas--05112026); aceite com publicação V3 real permanece pendente no [plano](../plans/2026-11-05-receita-repaginacao.md).
+## Transição Text-to-SQL — 05/11/2026
+
+A [ADR-0025](../decisions/0025-text-to-sql-generativo.md) autoriza a direção de SQL candidato gerado pelo modelo, com validação/execução finais no Backend. [Contrato e matriz de consumidores](../contracts/text-to-sql-f1.md). Há preparação de schemas, contexto e adaptador; o caminho quantitativo implantado continua determinístico até integração e ativação explícitas. Não há liberação de SQL generativo pela simples validação do envelope. Referências abaixo ao fluxo antigo continuam descrevendo o runtime vigente e seu histórico.
+
+Na admissão/executor interno F1, o Backend compara schema ativo, tipos, grão/chave e privilégios de leitura com o catálogo antes de admitir e novamente dentro do snapshot antes do SQL. A readiness operacional compartilha essa checagem. O comando `scripts/check_genai_runtime.py` requer configuração da publicação/leitor reais; sem isso, evidência local de fixture não fecha TSQL-03 nem o aceite Gold.
+
+
 Execução Docker vigente: a composição padrão inicia toda a stack com Gold v2, papéis separados e bootstrap local. Demonstração fica somente no smoke explícito do CI. Consulte [inicialização Docker](../plans/2026-11-04-docker-gold-inicializacao.md).
 
 Memória de conversas longas (03/11/2026): a rota existente de histórico recupera,
@@ -37,6 +47,8 @@ Os trechos históricos de preparação abaixo que descrevem ausência de autenti
 O ingresso Backend deve aceitar prompt v3 antes de implantar a GenAI v3. O contrato público continua v1 e conserva a marca is_demo para a fonte sintética explícita. Fonte Gold indisponível não ativa demonstração.
 
 ## Responsabilidade
+
+Preparação Text-to-SQL (05/11/2026): `genai_sql_structure.review_sql_structure` analisa candidatos F1 com contexto recomposto pelo Backend, allowlist de nós/atributos, resolução de fonte/colunas e parâmetros extraídos da AST. Retorna inspeção intermediária imutável, sem conexão ou aprovação de execução. O coordenador público mantém sua estratégia vigente. Período, cobertura, recortes, prontidão e artefato final continuam pendentes; detalhes e limites no [contrato F1](../contracts/text-to-sql-f1.md#revisão-estrutural-backend--etapa-intermediária).
 
 Importar tabelas Gold exportadas, servir recortes consistentes ao portal, manter estado das ordens de inspeção e disponibilizar acesso controlado ao agente. Gold é a fonte analítica; ordens/status/resultados digitados no portal são dados operacionais e devem ter modelo e trilha separados para não sobrescrever a extração.
 
@@ -337,3 +349,23 @@ Continuação de 03/11: negociação opcional NDJSON preserva os clientes JSON e
 ## Cache e desempenho Gold v2 — implementação local em 04/11/2026
 
 Limites por bytes/entradas, coalescência dos insights, invalidação por contexto/publicação e redução das consultas do observador estão descritos no [plano de cache e desempenho](../plans/2026-11-04-genai-cache-desempenho.md). Autorização, prontidão, SQL e auditoria continuam executados; o cache não guarda permissão nem libera cobertura. Configuração, sincronização do namespace remoto, rollback, medições e limites constam no plano. Implementação no PR #123; CI remoto 41806936506 passou nos cinco jobs.
+
+
+Atualização Text-to-SQL de 05/11/2026: o caso de uso interno `genai_sql_observation.observe_sql_generation` liga contexto, cliente e revisão sob prazo absoluto compartilhado. A revisão inclui comparação de dois totais e diferença com linhagem por alias. Ainda não há chamador público, executor ou autorização de execução generativa; detalhes no contrato F1.
+
+Admissão Text-to-SQL (05/11/2026): `prepare_sql_candidate` compõe geração e admissão; `genai_sql_admission` reaproveita publicação/metadados e cliente de prontidão, vincula revisão e validade por digest e exige revalidação sem renovar prazo. Preparação interna sem chamador público ou executor; testes com I/O artificial não encerram Gold/grants. Detalhes no contrato F1.
+
+Executor Text-to-SQL interno (05/11/2026): `execute_sql_admission` revalida admissão, usa papel leitor/snapshot READ ONLY, timeout e cursor server-side, materializa com limites e descarta resultados após mudança de escopo/publicação. Engines analítico e de prontidão são argumentos distintos. Prova PostgreSQL descartável passou; admissão real completa, evidência e HTTP público ainda pendentes. Consulte o contrato F1.
+
+Evidência SQL F1 (05/11/2026): `build_sql_evidence` transforma execução admitida em contrato espelhado `text-to-sql-f1-evidence-v1`, com Decimal em texto, proveniência/linhagem e digests de resultado/execução/conteúdo. Não cria plano legado. Síntese generativa, auditoria e coordenação pública ainda não consomem esse envelope; detalhes e limites no contrato F1.
+
+### Catálogo Gold v2 para Text-to-SQL
+
+O Backend carrega `backend/app/catalogs/gold_v2.json`, derivado de `ai-agent/app/profiles/grid360_gold_mapping.py`. Gere pela raiz com `python scripts/generate-gold-v2-catalog.py`; `--check` detecta derivações desatualizadas e é exercitado pelo contrato entre serviços. `load_gold_catalog()` compara catálogo, readiness autorizada e modelos SQLAlchemy. Esta checagem local não substitui introspecção do schema/grants da publicação aprovada; o runtime deve negar candidato se a publicação não estiver pronta ou se sua identidade/capacidades não conferirem.
+
+
+`POST /api/v1/ai/sql-analyses` expõe a pipeline F1 autenticada por `ai:ask`, opt-in via `GENAI_SQL_EXECUTION_ENABLED` (false por padrão), apenas quando `ANALYTICS_SOURCE=gold` e o perfil atual permite faturamento. O contrato devolve evidência ou estado de esclarecimento/limitação, nunca SQL/parâmetros. A rota autenticada executou os sete oráculos numéricos sintéticos e o esclarecimento F1 no PostgreSQL 16 descartável, com prontidão/provedor substituídos; controle SQL separado na Gold ativa validou recortes disponíveis em READ ONLY sob leitor restrito. Isso fecha execução/evidência F1, sem afirmar chamada Gemini real, readiness automatizada real ou rota HTTP contra a publicação ativa. Referências e JUnits privados em `docs/plans/2026-11-06-tsql07-integracao-http-e1.md` e `work/`.
+
+## Atualização de 08/11/2026 — decisão de assunto antes da admissão
+
+`genai_sql_observation` valida a decisão declarada (`genai_question_feedback.enforce_scope_decision`) antes da revisão semântica e da admissão: candidato sem `scope_assessment` ou contraditório vira resposta inválida do provedor (falha técnica), nunca esclarecimento ou recusa de negócio. O Backend normaliza `reason_code`, substitui perguntas por município ou classe quando o assunto é incerto, limpa opções duplicadas ou com forma de comando SQL e responde `insufficient_coverage` sem chamar o modelo para ano completo sem as doze competências. `SqlParameterMismatch` do SQL do modelo agora também é resposta inválida tipada. Os campos `reason_code` e `options` fazem parte do `SqlAnalysisResponse` público e são persistidos no histórico privado. Ver [ADR-0026](../decisions/0026-assunto-declarado-e-motivos-de-recusa.md).

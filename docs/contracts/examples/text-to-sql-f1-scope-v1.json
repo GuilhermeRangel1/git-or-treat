@@ -1,0 +1,424 @@
+{
+  "version": "text-to-sql-f1-scope-v1",
+  "note": "Extensão aditiva do candidato F1: motivo tipado, assunto declarado e opções de esclarecimento. A versão da geração continua identificando a métrica (v1..v13); estes campos são independentes dela.",
+  "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "valid": [
+    {
+      "id": "executable_in_domain",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "sql_candidate",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "competency": {
+            "type": "string",
+            "value": "2026-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": []
+        },
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      }
+    },
+    {
+      "id": "uncertain_subject_asks_about_the_subject",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "clarification": {
+          "question": "Você se refere à organização de eventos esportivos UFC ou a outro contexto?",
+          "missing_fields": [
+            "context"
+          ],
+          "reason_code": "ambiguous_subject",
+          "options": []
+        },
+        "scope_assessment": {
+          "status": "uncertain",
+          "unresolved_terms": [
+            "UFC"
+          ]
+        }
+      }
+    },
+    {
+      "id": "external_subject_refusal",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "unsupported",
+        "unsupported_reason": {
+          "code": "metric_outside_f1",
+          "message": "Não tenho dados financeiros de eventos esportivos. Posso ajudar com os indicadores de energia da V-Energy.",
+          "reason_code": "out_of_domain"
+        },
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "luta de UFC"
+          ]
+        }
+      }
+    },
+    {
+      "id": "partial_coverage_offers_published_months",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "clarification": {
+          "question": "Os dados de 2026 cobrem janeiro a junho; faltam julho a dezembro. Quer consultar janeiro a junho de 2026?",
+          "missing_fields": [
+            "period"
+          ],
+          "reason_code": "insufficient_coverage",
+          "options": [
+            {
+              "label": "Janeiro a junho de 2026",
+              "question": "Qual a receita total em janeiro a junho de 2026?"
+            }
+          ]
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      }
+    },
+    {
+      "id": "missing_capability_is_not_an_external_subject",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "unsupported",
+        "unsupported_reason": {
+          "code": "metric_outside_f1",
+          "message": "Essa análise ainda não está disponível.",
+          "reason_code": "unsupported_capability"
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      }
+    },
+    {
+      "id": "security_refusal",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "unsupported",
+        "unsupported_reason": {
+          "code": "metric_outside_f1",
+          "message": "Esta ferramenta é somente de leitura e não altera dados.",
+          "reason_code": "security_restriction"
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      }
+    },
+    {
+      "id": "legacy_without_new_fields",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "clarification": {
+          "question": "Qual dos dois períodos você quer detalhar por mês?",
+          "missing_fields": [
+            "period",
+            "context"
+          ]
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "executable_with_external_subject",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "sql_candidate",
+        "sql": "SELECT SUM(receita_total_reais) AS revenue FROM gold_v2.diagnostico_receita WHERE municipio = :municipality AND competencia = :competency",
+        "parameters": {
+          "municipality": {
+            "type": "string",
+            "value": "Recife"
+          },
+          "competency": {
+            "type": "string",
+            "value": "2026-06"
+          }
+        },
+        "interpretation": {
+          "metric_id": "billing.revenue",
+          "operation": "total",
+          "aggregation": "sum",
+          "periods": [
+            {
+              "start": "2026-06-01",
+              "end": "2026-06-30"
+            }
+          ],
+          "filters": [
+            {
+              "dimension_id": "geography.municipality",
+              "operator": "eq",
+              "values": [
+                "Recife"
+              ]
+            }
+          ],
+          "group_by": []
+        },
+        "result_columns": [
+          {
+            "name": "revenue",
+            "role": "measure",
+            "value_type": "decimal",
+            "unit": "R$"
+          }
+        ],
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "UFC"
+          ]
+        }
+      }
+    },
+    {
+      "id": "uncertain_subject_with_refusal",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "unsupported",
+        "unsupported_reason": {
+          "code": "metric_outside_f1",
+          "message": "Fora do domínio.",
+          "reason_code": "out_of_domain"
+        },
+        "scope_assessment": {
+          "status": "uncertain",
+          "unresolved_terms": [
+            "UFC"
+          ]
+        }
+      }
+    },
+    {
+      "id": "external_subject_with_clarification",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "clarification": {
+          "question": "Qual município?",
+          "missing_fields": [
+            "filter"
+          ],
+          "reason_code": "ambiguous_subject",
+          "options": []
+        },
+        "scope_assessment": {
+          "status": "out_of_domain",
+          "unresolved_terms": [
+            "UFC"
+          ]
+        }
+      }
+    },
+    {
+      "id": "refusal_with_clarification_reason",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "unsupported",
+        "unsupported_reason": {
+          "code": "metric_outside_f1",
+          "message": "x",
+          "reason_code": "ambiguous_subject"
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      }
+    },
+    {
+      "id": "more_than_five_options",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "clarification": {
+          "question": "Qual ano?",
+          "missing_fields": [
+            "period"
+          ],
+          "reason_code": "missing_context",
+          "options": [
+            {
+              "label": "o0",
+              "question": "q0"
+            },
+            {
+              "label": "o1",
+              "question": "q1"
+            },
+            {
+              "label": "o2",
+              "question": "q2"
+            },
+            {
+              "label": "o3",
+              "question": "q3"
+            },
+            {
+              "label": "o4",
+              "question": "q4"
+            },
+            {
+              "label": "o5",
+              "question": "q5"
+            }
+          ]
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      }
+    },
+    {
+      "id": "more_than_three_unresolved_terms",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "clarification": {
+          "question": "x",
+          "missing_fields": [
+            "context"
+          ],
+          "reason_code": "ambiguous_subject",
+          "options": []
+        },
+        "scope_assessment": {
+          "status": "uncertain",
+          "unresolved_terms": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ]
+        }
+      }
+    },
+    {
+      "id": "unknown_reason_code",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "unsupported",
+        "unsupported_reason": {
+          "code": "metric_outside_f1",
+          "message": "x",
+          "reason_code": "because"
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      }
+    },
+    {
+      "id": "free_form_reasoning",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "clarification": {
+          "question": "x",
+          "missing_fields": [
+            "context"
+          ],
+          "reason_code": "ambiguous_subject",
+          "options": []
+        },
+        "scope_assessment": {
+          "status": "uncertain",
+          "unresolved_terms": [
+            "UFC"
+          ],
+          "reasoning": "parece esporte"
+        }
+      }
+    },
+    {
+      "id": "option_with_extra_field",
+      "payload": {
+        "generation_contract_version": "text-to-sql-f1-v1",
+        "context_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "needs_clarification",
+        "clarification": {
+          "question": "Qual ano?",
+          "missing_fields": [
+            "period"
+          ],
+          "reason_code": "missing_context",
+          "options": [
+            {
+              "label": "a",
+              "question": "b",
+              "sql": "SELECT 1"
+            }
+          ]
+        },
+        "scope_assessment": {
+          "status": "in_domain",
+          "unresolved_terms": []
+        }
+      }
+    }
+  ]
+}

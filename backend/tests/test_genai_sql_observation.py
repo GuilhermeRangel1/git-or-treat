@@ -1,0 +1,1080 @@
+import asyncio
+import json
+import logging
+
+import httpx
+import pytest
+from app.services.genai_client import (
+    GenAIQuestionClient,
+    GenAIResponseInvalid,
+    GenAIServiceUnavailable,
+    GenAITimeout,
+)
+from app.services.genai_deadline import GenAIRequestDeadline
+from app.services.genai_sql_context import (
+    SqlContextUnavailable,
+    build_sql_generation_context,
+    continuity_metric_question,
+    is_gd_consumption_drop_question,
+    is_periodized_accumulated_attendance_question,
+)
+from app.services.genai_sql_observation import (
+    _explicit_control_count_candidate,
+    _explicit_gd_consumption_drop_candidate,
+    _explicit_grouped_gd_units_candidate,
+    _explicit_monthly_comparison_candidate,
+    _explicit_monthly_ratio_candidate,
+    _explicit_monthly_satisfaction_candidate,
+    _is_annual_monthly_attendance_question,
+    _is_periodized_cadastral_snapshot_question,
+    _is_sensitive_personal_data_question,
+    _is_unsupported_percentage_ranking_question,
+    log_sql_context_ready,
+    log_sql_context_unavailable,
+    observe_sql_generation,
+)
+
+from tests.test_genai_sql_semantics import consumption_request, query
+from tests.test_genai_sql_structure import sql_request as fixture_sql_request
+
+sql_request = fixture_sql_request
+
+
+@pytest.mark.parametrize(
+    ("question", "metric_id"),
+    [
+        (
+            "Quais municípios tiveram a maior queda percentual no consumo?",
+            "energy.consumption",
+        ),
+        (
+            "Top 5 cidades com maior redução porcentual de faturamento.",
+            "billing.revenue",
+        ),
+    ],
+)
+def test_percentage_ranking_is_rejected_before_generation(
+    question, metric_id, sql_request,
+):
+    assert _is_unsupported_percentage_ranking_question(question)
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = question
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = ["geography.municipality"]
+    payload["temporal_coverage"] = [{
+        "metric_id": metric_id,
+        "kind": "monthly",
+        "competencies": ["2026-01", "2026-06"],
+    }]
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Ranking percentual fora do contrato não pode gerar SQL")
+
+    result = asyncio.run(observe_sql_generation(
+        request,
+        client=UnexpectedGenerator(),
+        deadline=GenAIRequestDeadline.start(60),
+        correlation_id="c" * 32,
+    ))
+
+    assert result.model_calls == 0
+    assert result.candidate.status == "unsupported"
+    assert result.review is None
+
+
+def test_sensitive_personal_data_request_is_refused_before_generation(sql_request):
+    question = "Liste nomes e dados pessoais dos titulares das UCs com maior consumo."
+    assert _is_sensitive_personal_data_question(question)
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = question
+    payload["access_scope"]["allowed_metric_ids"] = ["energy.consumption"]
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.consumption",
+        "kind": "monthly",
+        "competencies": ["2026-06"],
+    }]
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Pedido de dados pessoais deve ser recusado sem SQL/Gemini")
+
+    result = asyncio.run(observe_sql_generation(
+        request,
+        client=UnexpectedGenerator(),
+        deadline=GenAIRequestDeadline.start(60),
+        correlation_id="d" * 32,
+    ))
+
+    assert result.model_calls == 0
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
+    assert result.review is None
+
+
+def test_unsupported_attendance_satisfaction_composition_is_not_silently_reduced(
+    sql_request,
+):
+    question = (
+        "Compare o total de atendimentos e a satisfação média "
+        "de janeiro a junho de 2026."
+    )
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = question
+    payload["access_scope"]["allowed_metric_ids"] = ["service.satisfaction"]
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.satisfaction",
+        "kind": "monthly",
+        "competencies": [f"2026-{month:02d}" for month in range(1, 7)],
+    }]
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Uma pergunta composta não pode ser reduzida a uma métrica")
+
+    result = asyncio.run(observe_sql_generation(
+        request,
+        client=UnexpectedGenerator(),
+        deadline=GenAIRequestDeadline.start(60),
+        correlation_id="e" * 32,
+    ))
+
+    assert result.model_calls == 0
+    assert result.candidate.status == "unsupported"
+    assert result.review is None
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("Como se divide o total de unidades consumidoras entre as classes de consumo?", False),
+        ("Quantas UCs havia em cada classe em maio de 2026?", True),
+        ("Qual o total de UCs entre janeiro e junho?", True),
+        ("Quantas UCs temos desde 2025?", True),
+    ],
+)
+def test_cadastral_snapshot_period_guard_requires_temporal_cue(question, expected):
+    assert _is_periodized_cadastral_snapshot_question(question) is expected
+
+
+def test_units_by_plural_consumption_classes_builds_grouped_snapshot(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = (
+        "Como se divide o total de unidades consumidoras entre as classes de consumo?"
+    )
+    payload["access_scope"]["allowed_metric_ids"] = ["customer.units_by_class"]
+    payload["access_scope"]["allowed_dimension_ids"] = [
+        "customer.consumption_class",
+    ]
+    payload["temporal_coverage"] = [{
+        "metric_id": "customer.units_by_class", "kind": "none",
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "customer.consumption_class",
+        "values": ["COMERCIAL", "INDUSTRIAL", "PODER PUBLICO", "RESIDENCIAL", "RURAL"],
+    }]
+    request = type(sql_request).model_validate(payload)
+    context = build_sql_generation_context(request)
+
+    candidate = _explicit_control_count_candidate(request, context)
+
+    assert candidate is not None
+    assert candidate.interpretation.group_by == ("consumption_class",)
+    assert "GROUP BY classe" in candidate.sql
+
+
+def test_grouped_gd_snapshot_builds_typed_municipality_breakdown(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = "Quantas UCs com GD há em cada município?"
+    payload["access_scope"]["allowed_metric_ids"] = ["energy.gd_units"]
+    payload["access_scope"]["allowed_dimension_ids"] = [
+        "geography.municipality", "generation.distributed",
+    ]
+    payload["temporal_coverage"] = [{"metric_id": "energy.gd_units", "kind": "none"}]
+    payload["dimension_value_coverage"] = [
+        {"dimension_id": "geography.municipality", "values": ["OLINDA", "RECIFE"]},
+        {"dimension_id": "generation.distributed", "values": ["Não", "Sim"]},
+    ]
+    request = type(sql_request).model_validate(payload)
+    context = build_sql_generation_context(request)
+    candidate = _explicit_grouped_gd_units_candidate(request, context)
+
+    assert candidate is not None
+    assert candidate.interpretation.metric_id == "energy.gd_units"
+    assert candidate.interpretation.group_by == ("municipality",)
+    assert candidate.interpretation.filters[0].values == ("Sim",)
+    from app.services.genai_sql_semantics import review_sql_semantics
+
+    assert review_sql_semantics(candidate, request) is not None
+
+
+def test_generic_dec_fec_by_feeder_is_refused_without_generation(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = "Qual foi o DEC por alimentador de janeiro a junho de 2026?"
+    payload["access_scope"]["allowed_metric_ids"] = [
+        "network.equivalent_interruption_duration",
+    ]
+    payload["access_scope"]["allowed_dimension_ids"] = ["network.feeder"]
+    payload["temporal_coverage"] = [{
+        "metric_id": "network.equivalent_interruption_duration",
+        "kind": "monthly",
+        "competencies": [f"2026-{month:02d}" for month in range(1, 7)],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "network.feeder", "values": ["ALM-ABR-001"],
+    }]
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Quebra genérica por alimentador não pode chegar ao Gemini")
+
+    result = asyncio.run(observe_sql_generation(
+        request,
+        client=UnexpectedGenerator(),
+        deadline=GenAIRequestDeadline.start(60),
+        correlation_id="c" * 32,
+    ))
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.sql is None
+    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
+    assert result.model_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("question", "indicator", "metric_id", "alias", "add_directive"),
+    [
+        (
+            "Como ficaram o DEC e o FEC do alimentador ALM-ABR-001 de janeiro a junho de 2026?",
+            "DEC",
+            "network.equivalent_interruption_duration",
+            "dec_value",
+            True,
+        ),
+        (
+            "Como ficaram o DEC e o FEC do alimentador ALM-ABR-001 de janeiro a junho de 2026?",
+            "FEC",
+            "network.equivalent_interruption_frequency",
+            "fec_value",
+            True,
+        ),
+        (
+            "Qual foi o DEC do alimentador ALM-ABR-001 de janeiro a junho de 2026?",
+            "DEC",
+            "network.equivalent_interruption_duration",
+            "dec_value",
+            False,
+        ),
+        (
+            "Quanto deu de FEC no alimentador ALM-ABR-001 de janeiro a junho de 2026?",
+            "FEC",
+            "network.equivalent_interruption_frequency",
+            "fec_value",
+            False,
+        ),
+    ],
+)
+def test_explicit_weighted_continuity_range_uses_typed_plan_without_generation(
+    sql_request, question, indicator, metric_id, alias, add_directive
+):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = (
+        continuity_metric_question(question, indicator)
+        if add_directive
+        else question
+    )
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = ["network.feeder"]
+    payload["temporal_coverage"] = [{
+        "metric_id": metric_id,
+        "kind": "monthly",
+        "competencies": [f"2026-{month:02d}" for month in range(1, 7)],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "network.feeder",
+        "values": ["ALM-ABR-001", "ALM-OTHER-002"],
+    }]
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *_args, **_kwargs):
+            pytest.fail("a faixa explícita deve usar o plano tipado F1")
+
+    result = asyncio.run(observe_sql_generation(
+        request,
+        client=UnexpectedGenerator(),
+        deadline=GenAIRequestDeadline.start(30),
+        correlation_id="b" * 32,
+    ))
+
+    assert result.model_calls == 0
+    assert result.review.measure_semantics[0][0] == alias
+    numerator = (
+        "SUM(duracao_total_interrupcoes_horas)"
+        if indicator == "DEC"
+        else "SUM(frequencia_total_interrupcoes)"
+    )
+    assert numerator in result.review.canonical_sql
+    parameters = dict(result.review.parameter_items)
+    assert parameters["period_start"] == "2026-01"
+    assert parameters["period_end"] == "2026-06"
+    assert parameters["feeder_0"] == "ALM-ABR-001"
+    assert "ALM-ABR-001" not in result.review.canonical_sql
+
+
+def test_weighted_continuity_plan_does_not_infer_unknown_feeder_or_uncovered_range(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = continuity_metric_question(
+        "Como ficaram o DEC e o FEC do alimentador DESCONHECIDO de janeiro a junho de 2026?",
+        "DEC",
+    )
+    payload["access_scope"]["allowed_metric_ids"] = [
+        "network.equivalent_interruption_duration"
+    ]
+    payload["access_scope"]["allowed_dimension_ids"] = ["network.feeder"]
+    payload["temporal_coverage"] = [{
+        "metric_id": "network.equivalent_interruption_duration",
+        "kind": "monthly",
+        "competencies": ["2026-01", "2026-02"],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "network.feeder", "values": ["ALM-ABR-001"],
+    }]
+    request = type(sql_request).model_validate(payload)
+    from app.services.genai_sql_observation import (
+        _explicit_weighted_continuity_candidate,
+    )
+
+    assert _explicit_weighted_continuity_candidate(
+        request, build_sql_generation_context(request)
+    ) is None
+
+
+def run(
+    request,
+    *,
+    status="sql_candidate",
+    mutation=None,
+    http_status=200,
+    expired=False,
+    stage_expired=False,
+):
+    captured = []
+    clock = [0.0]
+
+    def handler(incoming):
+        body = json.loads(incoming.content)
+        captured.append(body)
+        assert incoming.url.path == "/api/v1/internal/sql-candidates"
+        candidate = query(request).model_dump(mode="json")
+        if mutation:
+            candidate = mutation(candidate)
+        if stage_expired:
+            clock[0] = 33
+        if status == "needs_clarification":
+            candidate = {
+                "status": status,
+                "generation_contract_version": "text-to-sql-f1-v1",
+                "context_version": body["context_version"],
+                "scope_assessment": {"status": "in_domain"},
+                "clarification": {
+                    "question": "Qual período?",
+                    "missing_fields": ["period"],
+                },
+            }
+        return httpx.Response(
+            http_status,
+            json={"correlation_id": "b" * 32, "candidate": candidate},
+            headers={"x-correlation-id": "b" * 32},
+        )
+
+    async def action():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            client = GenAIQuestionClient(
+                http_client=http,
+                base_url="http://genai",
+                service_token="synthetic-service-token-0000000000",
+            )
+            deadline = GenAIRequestDeadline.start(
+                60 if stage_expired else 10, clock=lambda: clock[0]
+            )
+            clock[0] = 11 if expired else 2
+            result = await observe_sql_generation(
+                request, client=client, deadline=deadline, correlation_id="b" * 32
+            )
+            assert captured[0]["remaining_timeout_ms"] == 8000
+            return result
+
+    return asyncio.run(action())
+
+
+def test_generation_and_semantic_review_share_backend_context_and_budget(sql_request):
+    result = run(sql_request)
+    assert result.review.measure_semantics == (("revenue", "revenue_total"),)
+
+
+def test_rejected_model_sql_becomes_a_sanitized_invalid_response(sql_request):
+    def invalid_aggregation(candidate):
+        candidate["sql"] = (
+            "SELECT AVG(receita_total_reais) AS revenue "
+            "FROM gold_v2.diagnostico_receita"
+        )
+        return candidate
+
+    with pytest.raises(GenAIResponseInvalid):
+        run(sql_request, mutation=invalid_aggregation)
+
+
+def test_context_telemetry_contains_versions_and_shape_but_not_prompt_or_values(
+    sql_request,
+    caplog,
+):
+    payload = sql_request.model_dump(mode="json")
+    payload["dimension_value_coverage"] = [
+        {
+            "dimension_id": "geography.municipality",
+            "values": ["Recife"],
+        }
+    ]
+    request = type(sql_request).model_validate(payload)
+    with caplog.at_level(logging.INFO, logger="app.services.genai_sql_observation"):
+        log_sql_context_ready(build_sql_generation_context(request), "b" * 32)
+
+    message = caplog.text
+    assert "genai_sql_context outcome=ready" in message
+    assert "correlation_id=" + "b" * 32 in message
+    assert "mapping_version=" in message
+    assert "dictionary_version=" in message
+    assert "billing.revenue" in message
+    assert "receita_total_reais" in message
+    assert "dimension_value_count=1" in message
+    assert "truncation=none" in message
+    assert request.question not in message
+    assert "Recife" not in message
+    assert request.access_scope.caller_ref not in message
+
+
+def test_context_rejection_logs_only_reason_and_size_not_context_values(
+    sql_request, caplog
+):
+    payload = sql_request.model_dump(mode="json")
+    payload["dimension_value_coverage"] = [
+        {
+            "dimension_id": "geography.municipality",
+            "values": [f"Municipio{i:04}" + "x" * 100 for i in range(700)],
+        }
+    ]
+    oversized = type(sql_request).model_validate(payload)
+    with caplog.at_level(logging.WARNING, logger="app.services.genai_sql_observation"):
+        with pytest.raises(SqlContextUnavailable) as error:
+            build_sql_generation_context(oversized)
+        log_sql_context_unavailable(error.value, "b" * 32)
+
+    message = caplog.text
+    assert "outcome=unavailable" in message
+    assert "reason=context_too_large" in message
+    assert "context_bytes=" in message
+    assert "Municipio" not in message
+    assert sql_request.access_scope.caller_ref not in message
+
+
+def test_clarification_does_not_generate_review_or_trigger_execution(sql_request):
+    assert run(sql_request, status="needs_clarification").review is None
+
+
+@pytest.mark.parametrize("scope_status", [None, "out_of_domain"])
+def test_scope_decision_is_required_and_consistent_before_sql_review(
+    sql_request, scope_status
+):
+    def mutate(candidate):
+        if scope_status is None:
+            candidate.pop("scope_assessment")
+        else:
+            candidate["scope_assessment"] = {"status": scope_status}
+        return candidate
+
+    with pytest.raises(GenAIResponseInvalid):
+        run(sql_request, mutation=mutate)
+
+
+def test_wrong_recuts_are_not_promoted_to_review(sql_request):
+    def mutate(candidate):
+        candidate["parameters"]["city"]["value"] = "Olinda"
+        return candidate
+
+    with pytest.raises(GenAIResponseInvalid):
+        run(sql_request, mutation=mutate)
+
+
+def test_provider_failure_is_not_a_clarification(sql_request):
+    with pytest.raises(GenAIServiceUnavailable):
+        run(sql_request, http_status=503)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Quantos chamados acumulados em janeiro de 2026?",
+        "Qual o histórico acumulado de atendimento em 2026?",
+        "Quantos protocolos acumulados nos últimos 12 meses?",
+        "Qual o total acumulado desde janeiro?",
+    ],
+)
+def test_accumulated_attendance_question_detects_explicit_time_window(question):
+    assert is_periodized_accumulated_attendance_question(question)
+
+
+def test_accumulated_attendance_with_period_is_refused_without_calling_agent(
+    sql_request,
+):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = "Quantos chamados no histórico acumulado em janeiro de 2026?"
+    payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_attendance"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "service.accumulated_attendance",
+            "kind": "none",
+        }
+    ]
+    request = type(sql_request).model_validate(payload)
+
+    async def action():
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: pytest.fail("pergunta periodizada não deve chamar o agente")
+            )
+        ) as http:
+            client = GenAIQuestionClient(
+                http_client=http,
+                base_url="http://genai",
+                service_token="synthetic-service-token-0000000000",
+            )
+            return await observe_sql_generation(
+                request,
+                client=client,
+                deadline=GenAIRequestDeadline.start(10),
+                correlation_id="b" * 32,
+            )
+
+    result = asyncio.run(action())
+    assert result.model_calls == 0
+    assert result.review is None
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Quantos protocolos de atendimento foram abertos ao longo de 2025?",
+        "Qual o total de chamados em 2024?",
+    ],
+)
+def test_annual_attendance_is_recognized_as_outside_monthly_operation(question):
+    assert _is_annual_monthly_attendance_question(question)
+
+
+def test_annual_attendance_is_refused_without_calling_agent(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = "Quantos protocolos de atendimento foram abertos ao longo de 2025?"
+    payload["access_scope"]["allowed_metric_ids"] = ["service.attendance"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.attendance",
+        "kind": "monthly",
+        "competencies": [f"2025-{month:02d}" for month in range(1, 13)],
+    }]
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("total anual de atendimento não deve chamar o agente")
+
+    result = asyncio.run(
+        observe_sql_generation(
+            request,
+            client=UnexpectedGenerator(),
+            deadline=GenAIRequestDeadline.start(60),
+            correlation_id="b" * 32,
+        )
+    )
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
+    assert result.model_calls == 0
+
+
+def test_explicit_comparison_plan_preserves_the_order_of_months(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = (
+        "Compare o consumo medido de Recife entre fevereiro e maio de 2026."
+    )
+    payload["access_scope"]["allowed_metric_ids"] = ["energy.consumption"]
+    payload["access_scope"]["allowed_dimension_ids"] = ["geography.municipality"]
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.consumption",
+        "kind": "monthly",
+        "competencies": ["2026-02", "2026-05"],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "geography.municipality", "values": ["RECIFE"],
+    }]
+    request = type(sql_request).model_validate(payload)
+    context = build_sql_generation_context(request)
+    candidate = _explicit_monthly_comparison_candidate(request, context)
+    assert candidate is not None
+    assert [period.start.month for period in candidate.interpretation.periods] == [2, 5]
+    assert {key: value.value for key, value in candidate.parameters.items()} == {
+        "period_0": "2026-02", "period_1": "2026-05", "municipality": "RECIFE",
+    }
+    from app.services.genai_sql_semantics import review_sql_semantics
+
+    review = review_sql_semantics(candidate, request)
+    assert dict(review.measure_semantics) == {
+        "period_0_total": "period_0_total",
+        "period_1_total": "period_1_total",
+        "period_0_minus_period_1": "period_0_minus_period_1",
+    }
+
+
+@pytest.mark.parametrize(
+    ("question", "metric_id", "months", "dimensions", "groups", "rank", "limit", "delta"),
+    [
+        (
+            "Quais foram os cinco municípios com maior aumento de receita entre maio e junho de 2026?",
+            "billing.revenue", (5, 6), ["geography.municipality"],
+            ("municipality",), "desc", 5, "period_1_minus_period_0",
+        ),
+        (
+            "Compare a receita por classe entre maio e junho de 2026.",
+            "billing.revenue", (5, 6), ["customer.consumption_class"],
+            ("consumption_class",), None, None, "period_1_minus_period_0",
+        ),
+        (
+            "Qual classe teve a maior variação de faturamento entre janeiro e junho de 2026?",
+            "billing.revenue", (1, 6), ["customer.consumption_class"],
+            ("consumption_class",), "desc", 1, "period_1_minus_period_0",
+        ),
+        (
+            "Quais foram os três municípios com maior aumento de consumo entre maio e junho de 2026?",
+            "energy.consumption", (5, 6), ["geography.municipality"],
+            ("municipality",), "desc", 3, "period_1_minus_period_0",
+        ),
+        (
+            "Qual foi a variação do consumo por classe de Olinda entre abril e junho de 2026?",
+            "energy.consumption", (4, 6),
+            ["customer.consumption_class", "geography.municipality"],
+            ("consumption_class",), None, None, "period_1_minus_period_0",
+        ),
+    ],
+)
+def test_explicit_grouped_comparison_uses_question_order_and_ranking(
+    sql_request, question, metric_id, months, dimensions, groups, rank, limit, delta
+):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = question
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = dimensions
+    payload["temporal_coverage"] = [{
+        "metric_id": metric_id,
+        "kind": "monthly",
+        "competencies": [f"2026-{month:02d}" for month in months],
+    }]
+    values = []
+    if "geography.municipality" in dimensions:
+        values.append({"dimension_id": "geography.municipality", "values": ["OLINDA", "RECIFE"]})
+    if "customer.consumption_class" in dimensions:
+        values.append({"dimension_id": "customer.consumption_class", "values": [
+            "COMERCIAL", "INDUSTRIAL", "PODER PUBLICO", "RESIDENCIAL", "RURAL",
+        ]})
+    payload["dimension_value_coverage"] = values
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("comparação agrupada explícita deve usar plano tipado")
+
+    result = asyncio.run(observe_sql_generation(
+        request,
+        client=UnexpectedGenerator(),
+        deadline=GenAIRequestDeadline.start(60),
+        correlation_id="d" * 32,
+    ))
+    assert result.candidate.status == "sql_candidate"
+    assert result.candidate.interpretation.operation == "comparison"
+    assert result.candidate.interpretation.group_by == groups
+    assert result.candidate.interpretation.ranking_direction == rank
+    assert result.candidate.interpretation.ranking_limit == limit
+    assert result.model_calls == 0
+    meanings = dict(result.review.measure_semantics)
+    assert delta in meanings.values()
+
+
+@pytest.mark.parametrize(
+    ("question", "metric_id", "kind", "aggregation", "alias"),
+    [
+        (
+            "Quantos chamados existem no histórico publicado?",
+            "service.accumulated_attendance",
+            "accumulated_total",
+            "attendance_accumulated_total",
+            "attendance",
+        ),
+        (
+            "Qual foi a média das avaliações registradas na base?",
+            "service.accumulated_satisfaction",
+            "accumulated_average",
+            "satisfaction_accumulated_average",
+            "satisfaction",
+        ),
+    ],
+)
+def test_accumulated_service_uses_typed_gold_aggregate_without_model(
+    sql_request, question, metric_id, kind, aggregation, alias
+):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = question
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [{"metric_id": metric_id, "kind": "none"}]
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("agregado histórico tipado não deve chamar o modelo")
+
+    result = asyncio.run(
+        observe_sql_generation(
+            request,
+            client=UnexpectedGenerator(),
+            deadline=GenAIRequestDeadline.start(60),
+            correlation_id="b" * 32,
+        )
+    )
+    assert result.model_calls == 0
+    assert result.candidate.interpretation.metric_id == metric_id
+    assert result.candidate.interpretation.operation == kind
+    assert result.candidate.sql.startswith("SELECT SUM(" if metric_id.endswith("attendance") else "SELECT AVG(")
+    assert dict(result.review.measure_semantics)[alias] == aggregation
+
+
+@pytest.mark.parametrize(
+    ("question", "metric_id", "alias", "semantic"),
+    [
+        (
+            "Em SÃO LOURENÇO DA MATA, quanto consumiu em média cada UC com leitura e GD em maio de 2026?",
+            "energy.average_consumption_per_uc",
+            "average_consumption_per_uc",
+            "average_consumption_per_uc",
+        ),
+        (
+            "Qual foi o preço observado por kWh faturado das UCs com GD em SÃO LOURENÇO DA MATA em maio de 2026?",
+            "billing.effective_tariff",
+            "effective_tariff",
+            "effective_tariff",
+        ),
+    ],
+)
+def test_explicit_gd_ratio_uses_typed_plan_with_gold_semantics(
+    sql_request, question, metric_id, alias, semantic
+):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = question
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = [
+        "geography.municipality", "generation.distributed",
+    ]
+    payload["temporal_coverage"] = [{
+        "metric_id": metric_id, "kind": "monthly", "competencies": ["2026-05"],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "geography.municipality", "values": ["SAO LOURENCO DA MATA"],
+    }, {
+        "dimension_id": "generation.distributed", "values": ["Sim", "Não"],
+    }]
+    request = type(sql_request).model_validate(payload)
+    context = build_sql_generation_context(request)
+    candidate = _explicit_monthly_ratio_candidate(request, context)
+    assert candidate is not None
+    filters_by_dimension = {
+        item.dimension_id: item.values for item in candidate.interpretation.filters
+    }
+    assert filters_by_dimension["geography.municipality"] == ("SAO LOURENCO DA MATA",)
+    assert filters_by_dimension["generation.distributed"] == ("Sim",)
+
+    from app.services.genai_sql_semantics import review_sql_semantics
+
+    review = review_sql_semantics(candidate, request)
+    assert dict(review.measure_semantics) == {alias: semantic}
+
+
+def test_monthly_satisfaction_candidate_uses_covered_utc_month(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = (
+        "Nos chamados que entraram em novembro de 2023, "
+        "qual foi a média das avaliações?"
+    )
+    payload["access_scope"]["allowed_metric_ids"] = ["service.satisfaction"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["temporal_coverage"] = [{
+        "metric_id": "service.satisfaction",
+        "kind": "monthly",
+        "competencies": ["2023-11"],
+    }]
+    payload["dimension_value_coverage"] = []
+    request = type(sql_request).model_validate(payload)
+    context = build_sql_generation_context(request)
+
+    candidate = _explicit_monthly_satisfaction_candidate(request, context)
+
+    assert candidate is not None
+    assert candidate.sql == (
+        "SELECT AVG(nota_satisfacao) AS satisfaction "
+        "FROM gold_v2.atendimentos_uc "
+        "WHERE data_abertura >= :period_start AND data_abertura < :period_end"
+    )
+    assert {key: value.value for key, value in candidate.parameters.items()} == {
+        "period_start": "2023-11-01T00:00:00Z",
+        "period_end": "2023-12-01T00:00:00Z",
+    }
+    from app.services.genai_sql_semantics import review_sql_semantics
+
+    review = review_sql_semantics(candidate, request)
+    assert dict(review.measure_semantics) == {"satisfaction": "satisfaction_average"}
+
+
+def test_explicit_neighborhood_class_and_municipality_build_typed_consumption_plan(sql_request):
+    question = (
+        "Qual foi o consumo medido no bairro CENTRO, da classe rural, "
+        "em ITAPISSUMA, em abril de 2026?"
+    )
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = question
+    payload["access_scope"]["allowed_metric_ids"] = ["energy.consumption"]
+    payload["access_scope"]["allowed_dimension_ids"] = [
+        "geography.municipality",
+        "geography.neighborhood",
+        "customer.consumption_class",
+    ]
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.consumption",
+        "kind": "monthly",
+        "competencies": ["2026-04"],
+    }]
+    payload["dimension_value_coverage"] = [
+        {"dimension_id": "geography.municipality", "values": ["ITAPISSUMA"]},
+        {"dimension_id": "geography.neighborhood", "values": ["CENTRO"]},
+        {"dimension_id": "customer.consumption_class", "values": ["RURAL"]},
+    ]
+    request = type(sql_request).model_validate(payload)
+    context = build_sql_generation_context(request)
+    candidate = _explicit_monthly_ratio_candidate(request, context)
+
+    assert candidate is not None
+    assert candidate.interpretation.metric_id == "energy.consumption"
+    assert candidate.interpretation.operation == "total"
+    assert {item.dimension_id: item.values for item in candidate.interpretation.filters} == {
+        "geography.municipality": ("ITAPISSUMA",),
+        "geography.neighborhood": ("CENTRO",),
+        "customer.consumption_class": ("RURAL",),
+    }
+    from app.services.genai_sql_semantics import review_sql_semantics
+
+    review = review_sql_semantics(candidate, request)
+    assert review is not None
+
+
+def test_expired_global_deadline_prevents_provider_call(sql_request):
+    with pytest.raises(GenAITimeout):
+        run(sql_request, expired=True)
+
+
+def test_envelope_budget_caps_wider_global_deadline(sql_request):
+    with pytest.raises(GenAITimeout):
+        run(sql_request, stage_expired=True)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual a receita de miojo em janeiro de 2026?",
+        "Como fazer uma receita de bolo?",
+        "Qual foi o FATURAMENTO DE HAMBÚRGUER em janeiro de 2026?",
+        "Qual a previsão do tempo em janeiro de 2026?",
+    ],
+)
+def test_explicit_external_subject_stops_before_the_generator(sql_request, question):
+    request = sql_request.model_copy(update={"question": question})
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Pedido externo chegou ao gerador")
+
+    result = asyncio.run(
+        observe_sql_generation(
+            request,
+            client=UnexpectedGenerator(),
+            deadline=GenAIRequestDeadline.start(60),
+            correlation_id="b" * 32,
+        )
+    )
+    assert result.review is None
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.sql is None
+    assert result.candidate.scope_assessment.status == "out_of_domain"
+    assert result.candidate.unsupported_reason.reason_code == "out_of_domain"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual foi a receita em janeiro de 2026?",
+        "Qual foi a receita de Recife em 2026?",
+        "Qual foi a receita residencial?",
+    ],
+)
+def test_energy_revenue_still_reaches_the_generator(sql_request, question):
+    request = sql_request.model_copy(update={"question": question})
+    assert run(request).review is not None
+
+
+def test_mixed_consumption_and_revenue_is_refused_without_partial_sql(sql_request):
+    request = consumption_request(sql_request).model_copy(
+        update={
+            "question": "Compare o consumo medido e o faturamento em junho de 2026.",
+        }
+    )
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Pergunta multi-métrica não pode chamar o gerador F1")
+
+    result = asyncio.run(
+        observe_sql_generation(
+            request,
+            client=UnexpectedGenerator(),
+            deadline=GenAIRequestDeadline.start(60),
+            correlation_id="b" * 32,
+        )
+    )
+    assert result.review is None
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.sql is None
+    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
+    assert result.model_calls == 0
+
+
+def test_gd_consumption_drop_uses_typed_candidate_with_approved_fixed_windows(
+    sql_request,
+):
+    payload = consumption_request(sql_request).model_dump(mode="json")
+    payload["question"] = "Quantas UCs com GD tiveram queda de consumo superior a 30%?"
+    payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
+    payload["access_scope"]["allowed_metric_ids"].append("energy.gd_consumption_drop")
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "energy.gd_consumption_drop",
+            "kind": "none",
+        }
+    ]
+    payload["dimension_value_coverage"].append(
+        {
+            "dimension_id": "generation.distributed",
+            "values": ["Não", "Sim"],
+        }
+    )
+    request = type(sql_request).model_validate(payload)
+    assert is_gd_consumption_drop_question(request.question)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("A métrica GD aprovada deve usar o plano tipado")
+
+    result = asyncio.run(observe_sql_generation(
+        request,
+        client=UnexpectedGenerator(),
+        deadline=GenAIRequestDeadline.start(60),
+        correlation_id="b" * 32,
+    ))
+
+    assert result.model_calls == 0
+    assert result.candidate.interpretation.metric_id == "energy.gd_consumption_drop"
+    assert result.candidate.interpretation.aggregation == "count_gd_drop"
+    assert "meses_com_leitura_p1 >= :minimum_months" in result.candidate.sql
+    assert dict(result.review.measure_semantics) == {
+        "gd_drop_units": "gd_consumption_drop_units",
+    }
+
+
+def test_gd_drop_followup_inherits_explicit_municipality_and_metric(sql_request):
+    payload = consumption_request(sql_request).model_dump(mode="json")
+    payload["question"] = "E quantas tiveram queda elegível acima de 30%?"
+    payload["context"] = [{
+        "role": "user",
+        "content": "Quantas UCs com GD estão cadastradas em Recife?",
+    }]
+    payload["access_scope"]["allowed_dimension_ids"].append("generation.distributed")
+    payload["access_scope"]["allowed_metric_ids"].extend([
+        "energy.gd_units", "energy.gd_consumption_drop",
+    ])
+    payload["temporal_coverage"] = [{
+        "metric_id": "energy.gd_consumption_drop", "kind": "none",
+    }]
+    payload["dimension_value_coverage"] = [
+        {"dimension_id": "generation.distributed", "values": ["Não", "Sim"]},
+        {"dimension_id": "geography.municipality", "values": ["RECIFE"]},
+    ]
+    request = type(sql_request).model_validate(payload)
+    context = build_sql_generation_context(request)
+    candidate = _explicit_gd_consumption_drop_candidate(request, context)
+
+    assert context.metric_ids == ("energy.gd_consumption_drop",)
+    assert candidate is not None
+    assert {item.dimension_id: item.values for item in candidate.interpretation.filters} == {
+        "generation.distributed": ("Sim",),
+        "geography.municipality": ("RECIFE",),
+    }
+    assert "municipio = :municipality" in candidate.sql
+    from app.services.genai_sql_semantics import review_sql_semantics
+
+    assert review_sql_semantics(candidate, request) is not None
+
+
+def test_periodized_accumulated_satisfaction_is_refused_before_model_call(sql_request):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = (
+        "Qual foi a nota média de satisfação no histórico acumulado em 2025?"
+    )
+    payload["access_scope"]["allowed_metric_ids"] = ["service.accumulated_satisfaction"]
+    payload["access_scope"]["allowed_dimension_ids"] = []
+    payload["dimension_value_coverage"] = []
+    payload["temporal_coverage"] = [
+        {
+            "metric_id": "service.accumulated_satisfaction",
+            "kind": "none",
+        }
+    ]
+    request = type(sql_request).model_validate(payload)
+
+    class UnexpectedGenerator:
+        async def generate_sql_candidate(self, *args, **kwargs):
+            pytest.fail("Histórico sem janela não deve responder a pedido anual")
+
+    result = asyncio.run(
+        observe_sql_generation(
+            request,
+            client=UnexpectedGenerator(),
+            deadline=GenAIRequestDeadline.start(60),
+            correlation_id="b" * 32,
+        )
+    )
+
+    assert result.candidate.status == "unsupported"
+    assert result.candidate.unsupported_reason.code == "operation_outside_f1"
+    assert result.model_calls == 0

@@ -34,8 +34,12 @@ def comparison_records(
             delta = (Decimal(str(periods[target]["value"]))
                      - Decimal(str(periods[baseline]["value"])))
             candidates.append((delta, name, rows))
-        # O ranking usa a variação absoluta e desempata pelo rótulo, após conferir todos os grupos.
-        _, _, records = min(candidates, key=lambda item: (item[0], item[1]))
+        # Ordena pela variação absoluta solicitada; desempate estável pelo rótulo.
+        descending = plan.order is not None and plan.order.direction.value == "desc"
+        _, _, records = min(
+            candidates,
+            key=lambda item: (-item[0] if descending else item[0], item[1]),
+        )
     by_period = {row.get("period"): row for row in records}
     if len(records) != 2 or set(by_period) != {baseline, target}:
         raise ComparisonUnavailable

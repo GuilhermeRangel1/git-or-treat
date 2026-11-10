@@ -1,0 +1,47 @@
+{
+  "version": "text-to-sql-f1-authorial-reserve-1",
+  "independence": "Authored by implementing agent and visible in repository; not an independent or secret holdout. Never included in baseline or prompt examples.",
+  "frozen_before": "Future prompt or generator changes after this benchmark delivery.",
+  "cases": [
+    {
+      "id": "R01",
+      "question": "Em junho de 2026, quanto foi faturado na cidade de Recife ao todo?",
+      "reference_id": "F1-01"
+    },
+    {
+      "id": "R02",
+      "question": "Preciso do valor de todas as faturas de Recife acumuladas nos seis primeiros meses de 2026.",
+      "reference_id": "F1-03"
+    },
+    {
+      "id": "R03",
+      "question": "Faça uma lista dos valores faturados por Recife, um para cada mês do primeiro semestre de 2026.",
+      "reference_id": "F1-05"
+    },
+    {
+      "id": "R04",
+      "question": "Considerando toda a base, ordene as cinco cidades que mais faturaram no acumulado do primeiro semestre de 2026.",
+      "reference_id": "F1-06"
+    },
+    {
+      "id": "R05",
+      "question": "No faturamento de Recife em junho de 2026, quanto veio de cada classe de consumo?",
+      "reference_id": "F1-07"
+    },
+    {
+      "id": "R06",
+      "question": "Quero os faturamentos totais de Recife no primeiro semestre de 2025 e no primeiro semestre de 2026 e a diferença em reais.",
+      "reference_id": "F1-04"
+    },
+    {
+      "id": "R07",
+      "question": "Quanto foi faturado por Recife em todos os doze meses de 2026?",
+      "reference_id": "F1-02"
+    },
+    {
+      "id": "R08",
+      "question": "Quanto somou, em reais, o que foi faturado para Recife em junho de 2026?",
+      "reference_id": "F1-08"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { MunicipalityMetric } from "./contract";
@@ -6,6 +7,7 @@ import { decodeTerritoryMap, type TerritoryMapGeoJSON } from "./contract";
 import { classifyMapValues } from "./map-scale";
 import { valueForLayer } from "./map-values";
 import type { MapLayer } from "./map-state";
+import { fitView, prefersReducedMotion } from "./map-view";
 import "./map.css";
 
 type Props = {
@@ -14,6 +16,7 @@ type Props = {
   selectedCode: string;
   partialCodes: ReadonlySet<string>;
   onSelect: (code: string) => void;
+  onClearSelection?: () => void;
 };
 
 export default function MunicipalityMap({
@@ -22,6 +25,7 @@ export default function MunicipalityMap({
   selectedCode,
   partialCodes,
   onSelect,
+  onClearSelection,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -91,8 +95,12 @@ export default function MunicipalityMap({
     });
     mapRef.current = map;
     setMapReady(true);
-    const onResize = () =>
+    const onResize = () => {
       map.invalidateSize({ pan: false, debounceMoveend: true });
+      // O enquadramento pode ter sido calculado antes do layout assentar
+      // (barra lateral, rolagem): refaz para o mapa nunca ficar cortado.
+      fitView(map, layerRef.current, visualRef.current.selectedCode, false);
+    };
     const resizeObserver =
       typeof ResizeObserver === "undefined"
         ? null
@@ -152,15 +160,10 @@ export default function MunicipalityMap({
         });
         const select = () => {
           selectRef.current(code);
-          const featureLayer = polygon as L.Polygon;
-          const reduceMotion = window.matchMedia(
-            "(prefers-reduced-motion: reduce)",
-          ).matches;
-          map.fitBounds(featureLayer.getBounds(), {
-            padding: [18, 18],
-            maxZoom: 10,
-            animate: !reduceMotion,
-          });
+          // A seleção muda a URL e o efeito abaixo enquadra o município. Se ele
+          // já estava selecionado, não há mudança de URL: enquadra aqui.
+          if (code === visualRef.current.selectedCode)
+            fitView(map, layerRef.current, code, !prefersReducedMotion());
         };
         polygon.on("click", select);
         polygon.on("add", () => {
@@ -186,13 +189,7 @@ export default function MunicipalityMap({
       },
     }).addTo(map);
     layerRef.current = polygons;
-    const bounds = polygons.getBounds();
-    if (bounds.isValid())
-      map.fitBounds(bounds, {
-        padding: [20, 20],
-        maxZoom: 9,
-        animate: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-      });
+    fitView(map, polygons, "", !prefersReducedMotion());
     return () => {
       keyboardHandlers.forEach(({ element, handler }) =>
         element.removeEventListener("keydown", handler),
@@ -234,14 +231,20 @@ export default function MunicipalityMap({
     });
   }, [itemByCode, layer, scale, selectedCode]);
 
+  // Escolher um município (no mapa, na lista ou por link) enquadra aquele
+  // município; limpar a seleção volta a mostrar a RMR inteira.
+  const previousSelected = useRef(selectedCode);
+  useEffect(() => {
+    const had = previousSelected.current;
+    previousSelected.current = selectedCode;
+    const map = mapRef.current;
+    if (!map || (!selectedCode && !had)) return;
+    fitView(map, layerRef.current, selectedCode, !prefersReducedMotion());
+  }, [selectedCode, geojson]);
+
   function resetBounds() {
-    const bounds = layerRef.current?.getBounds();
-    if (bounds?.isValid())
-      mapRef.current?.fitBounds(bounds, {
-        padding: [20, 20],
-        maxZoom: 9,
-        animate: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-      });
+    const map = mapRef.current;
+    if (map) fitView(map, layerRef.current, "", !prefersReducedMotion());
   }
 
   return (
@@ -256,14 +259,26 @@ export default function MunicipalityMap({
           </h2>
           <p className="text-xs text-muted">Contornos municipais da RMR</p>
         </div>
-        <button
-          type="button"
-          className="min-h-10 shrink-0 rounded-lg border border-control px-3 text-xs font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-          onClick={resetBounds}
-          disabled={!mapReady}
-        >
-          Enquadrar RMR
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {selectedCode && onClearSelection ? (
+            <button
+              type="button"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-control px-3 text-xs font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              onClick={onClearSelection}
+            >
+              <X aria-hidden="true" className="size-4" />
+              Limpar seleção
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="min-h-10 shrink-0 rounded-lg border border-control px-3 text-xs font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            onClick={resetBounds}
+            disabled={!mapReady}
+          >
+            Enquadrar RMR
+          </button>
+        </div>
       </div>
       <div
         ref={containerRef}
@@ -271,11 +286,16 @@ export default function MunicipalityMap({
         role="application"
         aria-label="Mapa. Use a lista acessível para selecionar municípios."
       />
-      <p className="border-t border-border px-4 py-2 text-[11px] leading-4 text-muted">
-        Contornos municipais: IBGE, Malhas Territoriais Municipais 2022. A
-        região segue a composição metropolitana após a LC-PE 426/2020;
-        atualização legal mais recente consultada em 2026.
-      </p>
+      <details className="border-t border-border px-4 py-2 text-[11px] leading-4 text-muted">
+        <summary className="cursor-pointer select-none">
+          Fonte dos contornos
+        </summary>
+        <p className="mt-1">
+          Contornos municipais: IBGE, Malhas Territoriais Municipais 2022. A
+          região segue a composição metropolitana após a LC-PE 426/2020;
+          atualização legal mais recente consultada em 2026.
+        </p>
+      </details>
       {geoError ? (
         <p
           role="status"

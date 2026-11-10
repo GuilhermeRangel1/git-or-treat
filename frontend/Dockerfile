@@ -1,6 +1,7 @@
 FROM node:24-slim AS build
 WORKDIR /app
-ENV VITE_API_URL=/
+ARG VITE_GENAI_SQL_ANALYSIS_ENABLED=false
+ENV VITE_API_URL=/ VITE_GENAI_SQL_ANALYSIS_ENABLED=${VITE_GENAI_SQL_ANALYSIS_ENABLED}
 COPY frontend/package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ .

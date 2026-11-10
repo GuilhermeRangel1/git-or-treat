@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+﻿import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   fireEvent,
   render,
@@ -212,7 +212,7 @@ it("oculta colunas inteiramente ausentes e volta a mostrá-las para zero observa
   await user.click(screen.getByRole("button", { name: /Ver tabela da série/ }));
   const dialog = screen.getByRole("dialog", { name: "Tabela da série" });
   expect(
-    within(dialog).queryByRole("columnheader", { name: "Receita paga (BRL)" }),
+    within(dialog).queryByRole("columnheader", { name: "Receita paga (R$)" }),
   ).not.toBeInTheDocument();
   expect(
     within(dialog).queryByRole("columnheader", {
@@ -226,7 +226,7 @@ it("oculta colunas inteiramente ausentes e volta a mostrá-las para zero observa
   data.data.series[0].billed_energy_kwh = 0;
   rerender(<RevenueSeries envelope={data as unknown as RevenueEnvelope} />);
   expect(
-    screen.getByRole("columnheader", { name: "Receita paga (BRL)" }),
+    screen.getByRole("columnheader", { name: "Receita paga (R$)" }),
   ).toBeVisible();
   expect(
     screen.getByRole("columnheader", { name: "Energia faturada (kWh)" }),
@@ -279,6 +279,128 @@ function mountPage(initialEntry = "/receita") {
   );
 }
 
+it("separa as três leituras e permite navegação de abas pelo teclado", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation(
+        () => new Response(JSON.stringify(response), { status: 200 }),
+      ),
+  );
+  mountPage();
+  expect(
+    await screen.findByRole("region", { name: "Resumo da receita" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("region", { name: "Decomposição por recorte" }),
+  ).not.toBeInTheDocument();
+  const summary = screen.getByRole("tab", { name: "Resumo" });
+  summary.focus();
+  await userEvent.keyboard("{ArrowRight}");
+  await waitFor(() =>
+    expect(screen.getByRole("tab", { name: "Investigar queda" })).toHaveFocus(),
+  );
+  expect(
+    screen.getByRole("region", { name: "Decomposição por recorte" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("tab", { name: "Evolu\u00e7\u00e3o mensal" }),
+  ).not.toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Ver hist\u00f3rico deste recorte" }),
+  );
+  expect(
+    await screen.findByRole("dialog", { name: "Hist\u00f3rico do recorte" }),
+  ).toBeVisible();
+});
+
+it("mantém investigação mensal quando as janelas estão indisponíveis", async () => {
+  const unavailable = {
+    ...response,
+    data: {
+      ...response.data,
+      window_decomposition: {
+        status: "unavailable",
+        windows: [],
+        method: null,
+        components: {},
+        total_change_brl: null,
+        residual_brl: null,
+        group_count: 0,
+        incomplete_groups: 0,
+        limitations: ["Sem recorte por alimentador."],
+      },
+      window_breakdown: [],
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation(
+        () => new Response(JSON.stringify(unavailable), { status: 200 }),
+      ),
+  );
+  mountPage("/receita?aba=investigar");
+  expect(
+    await screen.findByRole("region", { name: "Decomposição por recorte" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/A investigação abaixo compara somente/),
+  ).toBeVisible();
+});
+
+it("preserva a métrica investigada ao trocar de aba", async () => {
+  const data = {
+    ...response,
+    data: {
+      ...response.data,
+      window_decomposition: {
+        status: "available",
+        windows: ["2022-07", "2023-06", "2025-07", "2026-06"],
+        method: "V3",
+        components: {
+          preco: 1,
+          volume: -1,
+          interacao: 0,
+          entradas: 0,
+          saidas: 0,
+          sem_leitura: 0,
+          outros: 0,
+        },
+        total_change_brl: 0,
+        residual_brl: 0,
+        group_count: 1,
+        incomplete_groups: 0,
+        limitations: [],
+      },
+      window_breakdown: [],
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockImplementation(
+        () => new Response(JSON.stringify(data), { status: 200 }),
+      ),
+  );
+  mountPage("/receita?aba=investigar&metrica=preco");
+  expect(
+    await screen.findByLabelText("Comparar impacto na receita"),
+  ).toHaveValue("preco");
+  await userEvent.selectOptions(
+    screen.getByLabelText("Comparar impacto na receita"),
+    "receita",
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Resumo" }));
+  await userEvent.click(screen.getByRole("tab", { name: "Investigar queda" }));
+  expect(screen.getByLabelText("Comparar impacto na receita")).toHaveValue(
+    "receita",
+  );
+});
+
 it("mostra as janelas Gold separadas da comparação mensal e sinaliza base incompleta", async () => {
   const gold = structuredClone(response);
   gold.data.price_volume.reference_version = "gold-csv-v2";
@@ -311,28 +433,23 @@ it("mostra as janelas Gold separadas da comparação mensal e sinaliza base inco
     "fetch",
     vi
       .fn()
-      .mockResolvedValue(new Response(JSON.stringify(v2), { status: 200 })),
+      .mockImplementation(
+        () => new Response(JSON.stringify(v2), { status: 200 }),
+      ),
   );
   mountPage("/receita?competencia_inicio=2025-01&competencia_fim=2025-02");
   expect(
-    await screen.findByRole("heading", { name: "Preço × volume por janela" }),
+    await screen.findByRole("heading", {
+      name: /A receita aumentou/,
+    }),
+  ).toBeVisible();
+  expect(screen.getByText("Dados parciais · R$")).toBeVisible();
+  expect(
+    screen.getByRole("heading", { name: "O que ajuda a explicar a variação" }),
   ).toBeVisible();
   expect(
-    screen.getByText("Jan/2023–Dez/2023 vs. Jan/2024–Dez/2024"),
-  ).toBeVisible();
-  expect(
-    screen.getByText(/Parcial: 1 de 3 grupos sem cobertura completa/),
-  ).toBeVisible();
-  expect(
-    screen.getByText(
-      /1 de 3 grupos sem base comum; as parcelas somam apenas valores conhecidos/,
-    ),
-  ).toBeVisible();
-  expect(
-    screen.getByText(
-      /Janelas fixas da análise, independentes do período da série/,
-    ),
-  ).toBeVisible();
+    screen.queryByRole("region", { name: /S?rie mensal/i }),
+  ).not.toBeInTheDocument();
   vi.unstubAllGlobals();
 });
 
@@ -350,7 +467,9 @@ it("mantém o período e omite identificadores técnicos na Receita", async () =
     "fetch",
     vi
       .fn()
-      .mockResolvedValue(new Response(JSON.stringify(gold), { status: 200 })),
+      .mockImplementation(
+        () => new Response(JSON.stringify(gold), { status: 200 }),
+      ),
   );
   mountPage("/receita?competencia_inicio=2025-01&competencia_fim=2025-02");
   expect(
@@ -435,8 +554,8 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(response), { status: 200 }),
+        .mockImplementation(
+          () => new Response(JSON.stringify(response), { status: 200 }),
         ),
     );
 
@@ -470,12 +589,6 @@ describe("Receita", () => {
     expect(
       screen.queryByText("Ajuste de arredondamento"),
     ).not.toBeInTheDocument();
-    const breakdown = screen.getByRole("region", {
-      name: "Decomposição por recorte",
-    });
-    expect(within(breakdown).getByText("Base adequada")).toBeVisible();
-    expect(within(breakdown).getByText(/Antes: 10/)).toBeVisible();
-    expect(within(breakdown).getByText(/Final: 10 UCs/)).toBeVisible();
     expect(screen.queryByText("Cobertura parcial")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Ver acumulados e extremos"),
@@ -497,9 +610,12 @@ describe("Receita", () => {
       screen.queryByText("Ver método, cobertura e limitações"),
     ).not.toBeInTheDocument();
 
+    await user.click(
+      screen.getByRole("button", { name: "Ver hist\u00f3rico deste recorte" }),
+    );
     const series = screen.getByRole("region", { name: /Série mensal/i });
     expect(
-      within(series).getByText(/Receita faturada por mês \(BRL\)\./),
+      within(series).getByText(/Receita faturada por mês \(R\$\)\./),
     ).toBeVisible();
     expect(
       within(series).getByRole("button", { name: /Ver tabela da série/ }),
@@ -525,7 +641,7 @@ describe("Receita", () => {
     await user.click(
       within(series).getByRole("button", { name: /Ver tabela da série/ }),
     );
-    const seriesDialog = screen.getByRole("dialog");
+    const seriesDialog = screen.getByRole("dialog", { name: /Hist/ });
     expect(within(seriesDialog).getByRole("table")).toBeVisible();
     const january = within(seriesDialog).getByRole("row", {
       name: /Jan\/2025/,
@@ -583,13 +699,16 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(reconciled), { status: 200 }),
+        .mockImplementation(
+          () => new Response(JSON.stringify(reconciled), { status: 200 }),
         ),
     );
 
     mountPage();
 
+    await userEvent.click(
+      screen.getByRole("tab", { name: "Investigar queda" }),
+    );
     const breakdown = await screen.findByRole("region", {
       name: "Decomposição por recorte",
     });
@@ -658,13 +777,16 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(incomplete), { status: 200 }),
+        .mockImplementation(
+          () => new Response(JSON.stringify(incomplete), { status: 200 }),
         ),
     );
 
     mountPage();
 
+    await userEvent.click(
+      screen.getByRole("tab", { name: "Investigar queda" }),
+    );
     const breakdown = await screen.findByRole("region", {
       name: "Decomposição por recorte",
     });
@@ -841,8 +963,8 @@ describe("Receita", () => {
   it("returns focus to the filter trigger after cancel and close", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify(response), { status: 200 }),
+      .mockImplementation(
+        () => new Response(JSON.stringify(response), { status: 200 }),
       );
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -893,8 +1015,8 @@ describe("Receita", () => {
     async (_, query) => {
       const fetchMock = vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(response), { status: 200 }),
+        .mockImplementation(
+          () => new Response(JSON.stringify(response), { status: 200 }),
         );
       vi.stubGlobal("fetch", fetchMock);
       const user = userEvent.setup();
@@ -942,8 +1064,8 @@ describe("Receita", () => {
   it("keeps a valid refinement separate from base filters when building the request", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify(response), { status: 200 }),
+      .mockImplementation(
+        () => new Response(JSON.stringify(response), { status: 200 }),
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -976,7 +1098,7 @@ describe("Receita", () => {
       <QueryClientProvider client={queryClient}>
         <MemoryRouter
           initialEntries={[
-            "/receita?competencia_inicio=2025-01&competencia_fim=2025-02&classe=Residencial",
+            "/receita?competencia_inicio=2025-01&competencia_fim=2025-02&classe=Residencial&aba=investigar",
           ]}
         >
           <ReceitaPage />
@@ -986,6 +1108,9 @@ describe("Receita", () => {
       </QueryClientProvider>,
     );
 
+    await userEvent.click(
+      screen.getByRole("tab", { name: "Investigar queda" }),
+    );
     await user.click(
       await screen.findByRole("button", { name: "Explorar Olinda" }),
     );
@@ -1084,13 +1209,16 @@ describe("Receita", () => {
     });
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/receita"]}>
+        <MemoryRouter initialEntries={["/receita?aba=investigar"]}>
           <ReceitaPage />
           <LocationProbe />
         </MemoryRouter>
       </QueryClientProvider>,
     );
 
+    await userEvent.click(
+      screen.getByRole("tab", { name: "Investigar queda" }),
+    );
     await user.click(
       await screen.findByRole("button", { name: "Explorar Olinda" }),
     );
@@ -1126,8 +1254,8 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(response), { status: 200 }),
+        .mockImplementation(
+          () => new Response(JSON.stringify(response), { status: 200 }),
         ),
     );
     const user = userEvent.setup();
@@ -1147,13 +1275,6 @@ describe("Receita", () => {
     const municipalityLink = await screen.findByRole("link", {
       name: /Município: Olinda/,
     });
-    const explored = screen.getByRole("region", { name: "Recorte explorado" });
-    expect(explored).toHaveTextContent(
-      "Explorando: Município: Olinda · Bairro: Centro · Classe: Comercial",
-    );
-    expect(
-      within(explored).getByRole("button", { name: "Voltar ao total" }),
-    ).toBeVisible();
     expect(municipalityLink).toHaveAttribute("href", `?${municipalitySearch}`);
     const neighborhoodLink = screen.getByRole("link", {
       name: /Bairro: Centro/,
@@ -1187,7 +1308,7 @@ describe("Receita", () => {
     );
     const totalLink = await screen.findByRole("link", { name: "Total" });
     expect(totalLink).toHaveAttribute("href", `?${totalSearch}`);
-    await user.click(screen.getByRole("button", { name: "Voltar ao total" }));
+    await user.click(screen.getByRole("link", { name: "Total" }));
     await waitFor(() =>
       expect(screen.getByLabelText("URL atual")).toHaveTextContent(totalSearch),
     );
@@ -1200,8 +1321,8 @@ describe("Receita", () => {
       "competencia_inicio=2025-01&competencia_fim=2025-02&municipio=Olinda&classe=Comercial&alimentador=AL-01&agrupar_por=classe&recorte_municipio=Olinda";
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify(response), { status: 200 }),
+      .mockImplementation(
+        () => new Response(JSON.stringify(response), { status: 200 }),
       );
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -1234,8 +1355,8 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(response), { status: 200 }),
+        .mockImplementation(
+          () => new Response(JSON.stringify(response), { status: 200 }),
         ),
     );
     const queryClient = new QueryClient({
@@ -1305,13 +1426,17 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(missingValueResponse), { status: 200 }),
+        .mockImplementation(
+          () =>
+            new Response(JSON.stringify(missingValueResponse), { status: 200 }),
         ),
     );
 
     mountPage(`/receita?agrupar_por=bairro&recorte_municipio=${sentinel}`);
 
+    await userEvent.click(
+      screen.getByRole("tab", { name: "Investigar queda" }),
+    );
     expect(
       await screen.findByRole("button", {
         name: "Explorar Não informado · Não informado",
@@ -1403,8 +1528,8 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(invalidResponse), { status: 200 }),
+        .mockImplementation(
+          () => new Response(JSON.stringify(invalidResponse), { status: 200 }),
         ),
     );
 
@@ -1482,23 +1607,27 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(smallBaseResponse), { status: 200 }),
+        .mockImplementation(
+          () =>
+            new Response(JSON.stringify(smallBaseResponse), { status: 200 }),
         ),
     );
 
     mountPage();
 
+    await userEvent.click(
+      screen.getByRole("tab", { name: "Investigar queda" }),
+    );
     const breakdown = await screen.findByRole("region", {
       name: "Decomposição por recorte",
     });
     expect(within(breakdown).getByText("Base pequena")).toBeVisible();
     expect(within(breakdown).getByText(/Antes: 4/)).toBeVisible();
     expect(within(breakdown).getByText(/Final: 4 UCs/)).toBeVisible();
+    await userEvent.click(screen.getByRole("tab", { name: "Resumo" }));
     const summary = screen.getByRole("region", { name: "Resumo da receita" });
     expect(within(summary).getByText("−R$ 3.500,00")).toBeVisible();
     expect(within(summary).queryByText(/%/)).not.toBeInTheDocument();
-    expect(within(breakdown).queryByText(/%/)).not.toBeInTheDocument();
   });
 
   it("keeps an absolute delta but withholds price-volume effects when initial revenue is zero", async () => {
@@ -1531,8 +1660,9 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(zeroInitialResponse), { status: 200 }),
+        .mockImplementation(
+          () =>
+            new Response(JSON.stringify(zeroInitialResponse), { status: 200 }),
         ),
     );
 
@@ -1561,8 +1691,8 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(adjustedResponse), { status: 200 }),
+        .mockImplementation(
+          () => new Response(JSON.stringify(adjustedResponse), { status: 200 }),
         ),
     );
 
@@ -1616,8 +1746,9 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(incompleteResponse), { status: 200 }),
+        .mockImplementation(
+          () =>
+            new Response(JSON.stringify(incompleteResponse), { status: 200 }),
         ),
     );
     mountPage();
@@ -1727,8 +1858,8 @@ describe("Receita", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(emptyResponse), { status: 200 }),
+        .mockImplementation(
+          () => new Response(JSON.stringify(emptyResponse), { status: 200 }),
         ),
     );
 
@@ -1739,6 +1870,12 @@ describe("Receita", () => {
     ).toBeVisible();
     expect(screen.getAllByText("Indisponível").length).toBeGreaterThan(0);
     expect(screen.queryByText("R$ 0,00")).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("tab", { name: "Investigar queda" }),
+    );
+    await userEvent.click(
+      screen.getByRole("tab", { name: "Investigar queda" }),
+    );
     expect(screen.getByText(/A consulta não retornou grupos/i)).toBeVisible();
   });
 });

@@ -613,7 +613,9 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
         ),
         MetricMapping(
             **_business_metric("energy.consumption"),
-            required_capability_ids=("consumo.mensal_uc",),
+            # F1 conserva a fonte agregada do fluxo antigo, mas a leitura em kWh
+            # também depende dos controles próprios da série mensal de consumo.
+            required_capability_ids=("faturamento.receita", "consumo.mensal_uc"),
             capability_id="faturamento.receita",
             aggregation=Aggregation.SUM,
             unit="kWh",
@@ -947,6 +949,44 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
                 ),
             ),
         ),
+        MetricMapping(
+            **_business_metric("customer.units_by_class"),
+            capability_id="cadastro.ucs_por_classe",
+            required_capability_ids=("cadastro.ucs_por_classe",),
+            aggregation=Aggregation.COUNT_DISTINCT,
+            unit="UCs", unit_kind=UnitKind.COUNT,
+            measure_type=ColumnType.STRING,
+            rounding=Rounding(decimals=0),
+            null_rule=NullRule.COUNT_REQUIRES_CERTIFIED_ZERO,
+            accumulated_period_phrases=("cadastro atual do lote Gold",),
+            sources=(SourceMapping(
+                capability_id="cadastro.ucs_por_classe",
+                table=GoldTable.VISAO_360_UC,
+                temporal_column=None,
+                grain=("id_uc",),
+                measure_column="id_uc",
+                dimension_columns={"customer.consumption_class": "classe"},
+            ),),
+        ),
+        MetricMapping(
+            **_business_metric("inspection.units_by_priority"),
+            capability_id="apoio.fila_inspecao",
+            required_capability_ids=("apoio.fila_inspecao",),
+            aggregation=Aggregation.COUNT_DISTINCT,
+            unit="UCs", unit_kind=UnitKind.COUNT,
+            measure_type=ColumnType.STRING,
+            rounding=Rounding(decimals=0),
+            null_rule=NullRule.COUNT_REQUIRES_CERTIFIED_ZERO,
+            accumulated_period_phrases=("fila de inspeção do lote Gold",),
+            sources=(SourceMapping(
+                capability_id="apoio.fila_inspecao",
+                table=GoldTable.FILA_INSPECAO,
+                temporal_column=None,
+                grain=("id_uc",),
+                measure_column="id_uc",
+                dimension_columns={"inspection.priority": "prioridade_inspecao"},
+            ),),
+        ),
     ),
     unavailable=(
         UnavailableCapability(
@@ -956,14 +996,6 @@ GRID360_GOLD_MAPPING = GoldCatalogMapping(
                 "Fonte faturas_uc disponível; distinguir valor nominal "
                 "declarado e saldo indicativo. Controles consumidores "
                 "ainda não mapeados; a fonte não prova saldo contábil."
-            ),
-        ),
-        UnavailableCapability(
-            capability_id="apoio.fila_inspecao",
-            reasons=(ReasonCode.DEFINITION_PENDING,),
-            note=(
-                "Fila com motivo e prioridade disponível; seleção, rótulos e "
-                "controles de uso pela IA ainda não mapeados."
             ),
         ),
         UnavailableCapability(

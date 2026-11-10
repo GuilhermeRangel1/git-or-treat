@@ -104,10 +104,10 @@ function renderPage(entry = "/ordens", client?: QueryClient) {
   return render(<TestProviders>{page}</TestProviders>);
 }
 
-async function firstOrderAction() {
+async function firstOrderAction(label = "Iniciar ordem") {
   return (
     await screen.findAllByRole("button", {
-      name: "Ações da ordem OS-000041 da UC UC-1041",
+      name: `${label} OS-000041`,
     })
   )[0];
 }
@@ -153,9 +153,7 @@ it("apresenta a ordem retornada pela API e abre ações para a UC selecionada", 
 it("associa a consulta dos fundamentos à ordem da linha selecionada", async () => {
   const user = userEvent.setup();
   renderPage();
-  await screen.findAllByRole("button", {
-    name: "Ações da ordem OS-000041 da UC UC-1041",
-  });
+  await firstOrderAction();
   await user.click(
     screen.getAllByRole("button", {
       name: "Ver fundamentos da ordem OS-000041 da UC UC-1041",
@@ -185,6 +183,38 @@ it("alinha ações e fundamentos em colunas próprias da tabela", async () => {
   expect(
     within(table).getAllByRole("row")[1].querySelectorAll("td"),
   ).toHaveLength(5);
+});
+
+it("não oferece exclusão de ordem na tabela nem nos cartões", async () => {
+  renderPage();
+  await firstOrderAction();
+
+  expect(
+    screen.getAllByRole("button", {
+      name: "Iniciar ordem OS-000041",
+    }),
+  ).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: /excluir/i })).toBeNull();
+  expect(screen.queryByText(/excluir|excluída|exclusão/i)).toBeNull();
+});
+
+it("mostra importar resultados na linha do Voltar à fila, antes dos filtros e da tabela", async () => {
+  renderPage();
+  await firstOrderAction();
+
+  const back = screen.getByRole("link", { name: "Voltar à fila" });
+  const importButton = screen.getByRole("button", {
+    name: "Importar resultados",
+  });
+  const row = back.closest("nav")?.parentElement;
+  expect(row).toContainElement(
+    screen.getByRole("button", { name: "Baixar modelo" }),
+  );
+  expect(row).toContainElement(importButton);
+  expect(row).not.toContainElement(screen.getByRole("table"));
+  expect(
+    screen.queryByText("Registrar resultados por planilha"),
+  ).not.toBeInTheDocument();
 });
 
 it("abre exatamente a OS indicada por order_id no link de acompanhamento", async () => {
@@ -305,12 +335,12 @@ it("normaliza UC e consulta os filtros recebidos na URL", async () => {
     "/ordens?uc_id=%20UC-1041%20&status=EM_ANDAMENTO&priority=ALTA&page=2&page_size=5",
   );
 
-  await firstOrderAction();
+  await firstOrderAction("Registrar resultado");
   const appliedFilters = screen.getByLabelText("Filtros aplicados");
   expect(appliedFilters).toHaveTextContent("UC-1041");
   expect(appliedFilters).toHaveTextContent("Em andamento");
   expect(appliedFilters).toHaveTextContent("PrioridadeAlta");
-  expect(appliedFilters).toHaveTextContent("Por página5");
+  expect(appliedFilters).not.toHaveTextContent("Por página");
   const requestedUrl = new URL(
     String(fetchMock.mock.calls[0][0]),
     location.origin,
@@ -470,8 +500,7 @@ it("preserva os filtros da URL ao avançar a página", async () => {
   vi.stubGlobal("fetch", fetchMock);
   renderPage("/ordens?uc_id=UC-1041&status=PENDENTE&priority=ALTA&page_size=5");
 
-  await screen.findByRole("button", { name: "Próxima" });
-  await user.click(screen.getByRole("button", { name: "Próxima" }));
+  await user.click(await screen.findByRole("button", { name: "Página 2" }));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
   const requestedUrl = new URL(
     String(fetchMock.mock.calls[1][0]),

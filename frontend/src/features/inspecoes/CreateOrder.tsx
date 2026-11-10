@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ClipboardPlus } from "lucide-react";
 import { ApiError } from "@/shared/api/client";
 import { createQueueOrder } from "@/shared/api/orders";
 import Button from "@/shared/ui/Button";
@@ -120,23 +121,25 @@ export default function CreateOrder({
       : null;
   if (!evidenceReady) return null;
   return (
-    <section
-      className="space-y-3 rounded-xl border border-border bg-surface p-5"
-      aria-label="Criar ordem de inspeção"
-    >
-      <p className="text-sm text-muted">
-        A ordem preservará a UC, o motivo e as evidências desta suspeita.
-        Prioridade operacional inicial: média.
-      </p>
-      <Button
-        disabled={disabled || mutation.isSuccess || mutation.isError}
-        isLoading={mutation.isPending}
-        onClick={
-          intent ? () => mutation.mutate(intent) : createFromCurrentEvidence
-        }
-      >
-        Criar ordem de inspeção
-      </Button>
+    <section className="space-y-3" aria-label="Criar ordem de inspeção">
+      <div className="flex flex-col items-start gap-1.5">
+        <Button
+          className="min-h-11"
+          disabled={disabled || mutation.isSuccess || mutation.isError}
+          isLoading={mutation.isPending}
+          aria-describedby="create-order-help"
+          leftIcon={<ClipboardPlus size={16} aria-hidden="true" />}
+          onClick={
+            intent ? () => mutation.mutate(intent) : createFromCurrentEvidence
+          }
+        >
+          Criar ordem de inspeção
+        </Button>
+        <p id="create-order-help" className="text-xs text-muted">
+          A ordem preservará a UC, o motivo e as evidências desta suspeita.
+          Prioridade operacional inicial: média.
+        </p>
+      </div>
       {mutation.isError && (
         <div role="alert" className="space-y-3 text-sm">
           <p>

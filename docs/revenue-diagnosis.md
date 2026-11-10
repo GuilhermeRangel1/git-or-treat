@@ -112,7 +112,7 @@ Os 10 bairros com maior queda de volume respondem por **46,2%** da queda total, 
 | --- | --- | --- | --- |
 | A alta de preço vem do reajuste homologado | Tarifa homologada por classe e mês | O preço efetivo (+10,81%) é compatível com 10,5%, mas a tarifa não está no dataset | Indeterminada |
 | A queda de volume está concentrada em classes ou regiões específicas | Decomposição por classe, município e bairro | Concentrada em comercial e residencial; industrial estável; presente em todos os municípios, com maior intensidade em Jaboatão dos Guararapes | Sustentada (descreve onde, não por quê) |
-| A queda de volume vem de geração distribuída | Energia gerada ou compensada | Só há potência instalada, que não basta | Indeterminada |
+| A queda de volume vem de geração distribuída | Data de conexão e consumo pareado; energia gerada/compensada para atribuição física | Investigação complementar de 05/11: forte associação temporal com conexão de GD; 92,68% das contribuições negativas do efeito-volume estão nos grupos com GD entre janelas/durante P1 (seção 11). Potência instalada isolada continua insuficiente | Associação sustentada; causalidade e energia compensada indeterminadas |
 | Faturas sem leitura inflam a receita | Faturas sem leitura por UC/mês | Componente de +1,74% e 21,8% da alta total | Sustentada como componente aritmético; causa indeterminada |
 | Entrada de novas UCs explica a alta | Variação de entradas | +0,42%, pequena | Sustentada, com peso pequeno |
 | Inadimplência explica a variação | Valor efetivamente recebido | A origem não traz valor pago | Não testável |
@@ -128,6 +128,16 @@ Ordem de grandeza em % do faturamento de P0. Os ganhos se sobrepõem e **não** 
 2. **Auditar as faturas sem leitura.** Elas respondem por +1,74% da base e pesam mais em rural (3,85%), poder público (3,13%) e em Camaragibe, Moreno, Ipojuca e Olinda (entre 3,5% e 3,9%). Se forem estimativas depois regularizadas, esse valor pode ser revertido. Área: Medição. Indicador: percentual de UC/mês faturadas sem leitura.
 3. **Usar a fila de inspeção para perdas não técnicas.** A ordem de prioridade e o motivo já existem. Para as UCs com pelo menos 6 meses de consumo, a Gold publica uma **estimativa de energia a recuperar por UC, condicional à confirmação da irregularidade**: cerca de 3,9 vezes o consumo médio mensal dos 12 meses anteriores, com faixa de 90% (aproximadamente 1,8 a 7,0 vezes). Ela passou na validação temporal (ganho de erro sobre a média das confirmadas acima de 50%, cobertura da faixa acima de 90% e viés abaixo de 15% da média) e **não é probabilidade de fraude nem garantia de recuperação**. As demais UCs mostram só a referência histórica. Ainda não há base para quantificar o benefício total: falta a taxa de confirmação por perfil de UC.
 4. **Fechar lacunas de dados:** valor efetivamente recebido, energia faturada separada do consumo medido e tarifa homologada por mês. Sem elas, as hipóteses de preço e inadimplência continuam indeterminadas.
+
+### Plano para decisão da diretoria comercial
+
+| Prazo proposto | Ação e responsável | Como medir | Ordem de grandeza |
+| --- | --- | --- | --- |
+| 30 dias | Comercial e Perdas selecionam carteiras comercial e residencial em Recife e Jaboatão. Verificam, por amostra, se as quedas coincidem com desligamentos, geração distribuída ou mudanças na atividade dos clientes. | Consumo medido na base comparável e parcela da queda com causa identificada. | Os dois municípios concentram cerca de 69% do efeito negativo de volume. |
+| 60 a 90 dias | Comercial testa uma intervenção apenas nas carteiras com causa tratável e compara com carteiras semelhantes sem intervenção. | Diferença de consumo e faturamento entre piloto e comparação, com o mesmo recorte e período. | Recuperar 10% a 25% do efeito total de volume de 4,02% equivale a cerca de 0,4% a 1,0% do faturamento de P0, mantendo o preço de referência. É um cenário ilustrativo, sem estimativa de probabilidade. |
+| 30 dias | Medição e Faturamento auditam faturas sem leitura em Olinda e Camaragibe e verificam ajustes nas competências seguintes. | Proporção faturada sem leitura e valor líquido de ajustes posteriores. | O componente representa 1,74% do faturamento de P0. Esse é o tamanho do componente a auditar, não uma projeção de perda ou recuperação. |
+
+Para a apresentação, a mensagem central é que o faturamento cresceu **7,97%** entre os dois períodos de 12 meses. O preço efetivo observado contribuiu com **+10,81 pontos percentuais**, enquanto o volume medido retirou **4,02 pontos**. A decisão proposta é investigar a queda de volume em Recife e Jaboatão, testar intervenções onde houver uma causa tratável e auditar em paralelo as faturas sem leitura.
 
 ## 9. Limitações
 
@@ -149,3 +159,93 @@ O [roteiro de demonstração](demo-roteiro.md) indica como apresentar o diagnós
 - **Método:** `Silver_to_gold.ipynb`, com `MIN_PARES_PRECO_VOLUME=6`.
 - **Controles:** roteiros `validacao_gold_v4` e `validacao_silver_v1`, executados depois do run limpo, sem falhas.
 - Os valores em R$ e as contagens ficam no ambiente de Dados.
+
+## 11. Investigação complementar — GD e redução de volume (05/11/2026)
+
+**Pergunta:** qual mecanismo observável ajuda a explicar a redução de volume, além de localizar a sua contribuição?
+
+**Fonte:** consulta somente leitura à mesma Gold v2 `GOLD_20261103T173853Z_76c37784`, usada pela API local, com `default_transaction_read_only=on` conferido e prazo de 15 s por consulta. Não foram alteradas tabelas, papéis ou dados. Script analítico local em `work/receita-investigacao/analyze.py`; sem exportação de linhas individuais. A análise abaixo não altera a fórmula V3 nem constitui aceite ENT-01.
+
+### Método
+
+1. Parear a mesma UC e a mesma posição mensal de P0 (jul/2022–jun/2023) e P1 (jul/2025–jun/2026), usando somente `receita_base_comparavel_reais` e `consumo_base_comparavel_kwh` não nulos nos dois extremos.
+2. Exigir pelo menos seis pares e consumo somado positivo nas duas janelas. Somar R0, R1, Q0 e Q1 por UC e reconstruir o efeito-volume por `R0/Q0 × (Q1−Q0)` antes de agregar.
+3. Associar cadastro atual (`visao_360_uc`) e registro de GD (`gd_uc`, chave única por UC). Separar conexão anterior a P0, entre o fim de P0 e o início de P1, durante P1 e vigência indeterminada. O grupo de comparação exige ausência de registro em `gd_uc` **e** cadastro negativo para GD; ausência de linha isolada não comprova ausência de geração.
+4. Conferir a soma dos efeitos reconstruídos contra `decomposicao_receita.efeito_volume_reais`: **reconciliou com tolerância de R$ 0,01**, sem divulgar os valores monetários.
+5. Comparar os grupos dentro de município/classe, exigindo ao menos cinco UCs em cada lado. Repetir a leitura residencial com pisos de três e nove pares para verificar sensibilidade.
+
+### Resultados
+
+Os percentuais de consumo abaixo são `(ΣQ1−ΣQ0)/ΣQ0` nos pares elegíveis de cada grupo. Diferem dos componentes monetários expressos em pontos percentuais de faturamento P0.
+
+| Situação de GD | Variação de consumo medido residencial | Variação comercial |
+| --- | --- | --- |
+| Conectada entre as duas janelas | −68,83% | −69,03% |
+| Conectada durante P1 | −41,19% | −38,46% |
+| Sem registro de GD e com cadastro negativo | +2,18% | −1,93% |
+
+- **92,68% das contribuições negativas do efeito-volume** da base pareada estão nos dois grupos de conexão de GD. O denominador é a soma das parcelas negativas, antes de compensar aumentos dos demais grupos; não é 92,68% de toda a receita nem uma medida de energia compensada.
+- Nas comparações elegíveis dentro do mesmo município e classe, o grupo com conexão de GD teve variação inferior ao grupo sem registro/cadastro negativo em **100%** dos recortes comparados. A queda física dos grupos com GD nesses recortes variou de **51,99% a 69,09%**.
+- A leitura residencial foi estável aos pisos de três/seis/nove pares: conexão entre janelas, de −68,83% a −68,89%; conexão durante P1, de −41,16% a −41,22%; grupo sem registro/cadastro negativo, crescimento de +2,14% a +2,18%.
+- A parcela sem leitura tem contribuição positiva no faturamento: no lote local, +1,75 p.p. do faturamento P0 no total e +1,79 p.p. no residencial. Ela precisa de auditoria e não explica a redução do consumo pareado, porque meses sem base comparável não entraram nessa reconstrução.
+
+### Interpretação comercial e limite causal
+
+A explicação sustentada é mais específica que “o volume caiu”: **o ganho de preço foi parcialmente anulado pela redução de consumo medido concentrada em UCs que receberam conexão de GD entre as janelas ou durante a janela final**. No residencial, o grupo sem registro de GD e com cadastro negativo aumentou o consumo, enquanto os grupos conectados reduziram fortemente. Isso torna a adoção de GD a principal hipótese observável para aprofundar a explicação comercial, em vez de tratar a queda como retração uniforme de todos os clientes.
+
+O mecanismo plausível é menor energia medida da rede após a conexão. Não foi medida a energia gerada/compensada e não foi construído contrafactual causal: seleção dos clientes que adotam GD, alteração de ocupação/atividade e outros fatores simultâneos ainda podem contribuir. Portanto, não afirmar que toda a redução foi causada por GD, que ela representa irregularidade ou que o volume seria recuperável por inspeção.
+
+**Consequência prática:** separar a carteira com conexão de GD da carteira sem esse registro antes de planejar recuperação comercial/perdas. Investigar especialmente o residual comercial sem GD (−1,93% de consumo pareado) e, em paralelo, auditar faturamento sem leitura. Para quantificar o mecanismo de GD, obter energia gerada/injetada/compensada e validar a evolução antes/depois da conexão com controles adicionais.
+
+## 12. Aprofundamento usando exclusivamente Gold — antes/depois da conexão (05/11/2026)
+
+**Restrição confirmada pela pessoa usuária:** somente a Gold está acessível. O campo `energia_injetada_kwh_media_mensal` existe no contrato de origem/Silver, mas não está na Gold nem no banco local; não foi consultado, estimado ou preenchido. Esta etapa usa apenas `gd_uc`, `visao_360_uc`, `consumo_mensal_uc` e metadados de publicação da mesma Gold v2 da seção 11.
+
+### Comparação temporal
+
+- Selecionar datas de conexão válidas, sem flags de futuro/sentinela, com seis meses de horizonte observável de cada lado dentro da base. Excluir o mês da conexão, pois não há rateio diário que permita separar antes/depois nele.
+- Para cada UC com GD, calcular consumo médio nos seis meses anteriores e nos seis posteriores; exigir pelo menos quatro competências válidas de cada lado, consumo anterior positivo e todas as leituras observadas válidas nos meses utilizados. Receita/fatura não é requisito deste teste físico; ele não substitui a população da decomposição financeira V3.
+- Formar grupos por município, classe e mês da conexão, com pelo menos cinco UCs elegíveis com GD. Construir referência com UCs sem registro de GD e com cadastro negativo, na mesma localidade/classe e nos mesmos meses, também com quatro competências válidas por lado e pelo menos cinco UCs por grupo. Cada UC de referência precisa aparecer dos dois lados; não comparar populações diferentes de antes e depois.
+- Ponderar a mudança da referência pelo consumo anterior do respectivo grupo com GD. Essa padronização compara os mesmos períodos e composição territorial/classe, mas não é pareamento individual por renda, tamanho, perfil de carga ou motivo de adesão.
+
+| Classe | Consumo após conexão, ante os seis meses anteriores | Referência sem registro de GD, padronizada | Diferença descritiva |
+| --- | --- | --- | --- |
+| Residencial | −70,75% | −2,89% | −67,87 p.p. |
+| Comercial | −71,39% | −6,31% | −65,08 p.p. |
+
+**Antes da conexão:** entre os três primeiros e os três últimos meses da janela anterior, os futuros conectados cresceram +2,74% no residencial e +2,97% no comercial. As referências correspondentes cresceram +2,45% e +3,21%. Portanto, não se observou queda anterior de magnitude próxima à redução dos meses posteriores. Essa é uma conferência descritiva de tendência, sem teste estatístico de tendências paralelas.
+
+### Cobertura e sensibilidade
+
+A comparação com piso de quatro meses abrangeu **85,56% das conexões residenciais temporalmente elegíveis** e **37,98% das comerciais**. O denominador contém somente conexões com data válida e horizonte de seis meses disponível de cada lado; não são percentuais de todas as UCs com GD. As exclusões adicionais incluem poucos meses válidos e grupos pequenos sem referência suficiente. A leitura comercial tem representatividade mais limitada.
+
+Exigindo pelo menos cinco competências válidas de cada lado, a queda observada ficou em **−70,63% no residencial** e **−71,59% no comercial**, contra **−2,60%** e **−6,79%** nas referências. A cobertura passou a 78,59% e 31,45% das conexões temporalmente elegíveis. A conclusão descritiva permaneceu estável, embora a amostra tenha diminuído.
+
+### O que isso acrescenta ao diagnóstico
+
+A Gold sustenta duas evidências complementares: a queda de volume entre as janelas se concentra nas UCs com conexão de GD (seção 11), e o consumo medido dessas UCs reduz fortemente **depois da conexão**, com evolução anterior semelhante à referência territorial/classe. O mecanismo de redução da energia medida da rede após adoção de GD é compatível com ambas.
+
+Essa evidência é mais forte que comparar apenas “com GD” e “sem GD” em um mês. Ainda não mede geração/injeção/compensação e não isola todos os fatores simultâneos à adesão. Não chamar a diferença de efeito causal identificado, energia gerada ou volume recuperável por fiscalização. Cadastro/classe são atuais; observações mensais ausentes e seleção de clientes que adotam GD continuam possíveis fontes de viés.
+
+**Reprodução e verificação:** script local `work/receita-investigacao/event_study.py`, com `MIN_EVENT_MONTHS=4` e `5`; execução somente leitura, sem exportar UCs ou valores absolutos, conferindo a propriedade de transação. A consulta monolítica inicial excedeu o prazo de 20 s e não produziu resultado aceito; o cálculo foi dividido em agregação dos conectados e leitura sequencial dos controles, processada em memória, sem alterar o banco ou ampliar o prazo por consulta. Os resultados acima são das duas execuções concluídas dessa versão. Não houve mudança de API, interface ou fórmula Gold nesta etapa.
+
+## 13. Impacto na receita das UCs com GD (conferência de 04/11/2026)
+
+**Pergunta:** o que a concentração da queda de volume em UCs com GD (seções 11 e 12) significa para a **receita**?
+
+**Fonte e método:** consulta somente leitura à Gold `GOLD_20261103T173853Z_76c37784`, sem tabelas alteradas e sem divulgar R$ nem contagens. Usa a mesma base pareada da seção 11 (seis ou mais pares UC/mês nas duas janelas, consumo positivo nas duas pontas, somente `receita_base_comparavel_reais` e `consumo_base_comparavel_kwh` não nulos) e o **cadastro atual** (`possui_gd` de `visao_360_uc`), e não a data de conexão. Os percentuais são razões agregadas e por isso **não substituem** a decomposição da seção 5: a receita da base pareada sobe +7,37%, o volume cai −4,54% e o preço efetivo agregado sobe +12,47%.
+
+| Grupo | Peso na receita de P0 | Volume | Receita | Preço efetivo | Contribuição à variação da receita |
+| --- | --- | --- | --- | --- | --- |
+| Sem GD no cadastro | 91,5% | +0,46% | +13,21% | +12,69% | +12,09 p.p. |
+| Com GD no cadastro | 8,5% | −61,65% | −55,58% | +15,81% | −4,72 p.p. |
+
+- **A receita das UCs com GD cai quase na mesma proporção do volume** (−55,58% contra −61,65%): a fatura é quase toda proporcional ao consumo medido, então a energia abatida vira receita não faturada. As UCs com GD reduziram a variação da receita em cerca de 4,7 p.p.; sem elas, a base pareada teria crescido cerca de 12%.
+- **A receita total continua subindo** (+7,97% na decomposição): as UCs sem GD, ≈ 92% da receita, crescem tanto que compensam a perda.
+- **Concentração (base pareada):** só 23,8% das UCs caíram; 9,4% caíram 30% ou mais e respondem por 89,3% da perda bruta de volume; a mediana por UC foi +3,2%. Quem subiu devolveu cerca de 35% da perda bruta.
+- **Por classe e GD:** comercial sem GD −1,93% e com GD −61,51%; residencial sem GD +2,18% e com GD −61,74%, em linha com a seção 11. Industrial, poder público e rural não têm UCs com GD nesta base.
+- **Tempo:** comparando o mesmo trimestre, o volume vem caindo gradualmente desde 2024, e não em degrau, o que combina com adesão crescente.
+
+**Limites:** associação, não causa (não há energia gerada na Gold); "tem GD" é o cadastro atual e a seção 11 separa por data de conexão; o preço efetivo agregado inclui efeito de composição.
+
+**Consequência prática:** a perda de receita por GD (≈ 4,7 p.p.) é da mesma ordem de grandeza do teto teórico de recuperação de volume da seção 8 (≈ 4%), e parte dela é geração legítima, que não se recupera. Medir o impacto por município e rever como a energia abatida é cobrada antes de planejar recuperação comercial.

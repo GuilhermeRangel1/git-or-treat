@@ -29,6 +29,79 @@ afterEach(() => {
 });
 
 describe("cliente do chat", () => {
+  it("usa a rota F1 sem streaming legado nem publicação fornecida pelo navegador", async () => {
+    const response = {
+      correlation_id: "0123456789abcdef0123456789abcdef",
+      audit_reference: "abcdef0123456789abcdef0123456789",
+      status: "answered",
+      evidence: {
+        batch_ref:
+          "gold-csv-v2:GOLD_20261106T000000Z_aaaaaaaa:12345678-1234-4123-8123-123456789abc",
+        evidence_digest: "a".repeat(64),
+        columns: [{ name: "revenue", role: "measure", unit: "R$" }],
+        rows: [["1234.50"]],
+      },
+      presentation: {
+        contract_version: "text-to-sql-f1-presentation-v1",
+        state: "ready",
+        operation: "total",
+        answer: "O faturamento total foi R$ 1.234,50.",
+        period: "2026-06",
+        filters: [],
+        universe: [],
+        limitations: [
+          "Faturamento representa valor faturado e não confirma recebimento ou pagamento.",
+        ],
+        columns: [
+          {
+            key: "revenue",
+            label: "Faturamento",
+            role: "measure",
+            semantic_id: "revenue_total",
+            unit: "R$",
+          },
+        ],
+        rows: [{ observation_id: "row_1", cells: ["1234.50"] }],
+        evidence_digest: "a".repeat(64),
+      },
+      continuation_token: "signed-continuation-token",
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onData = vi.fn();
+    const result = await askAIQuestion(
+      {
+        contract_version: "v1",
+        question: "Faturamento total de Recife em junho?",
+        context: [{ role: "user", content: "Faturamento anterior" }],
+        conversation_id: "8abf4322-17ab-4a75-98f1-29481ee9f456",
+        continuation_token: "previous-signed-token",
+      },
+      onData,
+      undefined,
+      "sql_f1",
+    );
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/v1/ai/sql-analyses");
+    expect(new Headers(options.headers).get("Accept")).not.toBe(
+      "application/x-ndjson",
+    );
+    expect(JSON.parse(String(options.body))).toEqual({
+      contract_version: "v1",
+      question: "Faturamento total de Recife em junho?",
+      conversation_id: "8abf4322-17ab-4a75-98f1-29481ee9f456",
+      continuation_token: "previous-signed-token",
+    });
+    expect(result.sql_analysis_mode).toBe(true);
+    expect(result.continuation_token).toBe("signed-continuation-token");
+    expect(onData).not.toHaveBeenCalled();
+  });
+
   it("expiração do contexto não invalida os dados do portal", async () => {
     vi.stubGlobal(
       "fetch",
@@ -54,6 +127,41 @@ describe("cliente do chat", () => {
     ).rejects.toMatchObject({ code: "invalid_continuation", retryable: false });
     expect(isGoldPublicationStale()).toBe(false);
   });
+
+  it("salva consultas F1 pela rota de conversas mantendo o contrato F1", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      askAIQuestion(
+        {
+          contract_version: "v1",
+          question: "E no ano anterior?",
+          context: [],
+          conversation_id: "8abf4322-17ab-4a75-98f1-29481ee9f456",
+          history_request_id: "c0f6d390-c3a2-4d4f-b72c-31e070df9f77",
+        },
+        undefined,
+        undefined,
+        "sql_f1",
+      ),
+    ).rejects.toThrow("Não foi possível apresentar a resposta.");
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "/api/v1/ai/conversations/8abf4322-17ab-4a75-98f1-29481ee9f456/questions",
+    );
+    expect(JSON.parse(String(options.body))).toEqual({
+      request_id: "c0f6d390-c3a2-4d4f-b72c-31e070df9f77",
+      question: "E no ano anterior?",
+      strategy: "sql_f1",
+      refresh_context: false,
+    });
+  });
+
   it("envia o contrato v1 ao Backend e valida a resposta", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(validResponse), {

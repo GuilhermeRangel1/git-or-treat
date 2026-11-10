@@ -10,7 +10,7 @@
 
 ## Jornadas
 
-Para a apresentação de 15 minutos, use como referência: 3 min para o Workflow e a arquitetura, 6 min para as jornadas do portal, 3 min para o Assistente e o insight no Panorama e 3 min para concluir com o [diagnóstico da receita](revenue-diagnosis.md) e suas recomendações. A lista abaixo serve também para o ensaio completo.
+Para a apresentação de 15 minutos, use como referência a [narrativa executiva](apresentacao-diretoria.md), ajustando o tempo para demonstrar o Workflow, as jornadas e, quando disponível, o Assistente e o insight. A lista abaixo serve também para o ensaio completo.
 
 
 1. **Dados:** apresente as seis tarefas do Workflow e a exportação Gold v2 no registro vinculado. Explique que a execução ocorreu no Databricks e que o Compose importa um pacote previamente gerado.

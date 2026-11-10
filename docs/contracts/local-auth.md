@@ -30,6 +30,8 @@ Chamadas autenticadas por cookie e operações de autenticação exigem `Origin`
 
 Após atualizar o esquema, em `backend/`, execute `python -m alembic upgrade head` em um banco operacional local previamente selecionado. Depois execute `python scripts/bootstrap_local_auth.py`. A ferramenta cria, somente quando faltam, contas artificiais para os perfis habilitados pela versão do esquema; para WEB-10 são os cinco perfis descritos abaixo. Senhas iniciais aleatórias ficam em `work/local-auth/credentials.txt`, ignorado pelo Git. Contas existentes não têm senhas, perfis ou permissões redefinidas. Guarde esse arquivo localmente e não o publique.
 
+Na composição local de apresentação (`docker-compose.yml` com `docker-compose.dev.yml`), o loader ativa `LOCAL_PRESENTATION_ACCOUNTS` e usa `LOCAL_PRESENTATION_PASSWORD` (padrão local `senha123`). Ao iniciar o bootstrap, essa opção redefine somente a senha das contas artificiais com os nomes configurados no loader, sem alterar perfil, permissões ou estado ativo; por isso, a senha de apresentação volta ao valor configurado após reprovisionar a stack. Essa senha é exclusiva do ambiente local de apresentação, que publica as portas em `127.0.0.1`; defina outra senha ou desligue o modo em qualquer outro ambiente.
+
 O script de inicialização Gold não aplica migrações automaticamente. Revise o alvo do banco e mantenha backup adequado antes de atualizar um banco que contenha dados. Não copie credenciais privadas para logs, commits, prompts ou respostas.
 
 ### Perfis de plataforma — WEB-10

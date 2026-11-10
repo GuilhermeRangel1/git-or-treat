@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+﻿import { useLayoutEffect, useRef, useState } from "react";
 import Modal from "@/shared/ui/Modal";
 import { signedValueTone } from "@/shared/ui/signedValue";
 import type { RevenueEnvelope } from "./contract";
@@ -141,8 +141,10 @@ function linePath(points: ChartPoint[]) {
 
 export default function RevenueSeries({
   envelope,
+  inlineTable = false,
 }: {
   envelope: RevenueEnvelope;
+  inlineTable?: boolean;
 }) {
   const rows = envelope.data.series;
   const showPaid = rows.some((row) => row.paid_amount !== null);
@@ -186,17 +188,98 @@ export default function RevenueSeries({
         `${monthLabel(row.competencia)}: ${row.billed_amount === null ? "sem dado" : money.format(row.billed_amount)}`,
     )
     .join("; ");
-  const tickStep = Math.max(
-    1,
-    Math.ceil(
-      rows.length / Math.max(2, Math.floor((chartWidth - chart.left) / 90)),
+  const tickCount = Math.min(
+    rows.length,
+    Math.max(
+      2,
+      Math.floor((chartWidth - chart.left - chart.rightInset) / 90) + 1,
     ),
   );
-  const monthTicks = rows.filter(
-    (_, index) => index % tickStep === 0 || index === rows.length - 1,
+  const tickIndexes = new Set(
+    rows.length <= tickCount
+      ? rows.map((_, index) => index)
+      : Array.from({ length: tickCount }, (_, index) =>
+          Math.round((index * (rows.length - 1)) / (tickCount - 1)),
+        ),
   );
+  const monthTicks = rows.filter((_, index) => tickIndexes.has(index));
   const hasValues = points.some((point) => point.value !== null);
 
+  const tableContent = (
+    <>
+      {" "}
+      <div className="revenue-series__table-wrap">
+        <table className="revenue-series__table font-sans">
+          <caption className="sr-only">
+            Série mensal de faturamento e energia
+          </caption>
+          <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
+            <tr>
+              <th scope="col" className="font-medium">
+                Mês
+              </th>
+              <th scope="col" className="font-medium">
+                Receita faturada (R$)
+              </th>
+              {showPaid && (
+                <th scope="col" className="font-medium">
+                  Receita paga (R$)
+                </th>
+              )}
+              <th scope="col" className="font-medium">
+                Energia medida (kWh)
+              </th>
+              {showBilledEnergy && (
+                <th scope="col" className="font-medium">
+                  Energia faturada (kWh)
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.competencia} className="last:border-0">
+                <th scope="row" className="font-semibold text-content">
+                  {monthLabel(row.competencia)}
+                </th>
+                <td className={signedValueTone(row.billed_amount, false)}>
+                  {row.billed_amount === null
+                    ? "Sem dado"
+                    : money.format(row.billed_amount)}
+                </td>
+                {showPaid && (
+                  <td className={signedValueTone(row.paid_amount, false)}>
+                    {row.paid_amount === null
+                      ? "Sem dado"
+                      : money.format(row.paid_amount)}
+                  </td>
+                )}
+                <td className={signedValueTone(row.measured_energy_kwh, false)}>
+                  {row.measured_energy_kwh === null
+                    ? "Sem dado"
+                    : `${decimal.format(row.measured_energy_kwh)} kWh`}
+                </td>
+                {showBilledEnergy && (
+                  <td className={signedValueTone(row.billed_energy_kwh, false)}>
+                    {row.billed_energy_kwh === null
+                      ? "Sem dado"
+                      : `${decimal.format(row.billed_energy_kwh)} kWh`}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {(!showPaid || !showBilledEnergy) && (
+        <p className="mt-3 text-xs text-muted">
+          {!showPaid && "Receita paga não está disponível neste recorte. "}
+          {!showBilledEnergy &&
+            "Energia faturada não está disponível; energia medida é uma grandeza diferente."}
+        </p>
+      )}
+    </>
+  );
   return (
     <section
       aria-labelledby="revenue-series-title"
@@ -209,7 +292,7 @@ export default function RevenueSeries({
       >
         Série mensal de faturamento
       </h2>
-      <p className="mt-1 text-sm text-muted">Receita faturada por mês (BRL).</p>
+      <p className="mt-1 text-sm text-muted">Receita faturada por mês (R$).</p>
       <div className="mt-4 min-w-0 max-w-full overflow-x-auto rounded-lg bg-canvas/50 px-2 py-2">
         <div className="revenue-series__chart-enter">
           <svg
@@ -414,97 +497,33 @@ export default function RevenueSeries({
         ref={tableTriggerRef}
         type="button"
         className="revenue-series__details-link"
-        aria-haspopup="dialog"
-        onClick={() => setShowTable(true)}
+        aria-haspopup={inlineTable ? undefined : "dialog"}
+        aria-expanded={inlineTable ? showTable : undefined}
+        onClick={() => setShowTable(inlineTable ? !showTable : true)}
       >
-        Ver tabela da série →
+        {inlineTable && showTable
+          ? "Ocultar tabela da série"
+          : "Ver tabela da série →"}
       </button>
 
-      <Modal
-        open={showTable}
-        onClose={() => setShowTable(false)}
-        triggerRef={tableTriggerRef}
-        title="Tabela da série"
-        description="Valores mensais de faturamento, pagamento e energia disponíveis no período."
-        closeLabel="Fechar dados da série"
-        size="md"
-        header="inline"
-      >
-        <div className="revenue-series__table-wrap">
-          <table className="revenue-series__table font-sans">
-            <caption className="sr-only">
-              Série mensal de faturamento e energia
-            </caption>
-            <thead className="font-sans text-xs leading-[18px] text-muted [&_th]:font-normal">
-              <tr>
-                <th scope="col" className="font-medium">
-                  Mês
-                </th>
-                <th scope="col" className="font-medium">
-                  Receita faturada (BRL)
-                </th>
-                {showPaid && (
-                  <th scope="col" className="font-medium">
-                    Receita paga (BRL)
-                  </th>
-                )}
-                <th scope="col" className="font-medium">
-                  Energia medida (kWh)
-                </th>
-                {showBilledEnergy && (
-                  <th scope="col" className="font-medium">
-                    Energia faturada (kWh)
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.competencia} className="last:border-0">
-                  <th scope="row" className="font-semibold text-content">
-                    {monthLabel(row.competencia)}
-                  </th>
-                  <td className={signedValueTone(row.billed_amount, false)}>
-                    {row.billed_amount === null
-                      ? "Sem dado"
-                      : money.format(row.billed_amount)}
-                  </td>
-                  {showPaid && (
-                    <td className={signedValueTone(row.paid_amount, false)}>
-                      {row.paid_amount === null
-                        ? "Sem dado"
-                        : money.format(row.paid_amount)}
-                    </td>
-                  )}
-                  <td
-                    className={signedValueTone(row.measured_energy_kwh, false)}
-                  >
-                    {row.measured_energy_kwh === null
-                      ? "Sem dado"
-                      : `${decimal.format(row.measured_energy_kwh)} kWh`}
-                  </td>
-                  {showBilledEnergy && (
-                    <td
-                      className={signedValueTone(row.billed_energy_kwh, false)}
-                    >
-                      {row.billed_energy_kwh === null
-                        ? "Sem dado"
-                        : `${decimal.format(row.billed_energy_kwh)} kWh`}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {(!showPaid || !showBilledEnergy) && (
-          <p className="mt-3 text-xs text-muted">
-            {!showPaid && "Receita paga não está disponível neste recorte. "}
-            {!showBilledEnergy &&
-              "Energia faturada não está disponível; energia medida é uma grandeza diferente."}
-          </p>
-        )}
-      </Modal>
+      {inlineTable ? (
+        showTable ? (
+          tableContent
+        ) : null
+      ) : (
+        <Modal
+          open={showTable}
+          onClose={() => setShowTable(false)}
+          triggerRef={tableTriggerRef}
+          title="Tabela da série"
+          description="Valores mensais de faturamento, pagamento e energia disponíveis no período."
+          closeLabel="Fechar dados da série"
+          size="md"
+          header="inline"
+        >
+          {tableContent}
+        </Modal>
+      )}
     </section>
   );
 }

@@ -52,9 +52,12 @@ def test_supported_definition_questions_remain_conceptual(question):
 
 def test_colloquial_outage_question_offers_specific_indicators():
     result = _plan("Quantas vezes faltou luz no alimentador AL-01 em março de 2025?")
-    assert result["status"] == "needs_clarification"
-    message = result["response"]["message"]
-    assert "DEC" in message and "FEC" in message and "alimentador" in message
+    assert result["status"] == "planned", result
+    assert result["plan"]["metric_id"] == "network.interruption_events"
+    assert result["plan"]["unit"] == "ocorrências"
+    assert result["plan"]["filters"] == [{
+        "dimension_id": "network.feeder", "operator": "eq", "values": ["AL-01"],
+    }]
 
 
 def test_valid_negative_gd_category_is_still_an_authorized_filter():

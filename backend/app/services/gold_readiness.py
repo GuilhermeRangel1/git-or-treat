@@ -48,6 +48,7 @@ async def _evaluate_readiness(
         "faturamento.faturas_em_aberto", "consumo.mensal_uc", "consumo.variacao_uc",
         "interrupcoes.dec_fec", "interrupcoes.uc_acumulado", "atendimento.uc_acumulado",
         "atendimento.mensal", "apoio.fila_inspecao", "apoio.medidor_uc", "apoio.energia_recuperavel",
+        "cadastro.ucs_por_classe",
     }:
         raise GenAIResponseInvalid
     context = await deadline.run(GOLD_REQUEST_TIMEOUT_SECONDS, lambda: asyncio.to_thread(GoldPublicationContext.capture, engine))

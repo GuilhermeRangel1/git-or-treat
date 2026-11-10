@@ -10,7 +10,7 @@ import ChartBoundary from "./ChartBoundary";
 
 export interface VisualEvidenceData {
   reading?: VisualReading | null;
-  kind?: "bars" | "horizontal" | "donut" | "line";
+  kind?: "bars" | "horizontal" | "donut" | "line" | "waterfall";
   total?: number;
   note?: string;
   tablePoints?: VisualEvidenceData["points"];
@@ -27,9 +27,13 @@ export interface VisualEvidenceData {
 export default function VisualEvidence({
   data,
   canExport = () => true,
+  exportsEnabled = true,
+  tableEnabled = true,
 }: {
   data: VisualEvidenceData;
   canExport?: () => boolean | Promise<boolean>;
+  exportsEnabled?: boolean;
+  tableEnabled?: boolean;
 }) {
   const id = useId();
   const svg = useRef<SVGSVGElement>(null);
@@ -62,17 +66,29 @@ export default function VisualEvidence({
     .filter((v): v is number => v !== null);
   // A single observation is a metric, not an invented comparison.
   const comparable = values.length > 1;
-  const minimum = Math.min(0, ...values);
-  const maximum = Math.max(0, ...values);
+  let running = 0;
+  const steps =
+    data.kind === "waterfall"
+      ? values.map((value) => {
+          const start = running;
+          running += value;
+          return { start, end: running };
+        })
+      : [];
+  const minimum = Math.min(0, ...values, ...steps.map((step) => step.end));
+  const maximum = Math.max(0, ...values, ...steps.map((step) => step.end));
   const span = maximum - minimum || 1;
   const y = (v: number) => 210 - ((v - minimum) / span) * 160;
   const cellWidth = Math.max(
     110,
-    ...data.points.map((p) =>
-      Math.min(
-        220,
-        visualValue(p.value, data.unit, data.precision).length * 8 + 16,
-      ),
+    ...data.points.map(
+      (p) =>
+        Math.max(
+          p.label.length,
+          visualValue(p.value, data.unit, data.precision).length,
+        ) *
+          10 +
+        24,
     ),
   );
   const width = Math.max(400, data.points.length * cellWidth + 80);
@@ -135,30 +151,30 @@ export default function VisualEvidence({
             {data.scope}
           </p>
         </div>
-        <button
-          type="button"
-          aria-expanded={table}
-          aria-controls={`${id}-table`}
-          onClick={() => setTable(!table)}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-divider px-3 text-xs font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-brand"
-        >
-          <Table2 className="size-4" aria-hidden="true" />
-          {table
-            ? "Ocultar tabela"
-            : tablePoints.length > data.points.length
-              ? `Ver lista completa (${tablePoints.length})`
-              : "Ver tabela"}
-        </button>
+        {tableEnabled && (
+          <button
+            type="button"
+            aria-expanded={table}
+            aria-controls={`${id}-table`}
+            onClick={() => setTable(!table)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-divider px-3 text-xs font-medium text-content hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-brand"
+          >
+            <Table2 className="size-4" aria-hidden="true" />
+            {table
+              ? "Ocultar tabela"
+              : tablePoints.length > data.points.length
+                ? `Ver lista completa (${tablePoints.length})`
+                : "Ver tabela"}
+          </button>
+        )}
       </div>
       <ChartBoundary>
         {comparable ? (
           <div
             className={`mt-3 overflow-x-auto ${data.kind === "horizontal" ? "max-h-[320px] overflow-y-auto" : ""}`}
-            role={data.kind === "horizontal" ? "region" : undefined}
-            aria-label={
-              data.kind === "horizontal" ? "Gráfico com rolagem" : undefined
-            }
-            tabIndex={data.kind === "horizontal" ? 0 : undefined}
+            role="region"
+            aria-label="Gráfico com rolagem"
+            tabIndex={0}
           >
             {data.kind === "horizontal" || data.kind === "donut" ? (
               <DistributionGraphic data={data} svgRef={svg} id={id} />
@@ -224,7 +240,8 @@ export default function VisualEvidence({
                 )}
                 {data.points.map((point, i) => {
                   const x = 40 + i * cell + cell / 2;
-                  const valueY = y(point.value ?? 0);
+                  const valueY = y(steps[i]?.end ?? point.value ?? 0);
+                  const baseY = y(steps[i]?.start ?? 0);
                   return (
                     <g key={`${i}-${point.label}`}>
                       {point.value !== null && data.kind === "line" && (
@@ -247,9 +264,9 @@ export default function VisualEvidence({
                       {point.value !== null && data.kind !== "line" && (
                         <rect
                           x={x - Math.min(cell * 0.3, 42)}
-                          y={Math.min(y(0), valueY)}
+                          y={Math.min(baseY, valueY)}
                           width={Math.min(cell * 0.6, 84)}
-                          height={Math.abs(y(0) - valueY)}
+                          height={Math.abs(baseY - valueY)}
                           rx="5"
                           fill={
                             i === data.points.length - 1
@@ -404,31 +421,33 @@ export default function VisualEvidence({
           )}
         </div>
       )}
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-divider pt-3">
-        {comparable && (
+      {exportsEnabled && (
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-divider pt-3">
+          {comparable && (
+            <button
+              type="button"
+              disabled={exporting}
+              onClick={() => void download("png")}
+              className="inline-flex min-h-10 items-center gap-2 rounded-md px-1 text-xs font-semibold text-brand focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50"
+            >
+              <Download className="size-4" aria-hidden="true" />
+              Baixar gráfico (PNG)
+            </button>
+          )}
           <button
             type="button"
             disabled={exporting}
-            onClick={() => void download("png")}
+            onClick={() => void download("csv")}
             className="inline-flex min-h-10 items-center gap-2 rounded-md px-1 text-xs font-semibold text-brand focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50"
           >
             <Download className="size-4" aria-hidden="true" />
-            Baixar gráfico (PNG)
+            Baixar dados (CSV)
           </button>
-        )}
-        <button
-          type="button"
-          disabled={exporting}
-          onClick={() => void download("csv")}
-          className="inline-flex min-h-10 items-center gap-2 rounded-md px-1 text-xs font-semibold text-brand focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50"
-        >
-          <Download className="size-4" aria-hidden="true" />
-          Baixar dados (CSV)
-        </button>
-        <span className="text-xs text-muted">
-          {data.isDemo ? "Dados de demonstração" : "Fonte de dados interna"}
-        </span>
-      </div>
+          <span className="text-xs text-muted">
+            {data.isDemo ? "Dados de demonstração" : "Fonte de dados interna"}
+          </span>
+        </div>
+      )}
       {error && (
         <p role="alert" className="mt-2 text-sm text-[var(--status-danger)]">
           {error}

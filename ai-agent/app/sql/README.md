@@ -95,6 +95,8 @@ O planejador que escolhe a tabela pelos metadados existe só no teste. Quando du
 
 ### Pontos abertos com o Backend
 
+- **DEC/FEC na rota F1.** A ressalva de caixa do parser legado acima continua válida para o dicionário SQL legado. O Text-to-SQL F1 consulta o modelo físico Gold do Backend, confere a coluna DEC/FEC exata e canonicaliza o identificador com aspas antes de executar no PostgreSQL. A rota pública testada leu indicadores_dec_fec com sucesso; isso não altera o parser legado.
+
 - **`DEC` e `FEC`.** Na Gold, no CSV e no banco do Backend as colunas se chamam `DEC` e `FEC`. `backend/app/models/gold_v1.py` cria `Column("DEC")`/`Column("FEC")`, e a migração `goldv1000001` executa `table.create()` com esse modelo. O SQLAlchemy põe entre aspas um nome com maiúsculas; no PostgreSQL a coluna fica `"DEC"`, sensível a caixa. O carregador deste dicionário só aceita minúsculas e declara `dec`/`fec`. SQLite e Spark resolvem sem diferenciar caixa, e por isso o mock passa. No PostgreSQL, `SELECT dec` sem aspas é dobrado para `dec` e **não encontra** `"DEC"`; o SQL regenerado pelo validador também usa o nome do dicionário. Não decidido aqui. Opções a combinar com o Backend: renomear para minúsculas numa nova revisão, criar uma visão de leitura com nomes minúsculos para o papel da IA, ou aceitar e citar identificadores com caixa no dicionário e no validador. Até lá, o executor PostgreSQL não deve ler `indicadores_dec_fec`.
 - **Prefixo das tabelas.** O Backend grava as tabelas como `gold_<nome>` (`gold_diagnostico_receita`); o dicionário usa o nome da Gold, sem prefixo. Uma leitura no banco do Backend exige alinhar os nomes, por visão ou por dicionário, junto com a decisão anterior.
 

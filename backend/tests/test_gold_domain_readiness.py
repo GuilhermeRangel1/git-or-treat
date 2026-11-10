@@ -1,8 +1,8 @@
 """Prontidão por domínio pela operação pública do Backend, com banco controlado."""
 
 import pytest
-
 from app.services.gold_attendance_readiness import observe_domain_readiness
+
 from tests.test_gold_attendance_readiness import published  # noqa: F401
 
 
@@ -43,8 +43,8 @@ def test_domain_observation_does_not_promote_missing_measures_to_zero(published)
 
 
 def test_gd_controls_reject_missing_uc_from_the_reference_population(published):  # noqa: F811
-    from sqlalchemy import select
     from app.models.gold_v2_load import TABLES
+    from sqlalchemy import select
 
     with published.begin() as connection:
         reference = connection.execute(select(TABLES["visao_360_uc"])).mappings().first()
@@ -66,8 +66,8 @@ def test_gd_controls_reject_missing_uc_from_the_reference_population(published):
 
 
 def test_gd_control_does_not_accept_non_finite_values_as_missing_measurements():
-    from sqlalchemy import Table
     from app.services.gold_variation_controls import observe_variation_controls
+    from sqlalchemy import Table
 
     population = {"SYNTHETIC": {"municipio": "Cidade", "possui_gd": "Sim"}}
     def read_rows(statement):
@@ -283,7 +283,6 @@ def test_domain_transport_keeps_controls_and_revalidates_publication(published, 
     from uuid import uuid4
 
     import httpx
-
     from app.models.gold_v2_load import BATCH
     from app.repositories.gold_publication import GoldPublicationChanged
     from app.services.genai_client import GenAIResponseInvalid
@@ -310,6 +309,7 @@ def test_domain_transport_keeps_controls_and_revalidates_publication(published, 
             "apoio.fila_inspecao",
             "apoio.medidor_uc",
             "apoio.energia_recuperavel",
+            "cadastro.ucs_por_classe",
         )
         ref = facts["batch_ref"]
         if case == "different":
@@ -545,10 +545,10 @@ def test_closed_month_with_only_null_measure_is_not_usable(published):  # noqa: 
 def test_domain_aggregates_execute_with_nonempty_postgres_publication(published):  # noqa: F811
     import os
 
+    from app.models.gold_v2_load import BATCH, TABLES
     from sqlalchemy import create_engine, select
     from sqlalchemy.engine import make_url
 
-    from app.models.gold_v2_load import BATCH, TABLES
     from tests.support.migrations import migrated_database
 
     url = os.getenv("TEST_POSTGRES_URL")
@@ -580,6 +580,101 @@ def test_domain_aggregates_execute_with_nonempty_postgres_publication(published)
         engine.dispose()
 
 
+@pytest.mark.parametrize(
+    ("denied_table", "expected_c14", "expected_c15"),
+    [
+        ("fila_inspecao", "passed", "passed"),
+        ("cobertura_dominios", "passed", "failed"),
+    ],
+)
+def test_postgres_permission_denial_isolated_by_savepoint(
+    published, denied_table, expected_c14, expected_c15  # noqa: F811
+):
+    """Exercita SQLSTATE 42501 real sem alterar permissões de uma Gold persistente."""
+    import os
+    from uuid import uuid4
+
+    from app.models.gold_v2_load import BATCH, TABLES
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.engine import make_url
+
+    from tests.support.migrations import migrated_database
+
+    address = os.getenv("TEST_POSTGRES_URL")
+    if not address:
+        pytest.skip("Configure PostgreSQL descartável v_energy_test para teste de grants.")
+    admin_address = os.getenv("TEST_GOLD_READER_ADMIN_URL")
+    if not admin_address:
+        pytest.skip("Configure o administrador do PostgreSQL descartável para criar papéis de teste.")
+    url = make_url(address)
+    assert url.database == "v_energy_test"
+    admin_url = make_url(admin_address)
+    assert (admin_url.host, admin_url.port) == (url.host, url.port)
+    assert admin_url.database == "gold_reader_test"
+    admin_url = admin_url.set(database="v_energy_test")
+
+    seed_measures(published)
+    engine = create_engine(url, hide_parameters=True)
+    administrator_engine = create_engine(admin_url, hide_parameters=True)
+    reader = None
+    role_created = False
+    role = f"tsql11_readiness_{uuid4().hex}"
+    password = uuid4().hex
+    quoted_role = engine.dialect.identifier_preparer.quote(role)
+    try:
+        with engine.connect() as connection, migrated_database(connection):
+            with published.connect() as source, engine.begin() as destination:
+                for table in (BATCH, *TABLES.values()):
+                    rows = [dict(row) for row in source.execute(select(table)).mappings()]
+                    if rows:
+                        destination.execute(table.insert(), rows)
+
+            with administrator_engine.begin() as administrator:
+                administrator.exec_driver_sql(
+                    f"CREATE ROLE {quoted_role} LOGIN PASSWORD '{password}'"
+                )
+                role_created = True
+                administrator.exec_driver_sql(
+                    f"GRANT USAGE ON SCHEMA gold, gold_v2 TO {quoted_role}"
+                )
+                administrator.exec_driver_sql(
+                    f"GRANT SELECT ON ALL TABLES IN SCHEMA gold, gold_v2 TO {quoted_role}"
+                )
+                administrator.exec_driver_sql(
+                    f"REVOKE SELECT ON gold_v2.{engine.dialect.identifier_preparer.quote(denied_table)} "
+                    f"FROM {quoted_role}"
+                )
+
+            reader = create_engine(
+                url.set(username=role, password=password), hide_parameters=True
+            )
+            facts = observe_domain_readiness(
+                reader,
+                requested_periods=("2001-01",),
+                approved_controls=frozenset({"C14", "C15"}),
+            )
+
+            assert facts["control_results"]["C14"]["status"] == expected_c14
+            assert facts["control_results"]["C15"]["status"] == expected_c15
+            assert facts["coverage"]["atendimento.mensal"]["closed_periods"] == []
+            assert facts["tables"][denied_table]["present"] is False
+            reader.dispose()
+            reader = None
+            with administrator_engine.begin() as administrator:
+                administrator.exec_driver_sql(f"DROP OWNED BY {quoted_role}")
+                administrator.exec_driver_sql(f"DROP ROLE {quoted_role}")
+            role_created = False
+    finally:
+        if reader is not None:
+            reader.dispose()
+        if role_created:
+            with administrator_engine.begin() as administrator:
+                administrator.exec_driver_sql(f"DROP OWNED BY {quoted_role}")
+                administrator.exec_driver_sql(f"DROP ROLE IF EXISTS {quoted_role}")
+        engine.dispose()
+        administrator_engine.dispose()
+
+
 @pytest.mark.parametrize("scope", ["attendance", "domains"])
 @pytest.mark.parametrize("case", ["stale", "malformed"])
 def test_consumer_reference_is_checked_before_genai_call(published, scope, case):  # noqa: F811
@@ -587,7 +682,6 @@ def test_consumer_reference_is_checked_before_genai_call(published, scope, case)
     from uuid import uuid4
 
     import httpx
-
     from app.repositories.gold_publication import (
         GoldPublicationChanged,
         GoldPublicationInvalid,
