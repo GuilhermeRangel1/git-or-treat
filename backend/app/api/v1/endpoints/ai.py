@@ -44,6 +44,7 @@ from app.schemas.sql_analysis import (
     SqlAnalysisRequest,
     SqlAnalysisResponse,
     SqlCompoundAnalysis,
+    SqlContinuityPairAnalysis,
 )
 from app.services.analytics import AnalyticsAPIError
 from app.services.genai_audit import AuditStore
@@ -78,12 +79,30 @@ from app.services.genai_publication import GoldPublicationContext
 from app.services.genai_sql_admission import SqlAdmissionDenied
 from app.services.genai_sql_compound import CompoundEvidenceUnavailable
 from app.services.genai_sql_compound_route import (
+    PUBLISHED_PRICE_WINDOWS,
     CompoundStagingUnavailable,
+    annual_class_comparison_scope,
+    feeder_occurrence_scope,
+    financial_comparison_scope,
     is_price_volume_question,
+    is_ranked_consumption_revenue_impact_question,
+    monthly_class_average,
+    monthly_class_opposite_changes,
+    monthly_consumption_satisfaction,
+    monthly_municipality_totals,
+    published_decomposition_scope,
     query_compound_from_sources,
+    query_feeder_occurrences,
+    query_financial_comparison,
+    query_observed_consumption_revenue,
+    query_published_decomposition,
+    query_service_summary,
+    service_summary_months,
 )
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
+    continuity_metric_question,
+    is_explicit_dec_fec_question,
     requested_sql_metric_id,
 )
 from app.services.genai_sql_continuation import (
@@ -177,6 +196,8 @@ async def _run_f1_sql_analysis_impl(
                     "service.accumulated_satisfaction",
                     "energy.gd_units",
                     "energy.gd_consumption_drop",
+                    "customer.units_by_class",
+                    "inspection.units_by_priority",
                     "network.equivalent_interruption_duration",
                     "network.equivalent_interruption_frequency",
                 },
@@ -184,9 +205,12 @@ async def _run_f1_sql_analysis_impl(
                 & {
                     "geography.municipality",
                     "customer.consumption_class",
+                    "tariff.subgroup",
+                    "tariff.flag",
                     "geography.neighborhood",
                     "network.feeder",
                     "generation.distributed",
+                    "inspection.priority",
                 },
             }
         )
@@ -265,8 +289,17 @@ async def _run_f1_sql_analysis_impl(
                 retryable=False,
                 message="O contexto anterior não é mais válido. Inicie uma nova conversa.",
             )
+    continuity_pair_requested = is_explicit_dec_fec_question(payload.question)
     requested_metric_id = requested_sql_metric_id(payload.question, sql_context)
-    if requested_metric_id not in scope.allowed_metric_ids:
+    required_metrics = (
+        {
+            "network.equivalent_interruption_duration",
+            "network.equivalent_interruption_frequency",
+        }
+        if continuity_pair_requested
+        else {requested_metric_id}
+    )
+    if not required_metrics <= scope.allowed_metric_ids:
         raise HTTPException(403, "Métrica fora do acesso atual.")
     remaining_ms = min(
         int(GOLD_REQUEST_TIMEOUT_SECONDS * 1000),
@@ -297,6 +330,7 @@ async def _run_f1_sql_analysis_impl(
         model_calls=0,
         source_calls=0,
         sql_f1_artifact=None,
+        metric_id_override=None,
     ):
         event = BackendAuditEvent(
             correlation_id=request.state.correlation_id,
@@ -309,7 +343,7 @@ async def _run_f1_sql_analysis_impl(
             source_calls=source_calls,
             batch_ref=publication.batch_ref,
             caller_ref=scope.caller_ref,
-            metric_id=requested_metric_id,
+            metric_id=metric_id_override or requested_metric_id,
             source_id=scope.source_id,
             evidence_ref=evidence_ref,
             sql_f1_artifact=sql_f1_artifact,
@@ -337,23 +371,261 @@ async def _run_f1_sql_analysis_impl(
             return
 
     try:
-        if is_price_volume_question(payload.question):
+        feeder_scope = feeder_occurrence_scope(payload.question)
+        if feeder_scope is not None:
+            feeder, month = feeder_scope
+            original_scope = resolve_scope()
+            metric = "network.interruption_events"
+            dimensions = frozenset({"network.feeder"})
+            if metric not in original_scope.allowed_metric_ids or not dimensions <= original_scope.allowed_dimension_ids:
+                raise GoldExecutionDenied
+            report = await deadline.run(
+                60,
+                lambda: genai.evaluate_readiness(
+                    engine, requested_periods=(month,),
+                    approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+                    correlation_id=request.state.correlation_id,
+                    expected_batch_ref=publication.batch_ref,
+                ),
+            )
+            capability = report.capabilities.get("interrupcoes.uc_acumulado")
+            result = None
+            message = "A publicação não liberou a fonte de ocorrências de interrupção para esse mês."
+            if capability is not None and "coverage_incomplete" in capability.reasons:
+                message = (
+                    "A cobertura de ocorrências de interrupção está incompleta para esse mês. "
+                    "A fonte não sustenta uma contagem certificada no recorte."
+                )
+            if (
+                report.batch_ref == publication.batch_ref
+                and report.lot_state in {"ready", "partial"}
+                and capability is not None and capability.status == "available"
+            ):
+                if resolve_scope() != original_scope:
+                    raise GoldExecutionDenied
+                result = await deadline.run(
+                    10, lambda: asyncio.to_thread(query_feeder_occurrences, engine, publication, feeder, month),
+                )
+                message = "O alimentador não tem ocorrências publicadas no mês, e a fonte não certifica zero para esse recorte."
+            if resolve_scope() != original_scope:
+                raise GoldExecutionDenied
+            audit_reference = await record_audit(
+                "response", "available" if result else "refused",
+                "success" if result else "refused",
+                row_count=1 if result else 0, evidence_ref=result.evidence_digest if result else None,
+                model_calls=0, metric_id_override=metric,
+            )
+            if result is not None:
+                return SqlAnalysisResponse.from_compound(
+                    request.state.correlation_id, result, audit_reference=audit_reference,
+                )
+            return SqlAnalysisResponse(
+                correlation_id=request.state.correlation_id,
+                audit_reference=audit_reference, status="unsupported",
+                unsupported_reason={"code": "source_outside_f1", "message": message},
+            )
+        price_scope = published_decomposition_scope(payload.question)
+        if price_scope is not None:
+            from app.services.gold_price_volume import window_months
+
+            original_scope = resolve_scope()
+            dimensions = {"geography.municipality"}
+            if price_scope[1]:
+                dimensions.add("customer.consumption_class")
+            if (
+                "billing.price_volume" not in original_scope.allowed_metric_ids
+                or not dimensions <= original_scope.allowed_dimension_ids
+            ):
+                raise GoldExecutionDenied
+            report = await deadline.run(
+                60,
+                lambda: genai.evaluate_readiness(
+                    engine, requested_periods=window_months(PUBLISHED_PRICE_WINDOWS),
+                    approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+                    correlation_id=request.state.correlation_id,
+                    expected_batch_ref=publication.batch_ref,
+                ),
+            )
+            capability = report.capabilities.get("faturamento.preco_volume")
+            if (
+                report.batch_ref != publication.batch_ref
+                or report.lot_state not in {"ready", "partial"}
+                or capability is None or capability.status != "available"
+            ):
+                audit_reference = await record_audit("response", "refused", "refused", model_calls=0)
+                return SqlAnalysisResponse(
+                    correlation_id=request.state.correlation_id,
+                    audit_reference=audit_reference, status="unsupported",
+                    unsupported_reason={
+                        "code": "source_outside_f1",
+                        "message": "A publicação não liberou a decomposição preço-volume para essas janelas.",
+                    },
+                )
+            if resolve_scope() != original_scope:
+                raise GoldExecutionDenied
+            analysis = await deadline.run(
+                10, lambda: asyncio.to_thread(query_published_decomposition, engine, publication, price_scope),
+            )
+            if resolve_scope() != original_scope:
+                raise GoldExecutionDenied
+            audit_reference = await record_audit(
+                "response", "available", "success", row_count=len(analysis.records),
+                evidence_ref=analysis.evidence_digest, source_calls=1, model_calls=0,
+                metric_id_override="billing.price_volume",
+            )
+            return SqlAnalysisResponse.from_compound(
+                request.state.correlation_id, analysis, audit_reference=audit_reference,
+            )
+        financial_scope = financial_comparison_scope(payload.question)
+        if financial_scope is not None:
+            required_metrics = frozenset(financial_scope.metric_ids)
+            required_dimensions = frozenset({"geography.municipality"})
+            if (
+                not required_metrics <= scope.allowed_metric_ids
+                or not required_dimensions <= scope.allowed_dimension_ids
+            ):
+                raise GoldExecutionDenied
+            report = await deadline.run(
+                60,
+                lambda: genai.evaluate_readiness(
+                    engine,
+                    requested_periods=financial_scope.periods,
+                    approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+                    correlation_id=request.state.correlation_id,
+                    expected_batch_ref=publication.batch_ref,
+                ),
+            )
+            required_capabilities = {"faturamento.receita", "consumo.mensal_uc"}
+            if (
+                report.batch_ref != publication.batch_ref
+                or report.lot_state not in {"ready", "partial"}
+                or any(
+                    report.capabilities.get(capability) is None
+                    or report.capabilities[capability].status != "available"
+                    for capability in required_capabilities
+                )
+            ):
+                audit_reference = await record_audit(
+                    "response", "refused", "refused", model_calls=0,
+                )
+                return SqlAnalysisResponse(
+                    correlation_id=request.state.correlation_id,
+                    audit_reference=audit_reference,
+                    status="unsupported",
+                    unsupported_reason={
+                        "code": "source_outside_f1",
+                        "message": "A Gold não cobre todas as métricas solicitadas nesse período.",
+                    },
+                )
+            publication.assert_sql_source_coverage(
+                engine,
+                table_name="diagnostico_receita",
+                periods=financial_scope.periods,
+                dimension_ids=required_dimensions,
+                metric_ids=required_metrics,
+                source_capability_id="faturamento.receita",
+            )
+            if resolve_f1_scope() != scope:
+                raise GoldExecutionDenied
+            analysis = await deadline.run(
+                10,
+                lambda: asyncio.to_thread(
+                    query_financial_comparison, engine, publication, financial_scope,
+                ),
+            )
+            if resolve_f1_scope() != scope:
+                raise GoldExecutionDenied
+            audit_reference = await record_audit(
+                "response", "available", "success",
+                row_count=len(analysis.monthly), evidence_ref=analysis.evidence_digest,
+                source_calls=1, model_calls=0,
+            )
+            return SqlAnalysisResponse.from_compound(
+                request.state.correlation_id, analysis, audit_reference=audit_reference,
+            )
+        ranked_consumption_revenue_impact = (
+            is_ranked_consumption_revenue_impact_question(payload.question)
+        )
+        monthly_service = monthly_consumption_satisfaction(payload.question)
+        service_months = monthly_service or service_summary_months(payload.question)
+        if service_months:
+            metrics = frozenset({"service.attendance", "service.satisfaction"})
+            if not (metrics | ({"energy.consumption"} if monthly_service else set())) <= scope.allowed_metric_ids:
+                raise GoldExecutionDenied
+            report = await deadline.run(
+                60,
+                lambda: genai.evaluate_readiness(
+                    engine,
+                    requested_periods=service_months,
+                    approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+                    correlation_id=request.state.correlation_id,
+                    expected_batch_ref=publication.batch_ref,
+                ),
+            )
+            capability = report.capabilities.get("atendimento.mensal")
+            billing_capability = report.capabilities.get("faturamento.receita")
+            if (
+                report.batch_ref != publication.batch_ref
+                or report.lot_state not in {"ready", "partial"}
+                or capability is None or capability.status != "available"
+                or (monthly_service and (
+                    billing_capability is None or billing_capability.status != "available"
+                ))
+            ):
+                raise CompoundEvidenceUnavailable("Atendimento mensal indisponível no recorte.")
+            publication.assert_sql_source_coverage(
+                engine, table_name="atendimentos_uc", periods=service_months,
+                dimension_ids=frozenset(), metric_ids=metrics,
+            )
+            if resolve_f1_scope() != scope:
+                raise GoldExecutionDenied
+            summary = await deadline.run(
+                10, lambda: asyncio.to_thread(
+                    query_service_summary, engine, publication, service_months,
+                    monthly=bool(monthly_service),
+                ),
+            )
+            if resolve_f1_scope() != scope:
+                raise GoldExecutionDenied
+            audit_reference = await record_audit(
+                "response", "available", "success", row_count=1,
+                evidence_ref=summary.evidence_digest, source_calls=1, model_calls=0,
+            )
+            return SqlAnalysisResponse.from_compound(
+                request.state.correlation_id, summary, audit_reference=audit_reference,
+            )
+        staging_dir = settings.GENAI_PRICE_VOLUME_STAGING_DIR
+        has_staging = staging_dir is not None and staging_dir.is_dir()
+        class_scope = annual_class_comparison_scope(payload.question)
+        monthly_changes = monthly_class_opposite_changes(payload.question)
+        totals_month = monthly_municipality_totals(payload.question)
+        class_average = monthly_class_average(payload.question)
+        if class_average is not None:
+            class_scope, totals_month = class_average
+        if monthly_changes is not None:
+            class_scope = monthly_changes[0]
+        if totals_month is not None or class_scope is not None or ranked_consumption_revenue_impact or (
+            is_price_volume_question(payload.question) and has_staging
+        ):
             required_metrics = {"billing.revenue", "energy.consumption"}
+            if class_average is not None:
+                required_metrics.add("energy.average_consumption_per_uc")
             required_dimensions = {"geography.municipality", "customer.consumption_class"}
             if (
                 not required_metrics <= scope.allowed_metric_ids
                 or not required_dimensions <= scope.allowed_dimension_ids
             ):
                 raise GoldExecutionDenied
-            staging_dir = settings.GENAI_PRICE_VOLUME_STAGING_DIR
-            if staging_dir is None:
-                raise CompoundStagingUnavailable("Staging local não configurado.")
             periods = tuple(
                 f"{year:04d}-{month:02d}"
                 for year in (2024, 2025, 2026)
                 for month in range(1, 13)
                 if "2024-07" <= f"{year:04d}-{month:02d}" <= "2026-06"
             )
+            if monthly_changes is not None:
+                periods = monthly_changes[1]
+            elif totals_month is not None:
+                periods = (totals_month,)
             report = await deadline.run(
                 60,
                 lambda: genai.evaluate_readiness(
@@ -385,20 +657,32 @@ async def _run_f1_sql_analysis_impl(
             current_scope = resolve_f1_scope()
             if current_scope != scope:
                 raise GoldExecutionDenied
-            result, manifest, manifest_digest = await deadline.run(
-                10,
-                lambda: asyncio.to_thread(
-                    query_compound_from_sources,
-                    engine,
-                    staging_dir,
-                    batch_ref=publication.batch_ref,
-                    publication=publication,
-                ),
-            )
+            if has_staging and class_scope is None and totals_month is None:
+                result, manifest, manifest_digest = await deadline.run(
+                    10,
+                    lambda: asyncio.to_thread(
+                        query_compound_from_sources, engine, staging_dir,
+                        batch_ref=publication.batch_ref, publication=publication,
+                    ),
+                )
+            else:
+                result, manifest, manifest_digest = await deadline.run(
+                    10,
+                    lambda: asyncio.to_thread(
+                        query_observed_consumption_revenue, engine, publication, periods,
+                        class_scope=class_scope,
+                        opposite_changes=monthly_changes is not None,
+                    ),
+                )
             publication.assert_current(engine)
             if resolve_f1_scope() != scope:
                 raise GoldExecutionDenied
-            analysis = SqlCompoundAnalysis.from_sources(result, manifest, manifest_digest)
+            analysis = SqlCompoundAnalysis.from_sources(
+                result,
+                manifest,
+                manifest_digest,
+                municipality_limit=3 if ranked_consumption_revenue_impact else None,
+            )
             row_count = sum(len(row.revenue_by_class) for row in analysis.municipalities)
             await record_audit(
                 "source", "completed", "success", row_count=row_count,
@@ -425,93 +709,179 @@ async def _run_f1_sql_analysis_impl(
                 if token is not None:
                     response = response.model_copy(update={"continuation_token": token})
             return response
-        run = await run_sql_question(
-            plan_request,
-            engine=engine,
-            readiness_engine=engine,
-            publication=publication,
-            client=genai,
-            resolve_scope=resolve_f1_scope,
-            approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
-            deadline=deadline,
-            correlation_id=request.state.correlation_id,
-        )
-        publication.assert_current(engine)
-        current_scope = resolve_f1_scope()
-        if current_scope != scope:
-            raise GoldExecutionDenied
-        if run.evidence is not None:
-            await record_audit(
-                "source",
-                "completed",
-                "success",
-                row_count=len(run.evidence.rows),
-                evidence_ref=run.evidence.evidence_digest,
-                source_calls=1,
-            )
-            outcome, code = "success", "available"
-        elif run.candidate.status == "needs_clarification":
-            outcome, code = "success", "clarification"
+        if continuity_pair_requested:
+            pair_runs = {}
+            for indicator, expected_metric in (
+                ("DEC", "network.equivalent_interruption_duration"),
+                ("FEC", "network.equivalent_interruption_frequency"),
+            ):
+                single_question = continuity_metric_question(payload.question, indicator)
+                single_request = plan_request.model_copy(
+                    update={"question": single_question}
+                )
+                if requested_sql_metric_id(single_question, sql_context) != expected_metric:
+                    raise GenAIResponseInvalid
+                current_scope = resolve_f1_scope()
+                if current_scope != scope:
+                    raise GoldExecutionDenied
+                publication.assert_current(engine)
+                pair_runs[indicator] = await run_sql_question(
+                    single_request,
+                    engine=engine,
+                    readiness_engine=engine,
+                    publication=publication,
+                    client=genai,
+                    resolve_scope=resolve_f1_scope,
+                    approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+                    deadline=deadline,
+                    correlation_id=request.state.correlation_id,
+                )
+                current_scope = resolve_f1_scope()
+                if current_scope != scope:
+                    raise GoldExecutionDenied
+                publication.assert_current(engine)
+                if pair_runs[indicator].evidence is None:
+                    failed = pair_runs[indicator]
+                    audit_reference = await record_audit(
+                        "response",
+                        "clarification" if failed.candidate.status == "needs_clarification" else "refused",
+                        "success" if failed.candidate.status == "needs_clarification" else "refused",
+                        model_calls=failed.model_calls,
+                        sql_f1_artifact=failed.audit_artifact,
+                        metric_id_override=expected_metric,
+                    )
+                    response = SqlAnalysisResponse.from_run(
+                        request.state.correlation_id,
+                        failed,
+                        audit_reference=audit_reference,
+                    )
+                    break
+            else:
+                dec_evidence = pair_runs["DEC"].evidence
+                fec_evidence = pair_runs["FEC"].evidence
+                if dec_evidence is None or fec_evidence is None:
+                    raise GenAIResponseInvalid
+                continuity_pair = SqlContinuityPairAnalysis.from_evidence(
+                    dec_evidence, fec_evidence
+                )
+                for indicator, metric_id in (
+                    ("DEC", "network.equivalent_interruption_duration"),
+                    ("FEC", "network.equivalent_interruption_frequency"),
+                ):
+                    evidence = pair_runs[indicator].evidence
+                    await record_audit(
+                        "source",
+                        "completed",
+                        "success",
+                        row_count=len(evidence.rows),
+                        evidence_ref=evidence.evidence_digest,
+                        source_calls=1,
+                        sql_f1_artifact=pair_runs[indicator].audit_artifact,
+                        metric_id_override=metric_id,
+                    )
+                audit_reference = await record_audit(
+                    "response",
+                    "available",
+                    "success",
+                    row_count=2,
+                    evidence_ref=continuity_pair.evidence_digest,
+                    model_calls=sum(run.model_calls for run in pair_runs.values()),
+                    source_calls=2,
+                )
+                response = SqlAnalysisResponse.from_continuity_pair(
+                    request.state.correlation_id,
+                    continuity_pair,
+                    audit_reference=audit_reference,
+                )
+            publication.assert_current(engine)
+            if resolve_f1_scope() != scope:
+                raise GoldExecutionDenied
         else:
-            outcome, code = "refused", "refused"
-        audit_reference = await record_audit(
-            "response",
-            code,
-            outcome,
-            row_count=len(run.evidence.rows) if run.evidence is not None else 0,
-            evidence_ref=run.evidence.evidence_digest
-            if run.evidence is not None
-            else None,
-            model_calls=run.model_calls,
-            sql_f1_artifact=run.audit_artifact,
-        )
+            run = await run_sql_question(
+                plan_request,
+                engine=engine,
+                readiness_engine=engine,
+                publication=publication,
+                client=genai,
+                resolve_scope=resolve_f1_scope,
+                approved_controls=frozenset(settings.GENAI_GOLD_APPROVED_CONTROLS),
+                deadline=deadline,
+                correlation_id=request.state.correlation_id,
+            )
+            publication.assert_current(engine)
+            if resolve_f1_scope() != scope:
+                raise GoldExecutionDenied
+            if run.evidence is not None:
+                await record_audit(
+                    "source", "completed", "success",
+                    row_count=len(run.evidence.rows),
+                    evidence_ref=run.evidence.evidence_digest,
+                    source_calls=1,
+                )
+                outcome, code = "success", "available"
+            elif run.candidate.status == "needs_clarification":
+                outcome, code = "success", "clarification"
+            else:
+                outcome, code = "refused", "refused"
+            audit_reference = await record_audit(
+                "response", code, outcome,
+                row_count=len(run.evidence.rows) if run.evidence is not None else 0,
+                evidence_ref=run.evidence.evidence_digest
+                if run.evidence is not None else None,
+                model_calls=run.model_calls,
+                sql_f1_artifact=run.audit_artifact,
+            )
+            with sql_stage(
+                request.state.correlation_id,
+                "presentation",
+                context_version=(
+                    run.evidence.context_version if run.evidence is not None else None
+                ),
+                contract_version=(
+                    "text-to-sql-f1-presentation-v12"
+                    if run.evidence is not None
+                    and run.evidence.metric_id in {"billing.average_ticket", "billing.effective_tariff"}
+                    else "text-to-sql-f1-presentation-v11"
+                    if run.evidence is not None
+                    and run.evidence.interpretation.operation == "weighted_continuity"
+                    else "text-to-sql-f1-presentation-v10"
+                    if run.evidence is not None
+                    and run.evidence.metric_id == "energy.average_consumption_per_uc"
+                    else
+                    "text-to-sql-f1-presentation-v6"
+                    if run.evidence is not None
+                    and run.evidence.metric_id == "service.satisfaction"
+                    else "text-to-sql-f1-presentation-v3"
+                    if run.evidence is not None
+                    and run.evidence.metric_id == "service.attendance"
+                    else "text-to-sql-f1-presentation-v5"
+                    if run.evidence is not None
+                    and run.evidence.metric_id == "service.accumulated_attendance"
+                    else "text-to-sql-f1-presentation-v4"
+                    if run.evidence is not None
+                    and run.evidence.metric_id
+                    in {
+                        "network.equivalent_interruption_duration",
+                        "network.equivalent_interruption_frequency",
+                    }
+                    else "text-to-sql-f1-presentation-v1"
+                ),
+            ):
+                response = SqlAnalysisResponse.from_run(
+                    request.state.correlation_id,
+                    run,
+                    audit_reference=audit_reference,
+                )
         publication.assert_current(engine)
         if resolve_f1_scope() != scope:
             raise GoldExecutionDenied
-        with sql_stage(
-            request.state.correlation_id,
-            "presentation",
-            context_version=(
-                run.evidence.context_version if run.evidence is not None else None
-            ),
-            contract_version=(
-                "text-to-sql-f1-presentation-v12"
-                if run.evidence is not None
-                and run.evidence.metric_id in {"billing.average_ticket", "billing.effective_tariff"}
-                else "text-to-sql-f1-presentation-v11"
-                if run.evidence is not None
-                and run.evidence.interpretation.operation == "weighted_continuity"
-                else "text-to-sql-f1-presentation-v10"
-                if run.evidence is not None
-                and run.evidence.metric_id == "energy.average_consumption_per_uc"
-                else
-                "text-to-sql-f1-presentation-v6"
-                if run.evidence is not None
-                and run.evidence.metric_id == "service.satisfaction"
-                else "text-to-sql-f1-presentation-v3"
-                if run.evidence is not None
-                and run.evidence.metric_id == "service.attendance"
-                else "text-to-sql-f1-presentation-v5"
-                if run.evidence is not None
-                and run.evidence.metric_id == "service.accumulated_attendance"
-                else "text-to-sql-f1-presentation-v4"
-                if run.evidence is not None
-                and run.evidence.metric_id
-                in {
-                    "network.equivalent_interruption_duration",
-                    "network.equivalent_interruption_frequency",
-                }
-                else "text-to-sql-f1-presentation-v1"
-            ),
-        ):
-            response = SqlAnalysisResponse.from_run(
-                request.state.correlation_id,
-                run,
-                audit_reference=audit_reference,
-            )
         if payload.conversation_id is not None and secret and session:
             if response.status == "answered":
-                response_text = response.presentation.answer
+                response_text = (
+                    response.continuity_pair_analysis.answer
+                    if response.continuity_pair_analysis is not None
+                    else response.presentation.answer
+                )
             elif response.status == "needs_clarification":
                 response_text = response.clarification.question
             else:

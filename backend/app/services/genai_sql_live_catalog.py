@@ -23,6 +23,8 @@ def assert_live_f1_catalog(
     catalog_metrics = {item.metric_id: item for item in catalog.metrics}
     if not metric_ids or not metric_ids <= {
         "billing.revenue",
+        "billing.price_volume",
+        "network.interruption_events",
         "energy.consumption",
         "energy.average_consumption_per_uc",
         "billing.average_ticket",
@@ -33,6 +35,8 @@ def assert_live_f1_catalog(
         "service.accumulated_satisfaction",
         "energy.gd_units",
         "energy.gd_consumption_drop",
+        "customer.units_by_class",
+        "inspection.units_by_priority",
         "network.equivalent_interruption_duration",
         "network.equivalent_interruption_frequency",
     }:

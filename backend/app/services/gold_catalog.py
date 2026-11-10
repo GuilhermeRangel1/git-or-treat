@@ -24,6 +24,8 @@ _CAPABILITY_TABLES = {
     "interrupcoes.dec_fec": {"indicadores_dec_fec"},
     "atendimento.mensal": {"atendimentos_uc"},
     "atendimento.uc_acumulado": {"visao_360_uc", "atendimentos_uc"},
+    "cadastro.ucs_por_classe": {"visao_360_uc"},
+    "apoio.fila_inspecao": {"fila_inspecao"},
 }
 _NULL_RULES = {
     "sum": "sum_ignores_null_all_null_is_absent",

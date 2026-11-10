@@ -24,16 +24,24 @@ from pydantic import (
 )
 
 ShortText = Annotated[
-    str, StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=1000)
+    str,
+    StringConstraints(
+        strict=True, strip_whitespace=True, min_length=1, max_length=1000
+    ),
 ]
-ParameterName = Annotated[str, StringConstraints(strict=True, pattern=r"^[a-z][a-z0-9_]{0,62}$")]
+ParameterName = Annotated[
+    str, StringConstraints(strict=True, pattern=r"^[a-z][a-z0-9_]{0,62}$")
+]
 Scalar = StrictStr | StrictInt | StrictFloat | StrictBool
 Dimension = Literal[
     "geography.municipality",
     "geography.neighborhood",
     "customer.consumption_class",
+    "tariff.subgroup",
+    "tariff.flag",
     "network.feeder",
     "generation.distributed",
+    "inspection.priority",
 ]
 
 
@@ -42,7 +50,9 @@ class ClosedModel(BaseModel):
 
 
 class SqlParameter(ClosedModel):
-    type: Literal["string", "integer", "number", "boolean", "date", "timestamp", "decimal"]
+    type: Literal[
+        "string", "integer", "number", "boolean", "date", "timestamp", "decimal"
+    ]
     value: Scalar
 
     @model_validator(mode="after")
@@ -98,7 +108,10 @@ class SqlPeriod(ClosedModel):
                 value = data.get(key)
                 if type(value) is date:
                     continue
-                if type(value) is not str or date.fromisoformat(value).isoformat() != value:
+                if (
+                    type(value) is not str
+                    or date.fromisoformat(value).isoformat() != value
+                ):
                     raise ValueError("data exige representação ISO sem timestamp")
         return data
 
@@ -117,12 +130,15 @@ class SqlAnalysisFilter(ClosedModel):
     dimension_id: Dimension
     operator: Literal["eq", "in"]
     values: tuple[
-        Annotated[str, StringConstraints(strict=True, min_length=1, max_length=120)], ...
+        Annotated[str, StringConstraints(strict=True, min_length=1, max_length=120)],
+        ...,
     ] = Field(min_length=1, max_length=20)
 
     @model_validator(mode="after")
     def check_values(self) -> Self:
-        if len(set(self.values)) != len(self.values) or any(not x.strip() for x in self.values):
+        if len(set(self.values)) != len(self.values) or any(
+            not x.strip() for x in self.values
+        ):
             raise ValueError("filtros exigem valores únicos e não vazios")
         if (
             self.operator == "eq"
@@ -146,7 +162,7 @@ class SqlSemanticIntent(ClosedModel):
         ),
     ]
     periods: tuple[SqlPeriod, ...] = Field(default=(), max_length=2)
-    filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=2)
+    filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=3)
 
     @model_validator(mode="after")
     def check_unique_filters(self) -> Self:
@@ -170,6 +186,8 @@ class SqlInterpretation(ClosedModel):
         "energy.gd_consumption_drop",
         "network.equivalent_interruption_duration",
         "network.equivalent_interruption_frequency",
+        "customer.units_by_class",
+        "inspection.units_by_priority",
     ]
     operation: Literal[
         "total",
@@ -186,18 +204,17 @@ class SqlInterpretation(ClosedModel):
         "weighted_continuity",
     ]
     aggregation: Literal[
-        "sum",
-        "count_non_null",
-        "count_gd_drop",
-        "key_grain_read",
-        "average_non_null",
-        "ratio_of_sums",
-        "weighted_ratio",
+        "sum", "count_non_null", "count_distinct", "count_gd_drop",
+        "key_grain_read", "average_non_null", "ratio_of_sums", "weighted_ratio",
     ]
     periods: tuple[SqlPeriod, ...] = Field(max_length=2)
-    filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=2)
+    filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=3)
     group_by: tuple[
-        Literal["competency", "municipality", "neighborhood", "consumption_class", "feeder"], ...
+        Literal[
+            "competency", "municipality", "neighborhood", "consumption_class",
+            "feeder", "inspection_priority",
+        ],
+        ...,
     ] = Field(default=(), max_length=4)
     ranking_direction: Literal["asc", "desc"] | None = None
     ranking_limit: Annotated[int, Field(strict=True, ge=1, le=100)] | None = None
@@ -222,10 +239,12 @@ class SqlInterpretation(ClosedModel):
         if self.operation == "ranking":
             if not ranked or not self.group_by:
                 raise ValueError("ranking exige direção, limite e agrupamento")
-        elif (self.ranking_direction is not None or self.ranking_limit is not None) and (
-            self.operation != "comparison" or not ranked or not self.group_by
-        ):
-            raise ValueError("ranking de comparação exige agrupamento, direção e limite")
+        elif (
+            self.ranking_direction is not None or self.ranking_limit is not None
+        ) and (self.operation != "comparison" or not ranked or not self.group_by):
+            raise ValueError(
+                "ranking de comparação exige agrupamento, direção e limite"
+            )
         if len(set(self.group_by)) != len(self.group_by):
             raise ValueError("agrupamento duplicado")
         if len({item.dimension_id for item in self.filters}) != len(self.filters):
@@ -253,7 +272,9 @@ class SqlInterpretation(ClosedModel):
             or self.ranking_direction is not None
             or self.ranking_limit is not None
         ):
-            raise ValueError("média mensal exige satisfação sem filtros ou agrupamentos")
+            raise ValueError(
+                "média mensal exige satisfação sem filtros ou agrupamentos"
+            )
         if self.operation == "accumulated_average" and (
             self.metric_id != "service.accumulated_satisfaction"
             or self.aggregation != "average_non_null"
@@ -276,13 +297,37 @@ class SqlInterpretation(ClosedModel):
         ):
             raise ValueError("razão de somas exige métrica F1 compatível sem grupos")
         if self.operation == "snapshot_total":
+            if self.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}:
+                expected_dimension = (
+                    "customer.consumption_class"
+                    if self.metric_id == "customer.units_by_class"
+                    else "inspection.priority"
+                )
+                dimension = (
+                    "consumption_class"
+                    if self.metric_id == "customer.units_by_class"
+                    else "inspection_priority"
+                )
+                if (
+                    self.aggregation != "count_distinct"
+                    or any(item.dimension_id != expected_dimension for item in self.filters)
+                    or len(self.filters) > 1
+                    or self.group_by not in ((), (dimension,))
+                    or self.ranking_direction is not None
+                    or self.ranking_limit is not None
+                ):
+                    raise ValueError("retrato de cadastro admite somente contagem por sua dimensão")
+                return self
             gd_filters = [
-                item for item in self.filters if item.dimension_id == "generation.distributed"
+                item
+                for item in self.filters
+                if item.dimension_id == "generation.distributed"
             ]
             drop_metric = self.metric_id == "energy.gd_consumption_drop"
             if (
                 self.metric_id not in {"energy.gd_units", "energy.gd_consumption_drop"}
-                or self.aggregation != ("count_gd_drop" if drop_metric else "count_non_null")
+                or self.aggregation
+                != ("count_gd_drop" if drop_metric else "count_non_null")
                 or len(gd_filters) != 1
                 or gd_filters[0].operator != "eq"
                 or gd_filters[0].values != ("Sim",)
@@ -304,13 +349,20 @@ class SqlInterpretation(ClosedModel):
             raise ValueError("satisfação F1 libera somente média mensal")
         if self.metric_id == "energy.gd_units" and self.operation != "snapshot_total":
             raise ValueError("GD cadastrado libera somente retrato do lote")
-        if self.metric_id == "energy.gd_consumption_drop" and self.operation != "snapshot_total":
-            raise ValueError("queda de consumo com GD libera somente o retrato das janelas fixas")
+        if (
+            self.metric_id == "energy.gd_consumption_drop"
+            and self.operation != "snapshot_total"
+        ):
+            raise ValueError(
+                "queda de consumo com GD libera somente o retrato das janelas fixas"
+            )
         if (
             self.metric_id == "service.accumulated_satisfaction"
             and self.operation != "accumulated_average"
         ):
-            raise ValueError("satisfação acumulada libera somente o histórico publicado")
+            raise ValueError(
+                "satisfação acumulada libera somente o histórico publicado"
+            )
         if self.operation == "grain_read":
             feeder_filters = [
                 item for item in self.filters if item.dimension_id == "network.feeder"
@@ -335,7 +387,8 @@ class SqlInterpretation(ClosedModel):
                 item for item in self.filters if item.dimension_id == "network.feeder"
             ]
             if (
-                self.metric_id not in {
+                self.metric_id
+                not in {
                     "network.equivalent_interruption_duration",
                     "network.equivalent_interruption_frequency",
                 }
@@ -450,7 +503,10 @@ class SqlClarificationOption(ClosedModel):
 class SqlClarification(ClosedModel):
     question: ShortText
     missing_fields: tuple[
-        Literal["metric", "period", "dimension", "filter", "comparison_baseline", "context"], ...
+        Literal[
+            "metric", "period", "dimension", "filter", "comparison_baseline", "context"
+        ],
+        ...,
     ] = Field(min_length=1, max_length=6)
     reason_code: ClarificationReasonCode | None = None
     options: tuple[SqlClarificationOption, ...] = Field(default=(), max_length=5)
@@ -475,6 +531,7 @@ GenerationContractVersion = Literal[
     "text-to-sql-f1-v11",
     "text-to-sql-f1-v12",
     "text-to-sql-f1-v13",
+    "text-to-sql-f1-v14",
 ]
 
 
@@ -491,21 +548,28 @@ GenerationContractVersion = Literal[
     "text-to-sql-f1-v11",
     "text-to-sql-f1-v12",
     "text-to-sql-f1-v13",
+    "text-to-sql-f1-v14",
 ]
 
 
 class SqlGenerationCandidate(ClosedModel):
     generation_contract_version: GenerationContractVersion
     status: Literal["sql_candidate", "needs_clarification", "unsupported"]
-    context_version: Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{64}$")]
+    context_version: Annotated[
+        str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{64}$")
+    ]
     sql: (
         Annotated[
             str,
-            StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=16000),
+            StringConstraints(
+                strict=True, strip_whitespace=True, min_length=1, max_length=16000
+            ),
         ]
         | None
     ) = None
-    parameters: dict[ParameterName, SqlParameter] = Field(default_factory=dict, max_length=32)
+    parameters: dict[ParameterName, SqlParameter] = Field(
+        default_factory=dict, max_length=32
+    )
     interpretation: SqlInterpretation | None = None
     semantic_intent: SqlSemanticIntent | None = None
     result_columns: tuple[SqlResultColumn, ...] = Field(default=(), max_length=32)
@@ -529,7 +593,9 @@ class SqlGenerationCandidate(ClosedModel):
                 or self.unsupported_reason is not None
                 or self.semantic_intent is not None
             ):
-                raise ValueError("candidato exige SQL, interpretação e colunas sem esclarecimento")
+                raise ValueError(
+                    "candidato exige SQL, interpretação e colunas sem esclarecimento"
+                )
             names = [column.name for column in self.result_columns]
             if len(set(names)) != len(names) or not any(
                 column.role == "measure" for column in self.result_columns
@@ -599,6 +665,13 @@ class SqlGenerationCandidate(ClosedModel):
                 )
             ):
                 raise ValueError("F1 v13 só admite ticket médio e preço observado")
+            if (
+                self.generation_contract_version == "text-to-sql-f1-v14"
+                and self.interpretation.metric_id not in {
+                "customer.units_by_class", "inspection.units_by_priority"
+                }
+            ):
+                raise ValueError("F1 v14 só admite contagens cadastrais C05-C07")
         else:
             if (
                 self.sql is not None
@@ -606,12 +679,19 @@ class SqlGenerationCandidate(ClosedModel):
                 or self.interpretation
                 or self.result_columns
             ):
-                raise ValueError("estado sem candidato não pode transportar consulta parcial")
-            if (self.status == "needs_clarification") != (self.clarification is not None) or (
-                self.status == "unsupported"
-            ) != (self.unsupported_reason is not None):
+                raise ValueError(
+                    "estado sem candidato não pode transportar consulta parcial"
+                )
+            if (self.status == "needs_clarification") != (
+                self.clarification is not None
+            ) or (self.status == "unsupported") != (
+                self.unsupported_reason is not None
+            ):
                 raise ValueError("estado exige explicação específica compatível")
-            if self.status == "needs_clarification" and self.semantic_intent is not None:
+            if (
+                self.status == "needs_clarification"
+                and self.semantic_intent is not None
+            ):
                 raise ValueError("esclarecimento não pode transportar intenção parcial")
         return self
 
@@ -642,8 +722,12 @@ class SqlGenerationCandidate(ClosedModel):
 
 class SqlGenerationRequest(ClosedModel):
     generation_contract_version: GenerationContractVersion = "text-to-sql-f1-v1"
-    context_version: Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{64}$")]
-    contents: Annotated[str, StringConstraints(strict=True, min_length=1, max_length=65536)]
+    context_version: Annotated[
+        str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{64}$")
+    ]
+    contents: Annotated[
+        str, StringConstraints(strict=True, min_length=1, max_length=65536)
+    ]
     remaining_timeout_ms: Annotated[int, Field(strict=True, ge=1, le=60000)]
 
     @model_validator(mode="after")
@@ -657,7 +741,8 @@ class SqlGenerationRequest(ClosedModel):
         if (
             not isinstance(context, dict)
             or context.get("context_version") != self.context_version
-            or context.get("generation_contract_version") != self.generation_contract_version
+            or context.get("generation_contract_version")
+            != self.generation_contract_version
             or context.get("dialect") != "postgres"
         ):
             raise ValueError("contexto incompatível com envelope F1")
@@ -666,11 +751,16 @@ class SqlGenerationRequest(ClosedModel):
 
 class SqlGenerationResponse(ClosedModel):
     generation_contract_version: GenerationContractVersion = "text-to-sql-f1-v1"
-    correlation_id: Annotated[str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{32}$")]
+    correlation_id: Annotated[
+        str, StringConstraints(strict=True, pattern=r"^[a-f0-9]{32}$")
+    ]
     candidate: SqlGenerationCandidate
 
     @model_validator(mode="after")
     def check_contract_version(self) -> Self:
-        if self.candidate.generation_contract_version != self.generation_contract_version:
+        if (
+            self.candidate.generation_contract_version
+            != self.generation_contract_version
+        ):
             raise ValueError("versão do envelope e candidato divergem")
         return self

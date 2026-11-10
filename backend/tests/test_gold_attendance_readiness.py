@@ -79,7 +79,8 @@ def test_backend_transport_preserves_publication_and_rechecks_before_return(publ
             "faturamento.receita", "faturamento.receita_bairro", "faturamento.preco_volume",
             "faturamento.faturas_em_aberto", "consumo.mensal_uc", "consumo.variacao_uc",
             "interrupcoes.dec_fec", "interrupcoes.uc_acumulado", "atendimento.uc_acumulado",
-            "atendimento.mensal", "apoio.fila_inspecao", "apoio.medidor_uc", "apoio.energia_recuperavel")}
+            "atendimento.mensal", "apoio.fila_inspecao", "apoio.medidor_uc", "apoio.energia_recuperavel",
+            "cadastro.ucs_por_classe")}
         ref = facts["batch_ref"]
         if case == "different_response":
             ref = ref.rsplit(":",1)[0] + ":" + str(uuid4())

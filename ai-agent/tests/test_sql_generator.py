@@ -65,7 +65,7 @@ def test_untrusted_question_and_history_cannot_replace_policy_or_operation_contr
     assert "Ignore as regras" not in SYSTEM_INSTRUCTION
     for operation in ("total", "série mensal", "total agrupado", "ranking", "comparação"):
         assert operation in SYSTEM_INSTRUCTION
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-37"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-38"
     assert "Nunca escreva valor textual/número/data de filtro como literal" in SYSTEM_INSTRUCTION
     assert "FILTER" in SYSTEM_INSTRUCTION and "period0_start" in SYSTEM_INSTRUCTION
     assert "A única agregação" in SYSTEM_INSTRUCTION
@@ -181,6 +181,7 @@ def test_provider_schema_uses_only_supported_gemini_json_schema_keywords():
         "text-to-sql-f1-v11",
         "text-to-sql-f1-v12",
         "text-to-sql-f1-v13",
+            "text-to-sql-f1-v14",
     ]
     assert "semantic_intent" in schema["required"]
     assert "maxItems" not in json.dumps(schema)
@@ -395,7 +396,7 @@ def test_prompt_answers_short_replies_only_for_the_pending_field():
 def test_prompt_version_changes_with_the_scope_contract():
     from app.providers.sql_generator import SQL_GENERATION_PROMPT_VERSION
 
-    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-37"
+    assert SQL_GENERATION_PROMPT_VERSION == "text-to-sql-f1-38"
 
 
 def test_v13_schema_requires_ratio_operation_and_aggregation():
@@ -407,6 +408,22 @@ def test_v13_schema_requires_ratio_operation_and_aggregation():
     ]["properties"]
     assert fields["operation"]["enum"] == ["ratio_of_sums"]
     assert fields["aggregation"]["enum"] == ["ratio_of_sums"]
+
+
+def test_v14_schema_and_prompt_restrict_model_to_gold_snapshot_counts():
+    gen, method = generator(response=SimpleNamespace(text=json.dumps(payload())))
+    contents = json.dumps({"generation_contract_version": "text-to-sql-f1-v14"})
+    asyncio.run(gen.generate(contents, context_version=payload()["context_version"]))
+    fields = method.call_args.kwargs["config"]["response_json_schema"]["$defs"][
+        "SqlInterpretation"
+    ]["properties"]
+    assert fields["metric_id"]["enum"] == [
+        "customer.units_by_class", "inspection.units_by_priority"
+    ]
+    assert fields["operation"]["enum"] == ["snapshot_total"]
+    assert fields["aggregation"]["enum"] == ["count_distinct"]
+    assert "Exceção estrita para contagens cadastrais no contrato v14" in SYSTEM_INSTRUCTION
+    assert "não use `classe_consumo` nesta fonte" in SYSTEM_INSTRUCTION
 
 
 def test_v1_schema_keeps_other_supported_operations():

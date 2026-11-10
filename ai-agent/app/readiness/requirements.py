@@ -148,7 +148,7 @@ CAPABILITY_REQUIREMENTS: tuple[CapabilityRequirement, ...] = (
         tables=(GoldTable.VISAO_360_UC,),
         definition_approved=False,
     ),
-    # P14: mapeamento dos rótulos de inspeção da Silver pendente (issue #39).
+    # P14: fila permanece indisponível no mapeamento Gold v1; o v2 aprova a fonte.
     CapabilityRequirement(
         id="apoio.fila_inspecao",
         domain=CaseDomain.APOIO,
@@ -189,6 +189,7 @@ def _v2_requirements() -> tuple[CapabilityRequirement, ...]:
         "atendimento.uc_acumulado": {"tables": (GoldTable.VISAO_360_UC,
                                                 GoldTable.ATENDIMENTOS_UC),
                                      "required_controls": ("C14",), "definition_approved": True},
+        "apoio.fila_inspecao": {"definition_approved": True},
     }
     result = []
     for requirement in CAPABILITY_REQUIREMENTS:
@@ -204,6 +205,11 @@ def _v2_requirements() -> tuple[CapabilityRequirement, ...]:
         tables=(GoldTable.ATENDIMENTOS_UC, GoldTable.COBERTURA_DOMINIOS),
         required_controls=("C14", "C15"), definition_approved=True,
         requires_coverage=True, allows_confirmed_empty=True,
+    ))
+    result.append(CapabilityRequirement(
+        id="cadastro.ucs_por_classe", domain=CaseDomain.CONSUMO,
+        tables=(GoldTable.VISAO_360_UC,), required_controls=("C05",),
+        definition_approved=True,
     ))
     return tuple(result)
 

@@ -21,6 +21,8 @@ GOLD_METRICS = frozenset(
         "billing.price_volume",
         "network.interruption_events",
         "energy.gd_consumption_drop",
+        "customer.units_by_class",
+        "inspection.units_by_priority",
         "energy.gd_units",
         "billing.revenue",
         "energy.consumption",
@@ -43,6 +45,7 @@ GOLD_DIMENSIONS = frozenset(
         "tariff.subgroup",
         "tariff.flag",
         "generation.distributed",
+        "inspection.priority",
         "network.feeder",
     }
 )
@@ -56,6 +59,7 @@ COMMERCIAL_METRICS = frozenset(
         "billing.average_ticket",
         "billing.effective_tariff",
         "energy.average_consumption_per_uc",
+        "customer.units_by_class",
     }
 )
 COMMERCIAL_DIMENSIONS = GOLD_DIMENSIONS - {"network.feeder"}

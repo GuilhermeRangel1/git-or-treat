@@ -1,9 +1,9 @@
 import pytest
-
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.services.genai_sql_context import build_sql_generation_context
 from app.services.genai_sql_semantics import review_sql_semantics
 from app.services.genai_sql_structure import SqlStructureRejected
+
 from tests.test_genai_sql_structure import TOTAL, candidate
 from tests.test_genai_sql_structure import sql_request as fixture_sql_request
 
@@ -795,6 +795,53 @@ def test_revenue_neighborhood_uses_approved_bairro_source_and_grain(sql_request,
             "receita_total_reais",
         }
     )
+    assert review.measure_semantics == (("revenue", "revenue_total"),)
+
+
+@pytest.mark.parametrize(
+    ("dimension_id", "column", "value", "parameter", "phrase"),
+    [
+        ("tariff.subgroup", "subgrupo_tarifario", "B1", "subgroup", "subgrupo tarifário B1"),
+        ("tariff.flag", "bandeira_tarifaria", "VERDE", "flag", "bandeira VERDE"),
+        ("generation.distributed", "possui_gd", "Sim", "gd", "UCs com GD"),
+    ],
+)
+def test_revenue_supports_explicit_authorized_gold_dimensions(
+    sql_request, dimension_id, column, value, parameter, phrase
+):
+    payload = sql_request.model_dump(mode="json")
+    payload["question"] = (
+        f"Qual foi a receita faturada para {phrase} em junho de 2026?"
+    )
+    payload["access_scope"]["allowed_dimension_ids"].append(dimension_id)
+    payload["dimension_value_coverage"].append({
+        "dimension_id": dimension_id, "values": [value],
+    })
+    request = type(sql_request).model_validate(payload)
+    condition = f"competencia = :month AND {column} = :{parameter}"
+    params = {
+        "month": {"type": "string", "value": "2026-06"},
+        parameter: {"type": "string", "value": value},
+    }
+    candidate_value = candidate(
+        request,
+        f"SELECT SUM(receita_total_reais) AS revenue "
+        f"FROM gold_v2.diagnostico_receita WHERE {condition}",
+        parameters=params,
+    )
+    body = candidate_value.model_dump(mode="json")
+    body["interpretation"].update(
+        metric_id="billing.revenue",
+        periods=[{"start": "2026-06-01", "end": "2026-06-30"}],
+        filters=[{
+            "dimension_id": dimension_id, "operator": "eq", "values": [value],
+        }],
+    )
+    candidate_value = type(candidate_value).model_validate(body)
+
+    review = review_sql_semantics(candidate_value, request)
+
+    assert column in review.source_columns
     assert review.measure_semantics == (("revenue", "revenue_total"),)
 
 

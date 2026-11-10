@@ -48,6 +48,7 @@ _CONTROL_COLUMNS = {
         "media_consumo_historico", "total_chamados_callcenter",
         "media_satisfacao_atendimento",
     ),
+    "fila_inspecao": ("id_uc", "prioridade_inspecao"),
     "variacao_consumo_uc": (
         "id_uc", "municipio", "possui_gd", "consumo_medio_inicial",
         "meses_com_leitura_p1", "consumo_medio_final", "meses_com_leitura_p2",
@@ -70,6 +71,9 @@ _CONTROL_TABLES = {
     "C02": {"visao_360_uc", "consumo_mensal_uc", "diagnostico_receita"},
     "C03": {"consumo_mensal_uc"},
     "C04": {"visao_360_uc", "consumo_mensal_uc", "diagnostico_receita"},
+    "C05": {"visao_360_uc"},
+    "C06": {"visao_360_uc", "fila_inspecao"},
+    "C07": {"visao_360_uc", "fila_inspecao"},
     "C08": {"visao_360_uc", "consumo_mensal_uc", "variacao_consumo_uc"},
     "C09": {"visao_360_uc", "consumo_mensal_uc", "variacao_consumo_uc"},
     "C10": {"visao_360_uc", "consumo_mensal_uc"},

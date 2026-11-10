@@ -487,26 +487,14 @@ describe("Assistente Grid 360", () => {
       name: "Perguntas comuns",
     });
     expect(within(suggestions).getAllByRole("button")).toHaveLength(4);
-    expect(
-      within(suggestions).getByRole("button", {
-        name: "Distribua a receita faturada por município em junho de 2026.",
-      }),
-    ).toBeVisible();
-    expect(
-      within(suggestions).getByRole("button", {
-        name: "Quais municípios tiveram maior consumo medido em junho de 2026?",
-      }),
-    ).toBeVisible();
-    expect(
-      within(suggestions).getByRole("button", {
-        name: "Compare o consumo medido em Recife entre janeiro e junho de 2026.",
-      }),
-    ).toBeVisible();
-    expect(
-      within(suggestions).getByRole("button", {
-        name: "Como evoluiu o consumo medido em Recife, mês a mês, de janeiro a junho de 2026?",
-      }),
-    ).toBeVisible();
+    for (const name of [
+      "Distribua a receita faturada por município em junho de 2026.",
+      "Como evoluiu o consumo medido em Recife, mês a mês, de janeiro a junho de 2026?",
+      "Compare a receita de Recife entre maio de 2026 e junho de 2026.",
+      "Quais municípios apresentaram a maior queda no consumo de energia nos últimos 12 meses e como essa redução impactou a receita faturada, considerando as diferentes classes de consumo?",
+    ]) {
+      expect(within(suggestions).getByRole("button", { name })).toBeVisible();
+    }
     expect(
       screen.queryByText(
         /Informe o período e o local para uma resposta mais precisa/,

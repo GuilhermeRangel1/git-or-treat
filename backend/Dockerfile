@@ -16,6 +16,8 @@ COPY docs/contracts/examples/genai-plan-fingerprints-v1.json /docs/contracts/exa
 COPY docs/contracts/examples/genai-internal-contract-v1.json /docs/contracts/examples/genai-internal-contract-v1.json
 COPY docs/contracts/examples/text-to-sql-f1-v1.json /docs/contracts/examples/text-to-sql-f1-v1.json
 COPY docs/contracts/examples/text-to-sql-f1-http-v1.json /docs/contracts/examples/text-to-sql-f1-http-v1.json
+COPY docs/plans/CASOS_MELHORIA_GERAL_CHATBOT.json /docs/plans/CASOS_MELHORIA_GERAL_CHATBOT.json
+COPY docs/plans/GABARITOS_GOLD_MELHORIA_GERAL_CHATBOT.json /docs/plans/GABARITOS_GOLD_MELHORIA_GERAL_CHATBOT.json
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

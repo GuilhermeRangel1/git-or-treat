@@ -140,7 +140,8 @@ BOTH_BOUNDS = "Informe o mês e o ano de ambos os extremos do intervalo"
      "Este recorte pede exclusão; informe o valor que deseja incluir."),
     ("Quais UCs com GD em Olinda tiveram queda de consumo superior a 30%?",
      "Não apresento resultados individuais por unidade consumidora (UC). "
-     "Posso mostrar totais por município, bairro, classe de consumo ou geração distribuída (GD)."),
+     "Posso mostrar totais por município, bairro, classe de consumo, geração distribuída (GD) "
+     "ou prioridade de inspeção."),
     ("Qual foi a receita faturada entre janeiro e março?",
      "De qual ano você quer consultar janeiro e março? "
      "Se forem anos diferentes, informe o ano de cada mês."),

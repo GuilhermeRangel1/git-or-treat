@@ -309,6 +309,7 @@ def test_domain_transport_keeps_controls_and_revalidates_publication(published, 
             "apoio.fila_inspecao",
             "apoio.medidor_uc",
             "apoio.energia_recuperavel",
+            "cadastro.ucs_por_classe",
         )
         ref = facts["batch_ref"]
         if case == "different":

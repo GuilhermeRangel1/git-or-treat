@@ -1,11 +1,12 @@
 import json
 
 import pytest
-
 from app.schemas.genai_internal import QuestionPlanRequest
 from app.services.genai_sql_context import (
     SqlContextUnavailable,
     build_sql_generation_context,
+    continuity_metric_question,
+    is_explicit_dec_fec_question,
     is_explicit_multi_metric_question,
     is_gd_consumption_drop_question,
     requested_sql_metric_id,
@@ -52,11 +53,21 @@ def test_billing_consumption_class_is_not_misread_as_two_metrics():
     )
 
 
+def test_attendance_and_satisfaction_are_recognized_as_two_metrics():
+    assert is_explicit_multi_metric_question(
+        "Compare o total de atendimentos e a satisfação média de janeiro a junho de 2026."
+    )
+    assert not is_explicit_multi_metric_question(
+        "Qual foi a satisfação média dos atendimentos em junho de 2026?"
+    )
+
+
 @pytest.mark.parametrize(
     ("question", "metric_id"),
     [
         ("Qual foi o ticket médio por UC faturada em junho de 2026?", "billing.average_ticket"),
         ("Qual foi o preço médio observado por kWh em junho de 2026?", "billing.effective_tariff"),
+        ("Qual foi o preço observado do kWh comparável em Olinda em maio de 2026?", "billing.effective_tariff"),
         ("Qual foi a tarifa média efetiva em junho de 2026?", "billing.effective_tariff"),
     ],
 )
@@ -85,6 +96,42 @@ def test_average_consumption_question_maps_to_catalog_ratio_metric():
     assert set(context["source"]["columns"]) >= {
         "consumo_total_kwh", "qtd_ucs_com_leitura"
     }
+
+
+def test_average_consumption_colloquial_question_maps_to_catalog_ratio_metric():
+    assert requested_sql_metric_id(
+        "Em média, quantos kWh cada UC com leitura consumiu em Recife em junho de 2026?"
+    ) == "energy.average_consumption_per_uc"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual foi a média de kWh por UC com leitura na bandeira VERDE, em IGARASSU, em março de 2026?",
+        "Qual foi o consumo médio por UC com leitura da classe residencial em 2026?",
+        "Qual foi a média de kWh por unidade lida em Recife em abril de 2026?",
+    ],
+)
+def test_average_kwh_per_uc_takes_precedence_over_class_and_unit_count(question):
+    assert requested_sql_metric_id(question) == "energy.average_consumption_per_uc"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual foi o ticket médio por UC faturada da classe industrial em março de 2026?",
+        "Qual foi o preço médio por UC faturada da classe rural em março de 2026?",
+        "Quanto saiu, em média, por unidade faturada em Recife em junho de 2026?",
+    ],
+)
+def test_average_ticket_takes_precedence_over_class_unit_count(question):
+    assert requested_sql_metric_id(question) == "billing.average_ticket"
+
+
+def test_historical_attendance_wording_maps_to_accumulated_metric():
+    assert requested_sql_metric_id(
+        "Qual o total histórico de chamados disponível?"
+    ) == "service.accumulated_attendance"
 
 
 def build(payload):
@@ -170,10 +217,10 @@ def test_explicit_gd_consumption_adds_only_the_cadastral_filter_dimension():
     context = build(payload)
     body = json.loads(context.contents)
     assert body["dimensions"]["generation.distributed"] == "possui_gd"
-    assert body["dimension_values"][-1] == {
-        "dimension_id": "generation.distributed",
-        "values": ["Não", "Sim"],
-    }
+    assert {
+        item["dimension_id"]: item["values"]
+        for item in body["dimension_values"]
+    }["generation.distributed"] == ["Não", "Sim"]
     assert "possui_gd" in body["source"]["columns"]
 
 
@@ -359,6 +406,12 @@ def test_satisfaction_context_uses_average_of_monthly_non_null_scores():
     )
 
 
+def test_portuguese_accented_evaluations_resolve_to_satisfaction():
+    assert requested_sql_metric_id(
+        "Nos chamados que entraram em novembro de 2023, qual foi a média das avaliações?"
+    ) == "service.satisfaction"
+
+
 def test_accumulated_attendance_context_has_no_invented_period_or_uc_filter():
     payload = request_payload()
     payload["question"] = "Quantos chamados no histórico acumulado?"
@@ -379,6 +432,37 @@ def test_accumulated_attendance_context_has_no_invented_period_or_uc_filter():
     assert body["source"]["temporal_column"] is None
     assert body["source"]["columns"] == {"total_chamados_callcenter": "BIGINT"}
     assert body["rules"]["accumulated_period_is_unknown"] is True
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Quantos chamados existem no histórico publicado?",
+        "Qual é o total acumulado de atendimentos por UC?",
+        "Me mostre a quantidade de chamados acumulados no cadastro.",
+        "Quantos atendimentos acumulados constam na visão 360?",
+        "No conjunto publicado, quantos chamados foram registrados?",
+        "Qual é a soma dos chamados acumulados por unidade?",
+        "Quantos contatos de atendimento há no histórico disponível?",
+        "Qual o número acumulado de protocolos na base atual?",
+    ],
+)
+def test_daily_attendance_history_paraphrases_map_to_accumulated_metric(question):
+    assert requested_sql_metric_id(question) == "service.accumulated_attendance"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual a média das notas individuais de atendimento acumuladas?",
+        "Qual foi a média das avaliações registradas na base?",
+        "Qual o valor médio das notas dos protocolos disponíveis?",
+        "Qual é a nota média geral dos atendimentos publicados?",
+        "Qual a avaliação média dos protocolos do histórico?",
+    ],
+)
+def test_daily_satisfaction_history_paraphrases_map_to_accumulated_metric(question):
+    assert requested_sql_metric_id(question) == "service.accumulated_satisfaction"
 
 
 def test_gd_units_context_is_a_non_temporal_lot_snapshot():
@@ -412,6 +496,82 @@ def test_gd_consumption_drop_is_not_misclassified_as_a_registry_count():
     assert is_gd_consumption_drop_question(question)
     assert requested_sql_metric_id(question) != "energy.gd_units"
     assert is_gd_consumption_drop_question("Quantas UCs com GD tiveram queda?")
+
+
+@pytest.mark.parametrize(
+    ("question", "metric_id"),
+    [
+        (
+            "Em SÃO LOURENÇO DA MATA, quanto consumiu em média cada UC com leitura e GD em maio de 2026?",
+            "energy.average_consumption_per_uc",
+        ),
+        (
+            "Qual foi o preço observado por kWh faturado das UCs com GD em SÃO LOURENÇO DA MATA em maio de 2026?",
+            "billing.effective_tariff",
+        ),
+        (
+            "Quanto de energia foi medida no bairro ALDEIA DOS CAMARÁS, em CAMARAGIBE, em fevereiro de 2026?",
+            "energy.consumption",
+        ),
+    ],
+)
+def test_daily_question_phrases_keep_single_metric_intent(question, metric_id):
+    assert requested_sql_metric_id(question) == metric_id
+
+
+@pytest.mark.parametrize(
+    ("question", "metric_id"),
+    [
+        (
+            "Em SÃO LOURENÇO DA MATA, quanto consumiu em média cada UC com leitura e GD em maio de 2026?",
+            "energy.average_consumption_per_uc",
+        ),
+        (
+            "Qual foi o preço observado por kWh faturado das UCs com GD em SÃO LOURENÇO DA MATA em maio de 2026?",
+            "billing.effective_tariff",
+        ),
+    ],
+)
+def test_ratio_metrics_include_only_explicit_covered_gd_dimension(question, metric_id):
+    payload = request_payload()
+    payload["question"] = question
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = [
+        "geography.municipality", "generation.distributed",
+    ]
+    payload["temporal_coverage"] = [{
+        "metric_id": metric_id, "kind": "monthly", "competencies": ["2026-05"],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "geography.municipality", "values": ["SAO LOURENCO DA MATA"],
+    }, {
+        "dimension_id": "generation.distributed", "values": ["Sim", "Não"],
+    }]
+    context = build(payload)
+    body = json.loads(context.contents)
+    assert body["metric"]["id"] == metric_id
+    assert body["dimensions"]["generation.distributed"] == "possui_gd"
+    assert "possui_gd" in body["source"]["columns"]
+
+
+def test_price_per_billed_kwh_is_not_misclassified_as_two_metrics():
+    question = (
+        "Qual foi o preço observado por kWh faturado das UCs com GD em "
+        "SÃO LOURENÇO DA MATA em maio de 2026?"
+    )
+    assert not is_explicit_multi_metric_question(question)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Quantas UCs estão classificadas como histórico irregular?",
+        "Quantas UCs nunca foram inspecionadas?",
+        "Quantas UCs estão marcadas para revisão por falta de histórico?",
+    ],
+)
+def test_inspection_priority_paraphrases_map_to_priority_metric(question):
+    assert requested_sql_metric_id(question) == "inspection.units_by_priority"
 
 
 def test_gd_consumption_drop_context_uses_approved_fixed_window_metric():
@@ -519,6 +679,40 @@ def test_continuity_context_exposes_only_feeder_month_measure(
     assert body["metric"]["unit"] == unit
     assert body["source"]["table"] == "indicadores_dec_fec"
     assert set(body["source"]["columns"]) == {"competencia", column, "id_alimentador"}
+
+
+def test_dec_fec_range_in_one_year_uses_weighted_contract():
+    payload = request_payload()
+    metric_id = "network.equivalent_interruption_duration"
+    payload["question"] = "Qual foi o DEC do alimentador ALIM-01 de janeiro a junho de 2026?"
+    payload["access_scope"]["allowed_metric_ids"] = [metric_id]
+    payload["access_scope"]["allowed_dimension_ids"] = ["network.feeder"]
+    payload["temporal_coverage"] = [{
+        "metric_id": metric_id,
+        "kind": "monthly",
+        "competencies": [f"2026-{month:02d}" for month in range(1, 7)],
+    }]
+    payload["dimension_value_coverage"] = [{
+        "dimension_id": "network.feeder",
+        "values": ["ALIM-01"],
+    }]
+
+    body = json.loads(build(payload).contents)
+
+    assert body["generation_contract_version"] == "text-to-sql-f1-v12"
+    assert body["rules"]["continuity_operations"] == ["weighted_continuity"]
+
+
+def test_explicit_dec_fec_pair_splits_into_unambiguous_metric_requests():
+    question = "Como ficaram o DEC e o FEC do alimentador ALM-01 de janeiro a junho de 2026?"
+
+    assert is_explicit_dec_fec_question(question)
+    dec_question = continuity_metric_question(question, "DEC")
+    fec_question = continuity_metric_question(question, "FEC")
+    assert "FEC" not in dec_question
+    assert "DEC" not in fec_question
+    assert requested_sql_metric_id(dec_question) == "network.equivalent_interruption_duration"
+    assert requested_sql_metric_id(fec_question) == "network.equivalent_interruption_frequency"
 
 
 def test_explicit_metric_overrides_followup_metric():

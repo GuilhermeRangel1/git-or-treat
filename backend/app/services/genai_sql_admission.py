@@ -23,7 +23,7 @@ from app.services.genai_sql_context import build_sql_generation_context
 from app.services.genai_sql_semantics import SqlSemanticReview, review_sql_semantics
 from app.services.gold_catalog import GoldCatalogIncompatible, load_gold_catalog
 
-SQL_ADMISSION_POLICY_VERSION = "text-to-sql-f1-admission-4"
+SQL_ADMISSION_POLICY_VERSION = "text-to-sql-f1-admission-5"
 OBSERVED_CONTINUITY_WARNING = "Valores observados; cobertura do alimentador não certificada."
 
 
@@ -36,10 +36,12 @@ class SqlAdmission:
     review: SqlSemanticReview
     context_version: str
     candidate_digest: str
+    request_digest: str
     readiness_digest: str
     batch_ref: str
     policy_version: str
     requested_periods: tuple[str, ...]
+    approved_controls: tuple[str, ...]
     quality_mode: str
     expires_at: float
     digest: str
@@ -95,9 +97,9 @@ async def admit_sql_candidate(
     deadline: GenAIRequestDeadline, correlation_id: str,
 ) -> SqlAdmission:
     original_candidate, original_request = candidate, request
+    candidate_digest = _digest(candidate.model_dump(mode="json"))
     candidate = SqlGenerationCandidate.model_validate_json(candidate.model_dump_json())
     request = QuestionPlanRequest.model_validate_json(request.model_dump_json())
-    candidate_digest = _digest(candidate.model_dump(mode="json"))
     request_digest = _request_digest(request)
     deadline = GenAIRequestDeadline(
         min(deadline.expires_at, deadline.clock() + request.remaining_timeout_ms / 1000),
@@ -204,6 +206,7 @@ async def admit_sql_candidate(
     readiness_digest = _digest(report.model_dump(mode="json"))
     material = {
         "context": context.context_version, "candidate": candidate_digest,
+        "request": request_digest,
         "readiness": readiness_digest, "batch": publication.batch_ref,
         "policy": SQL_ADMISSION_POLICY_VERSION, "periods": periods,
         "approved_controls": sorted(approved_controls),
@@ -213,8 +216,9 @@ async def admit_sql_candidate(
         "measure_semantics": review.measure_semantics,
         "quality_mode": "observed_uncertified" if observed_uncertified else "certified",
     }
-    return SqlAdmission(review, context.context_version, candidate_digest, readiness_digest,
-                        publication.batch_ref, SQL_ADMISSION_POLICY_VERSION, periods,
+    return SqlAdmission(review, context.context_version, candidate_digest, request_digest,
+                        readiness_digest, publication.batch_ref, SQL_ADMISSION_POLICY_VERSION, periods,
+                        tuple(sorted(approved_controls)),
                         "observed_uncertified" if observed_uncertified else "certified",
                         deadline.expires_at, _digest(material))
 
@@ -227,11 +231,73 @@ async def revalidate_sql_admission(
 ) -> SqlAdmission:
     _require(admitted.policy_version == SQL_ADMISSION_POLICY_VERSION
              and deadline.clock() < admitted.expires_at)
-    # Mantém a validade original, mesmo que o chamador apresente um prazo novo.
-    bounded = GenAIRequestDeadline(min(deadline.expires_at, admitted.expires_at), deadline.clock)
-    fresh = await admit_sql_candidate(
-        candidate, request, engine=engine, readiness_engine=readiness_engine, publication=publication, client=client,
-        resolve_scope=resolve_scope, approved_controls=approved_controls,
-        deadline=bounded, correlation_id=correlation_id)
-    _require(fresh == admitted)
-    return fresh
+    # A prontidão, cobertura da fonte e revisão semântica já foram verificadas
+    # nesta mesma requisição. Repetir a leitura completa de centenas de milhares
+    # de linhas aqui consumia o prazo. A publicação é imutável por batch_ref;
+    # confira o vínculo leve agora e o catálogo/publicação novamente no snapshot
+    # somente leitura do executor.
+    candidate_digest = _digest(candidate.model_dump(mode="json"))
+    candidate = SqlGenerationCandidate.model_validate_json(candidate.model_dump_json())
+    request = QuestionPlanRequest.model_validate_json(request.model_dump_json())
+    # Preserve o erro estrutural específico para parâmetros incompatíveis antes
+    # de comparar o digest da admissão.
+    review_sql_semantics(candidate, request)
+    _require(admitted.policy_version == SQL_ADMISSION_POLICY_VERSION
+             and deadline.clock() < admitted.expires_at
+             and admitted.batch_ref == request.batch_ref == publication.batch_ref
+             and admitted.approved_controls == tuple(sorted(approved_controls))
+             and admitted.candidate_digest == candidate_digest
+             and admitted.request_digest == _request_digest(request)
+             and resolve_scope() == request.access_scope)
+    fields = await deadline.run(5, lambda: asyncio.to_thread(
+        publication.planning_fields, engine, request.access_scope))
+    _require(resolve_scope() == request.access_scope)
+    payload = request.model_dump(mode="json")
+    payload.update(fields)
+    fresh_request = QuestionPlanRequest.model_validate(payload)
+    review = review_sql_semantics(candidate, fresh_request)
+    context = build_sql_generation_context(fresh_request)
+    periods = _periods(candidate)
+    _require(context.context_version == admitted.context_version
+             and periods == admitted.requested_periods
+             and review == admitted.review)
+    context_body = json.loads(context.contents)
+    if candidate.interpretation.metric_id in {
+        "billing.revenue", "energy.consumption", "energy.average_consumption_per_uc",
+        "billing.average_ticket", "billing.effective_tariff", "service.attendance",
+        "service.satisfaction", "network.equivalent_interruption_duration",
+        "network.equivalent_interruption_frequency",
+    }:
+        try:
+            await deadline.run(5, lambda: asyncio.to_thread(
+                publication.assert_sql_source_coverage, engine,
+                table_name=context_body["source"]["table"], periods=periods,
+                dimension_ids=request.access_scope.allowed_dimension_ids,
+                metric_ids=frozenset(context.metric_ids),
+                source_capability_id=context_body["source"]["capability_id"],
+            ))
+        except GoldCatalogIncompatible:
+            raise SqlAdmissionDenied(
+                "Cobertura ou fonte SQL indisponível para o recorte."
+            ) from None
+    material = {
+        "context": admitted.context_version,
+        "candidate": admitted.candidate_digest,
+        "request": admitted.request_digest,
+        "readiness": admitted.readiness_digest,
+        "batch": admitted.batch_ref,
+        "policy": admitted.policy_version,
+        "periods": admitted.requested_periods,
+        "approved_controls": list(admitted.approved_controls),
+        "expires_at": admitted.expires_at,
+        "sql": admitted.review.canonical_sql,
+        "parameters": admitted.review.parameter_items,
+        "columns": sorted(admitted.review.source_columns),
+        "outputs": admitted.review.output_names,
+        "measure_semantics": admitted.review.measure_semantics,
+        "quality_mode": admitted.quality_mode,
+    }
+    _require(_digest(material) == admitted.digest)
+    await deadline.run(5, lambda: asyncio.to_thread(publication.assert_current, engine))
+    _require(resolve_scope() == request.access_scope)
+    return admitted

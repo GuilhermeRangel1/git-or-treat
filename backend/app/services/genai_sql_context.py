@@ -18,8 +18,11 @@ F1_DIMENSIONS = {
     "geography.municipality": "municipio",
     "geography.neighborhood": "bairro",
     "customer.consumption_class": "classe_consumo",
+    "tariff.subgroup": "subgrupo_tarifario",
+    "tariff.flag": "bandeira_tarifaria",
     "network.feeder": "id_alimentador",
     "generation.distributed": "possui_gd",
+    "inspection.priority": "prioridade_inspecao",
 }
 F1_METRIC_SOURCE_CAPABILITY = {
     "billing.revenue": "faturamento.receita",
@@ -36,6 +39,8 @@ F1_METRIC_SOURCE_CAPABILITY = {
     "energy.gd_consumption_drop": "consumo.variacao_uc",
     "network.equivalent_interruption_duration": "interrupcoes.dec_fec",
     "network.equivalent_interruption_frequency": "interrupcoes.dec_fec",
+    "customer.units_by_class": "cadastro.ucs_por_classe",
+    "inspection.units_by_priority": "apoio.fila_inspecao",
 }
 
 
@@ -70,33 +75,95 @@ def _canonical(value) -> str:
 def requested_sql_metric_id(question: str, context=()) -> str:
     normalized = question.casefold()
     normalized_unaccented = _normalize_question(question)
-    if re.search(r"\b(?:ticket medio|preco medio por uc|valor medio por uc faturada)\b", normalized_unaccented):
+    unit_count = re.search(
+        r"\b(?:uc|ucs|quantas?|quantidade|contagem|total|numero)\b",
+        normalized_unaccented,
+    )
+    # Specific analytical measures take precedence over the mere presence of
+    # “UC” and “classe”; otherwise averages by UC are misclassified as a
+    # current cadastral count.
+    if re.search(
+        r"\b(?:ticket medio|preco medio por uc|valor medio por uc faturada|"
+        r"quanto saiu.{0,20}media.{0,20}unidade faturada)\b",
+        normalized_unaccented,
+    ):
+        return "billing.average_ticket"
+    if re.search(
+        r"\b(?:faturamento|receita|valor faturado|quanto faturou|quanto entrou)\b",
+        normalized_unaccented,
+    ) and re.search(r"\b(?:unidades?|ucs?)\b", normalized_unaccented):
+        return "billing.revenue"
+    if re.search(
+        r"consumo.{0,30}(?:m[eé]di[oa]|m[eé]dia).{0,30}(?:uc|unidade)|"
+        r"(?:m[eé]di[oa]|m[eé]dia).{0,30}consumo.{0,30}(?:uc|unidade)|"
+        r"consum(?:iu|iram).{0,25}(?:em )?m[eé]di[oa].{0,25}(?:cada )?(?:uc|unidade)|"
+        r"m[eé]di[oa].{0,25}kwh.{0,25}por uc|"
+        r"m[eé]di[oa].{0,25}kwh.{0,25}por unidade lida|"
+        r"(?:em )?m[eé]di[oa].{0,35}(?:quantos? kwh|kwh).{0,45}"
+        r"(?:cada )?(?:uc|unidade).{0,45}consum(?:iu|iram)",
+        normalized,
+    ):
+        return "energy.average_consumption_per_uc"
+    if unit_count and re.search(
+        r"\b(?:prioridade|prioridades|fila de inspecao|inspecao|consumo zero|"
+        r"historico irregular|nunca foram inspecionadas|revisao por falta de historico)\b",
+        normalized_unaccented,
+    ):
+        return "inspection.units_by_priority"
+    if unit_count and re.search(r"\b(?:cadastro atual|base cadastral)\b", normalized_unaccented):
+        return "customer.units_by_class"
+    if unit_count and (
+        re.search(r"\b(?:classe|classes)\b", normalized_unaccented)
+        or re.search(
+            r"\b(?:residenciais?|comerciais?|industriais?|rurais?|poder publico)\b",
+            normalized_unaccented,
+        )
+    ):
+        return "customer.units_by_class"
+    if re.search(
+        r"\b(?:ticket medio|preco medio por uc|valor medio por uc faturada|"
+        r"quanto saiu.{0,20}media.{0,20}unidade faturada)\b",
+        normalized_unaccented,
+    ):
         return "billing.average_ticket"
     if re.search(
         r"\b(?:preco medio observado(?: por kwh| do kwh)?|preco medio por kwh|"
-        r"preco observado por kwh|tarifa media efetiva)\b",
+        r"preco observado por kwh|preco observado do kwh comparavel|"
+        r"tarifa media efetiva)\b",
         normalized_unaccented,
     ):
         return "billing.effective_tariff"
     if re.search(
         r"consumo.{0,30}(?:m[eé]di[oa]|m[eé]dia).{0,30}(?:uc|unidade)|"
-        r"(?:m[eé]di[oa]|m[eé]dia).{0,30}consumo.{0,30}(?:uc|unidade)",
+        r"(?:m[eé]di[oa]|m[eé]dia).{0,30}consumo.{0,30}(?:uc|unidade)|"
+        r"consum(?:iu|iram).{0,25}(?:em )?m[eé]di[oa].{0,25}(?:cada )?(?:uc|unidade)|"
+        r"m[eé]di[oa].{0,25}kwh.{0,25}por uc|"
+        r"m[eé]di[oa].{0,25}kwh.{0,25}por unidade lida|"
+        r"(?:em )?m[eé]di[oa].{0,35}(?:quantos? kwh|kwh).{0,45}"
+        r"(?:cada )?(?:uc|unidade).{0,45}consum(?:iu|iram)",
         normalized,
     ):
         return "energy.average_consumption_per_uc"
-    if is_gd_consumption_drop_question(question):
+    if is_gd_consumption_drop_question(question) or is_gd_consumption_drop_followup(question, context):
         return "energy.gd_consumption_drop"
     if _is_gd_units_question(question):
         return "energy.gd_units"
     if _is_accumulated_satisfaction_question(question):
         return "service.accumulated_satisfaction"
-    if any(token in normalized for token in ("satisf", "nota média", "nota media")):
-        return "service.satisfaction"
-    if "histórico acumulado" in normalized and any(
-        token in normalized
-        for token in ("atendiment", "protocol", "chamad", "call center")
+    if any(
+        token in normalized_unaccented
+        for token in ("satisf", "nota", "avaliacao", "avaliacoes")
     ):
+        return "service.satisfaction"
+    if _is_accumulated_attendance_question(question):
         return "service.accumulated_attendance"
+    if re.search(r"\benergia\b.{0,35}\bmedid[ao]\b", normalized_unaccented):
+        return "energy.consumption"
+    if re.search(
+        r"\b(?:consumiram|consumiu|consumo|consumido|consumida)\b",
+        normalized_unaccented,
+    ) and re.search(r"\b(?:unidades?|ucs?)\b", normalized_unaccented):
+        return "energy.consumption"
 
     def continuity_metric(value: str) -> str | None:
         if re.search(r"\bfec\b|frequência equivalente", value):
@@ -126,7 +193,11 @@ def requested_sql_metric_id(question: str, context=()) -> str:
             continue
         previous = turn.content.casefold()
         previous_unaccented = _normalize_question(turn.content)
-        if re.search(r"\b(?:ticket medio|preco medio por uc|valor medio por uc faturada)\b", previous_unaccented):
+        if re.search(
+            r"\b(?:ticket medio|preco medio por uc|valor medio por uc faturada|"
+            r"quanto saiu.{0,20}media.{0,20}unidade faturada)\b",
+            previous_unaccented,
+        ):
             return "billing.average_ticket"
         if re.search(
             r"\b(?:preco medio observado(?: por kwh| do kwh)?|preco medio por kwh|"
@@ -143,17 +214,17 @@ def requested_sql_metric_id(question: str, context=()) -> str:
         continuity = continuity_metric(previous)
         if continuity:
             return continuity
-        if "histórico acumulado" in previous and any(
-            token in previous
-            for token in ("atendiment", "protocol", "chamad", "call center")
-        ):
+        if _is_accumulated_attendance_question(turn.content):
             return "service.accumulated_attendance"
         if any(
             token in previous
             for token in ("atendiment", "protocolo", "chamado", "reclamação")
         ):
             return "service.attendance"
-        if any(token in previous for token in ("satisf", "nota média", "nota media")):
+        if any(
+            token in previous_unaccented
+            for token in ("satisf", "nota", "avaliacao", "avaliacoes")
+        ):
             return "service.satisfaction"
         if any(token in previous for token in ("kwh", "quilowatt")):
             return "energy.consumption"
@@ -162,6 +233,20 @@ def requested_sql_metric_id(question: str, context=()) -> str:
         if "consum" in previous:
             return "energy.consumption"
     return "billing.revenue"
+
+
+def _is_accumulated_attendance_question(question: str) -> bool:
+    normalized = _normalize_question(question)
+    mentions_history = re.search(
+        r"\b(?:historico|acumulad[oa]s?|conjunto publicado|base atual|cadastro|"
+        r"visao 360|disponivel)\b",
+        normalized,
+    )
+    mentions_attendance = any(
+        token in normalized
+        for token in ("atendiment", "protocol", "chamad", "call center")
+    )
+    return bool(mentions_history and mentions_attendance)
 
 
 def _is_gd_units_question(question: str) -> bool:
@@ -182,14 +267,18 @@ def _is_gd_units_question(question: str) -> bool:
 def _is_accumulated_satisfaction_question(question: str) -> bool:
     normalized = _normalize_question(question)
     asks_satisfaction = re.search(
-        r"\b(?:satisfacao|nota media|nota de satisfacao)\b", normalized
+        r"\b(?:satisfacao|avaliac\w*|notas?)\b", normalized
     )
-    names_history = re.search(r"\b(?:historico|acumulad[oa]s?)\b", normalized)
+    names_history = re.search(
+        r"\b(?:historico|acumulad[oa]s?|base|publicad\w*|"
+        r"disponiveis|registrad\w*)\b",
+        normalized,
+    )
     return bool(asks_satisfaction and names_history)
 
 
 def is_gd_consumption_drop_question(question: str) -> bool:
-    """Detecta a métrica legada de queda GD, ainda fora da SQL F1 executável."""
+    """Detecta perguntas sobre UCs com GD e queda elegível de consumo."""
     normalized = _normalize_question(question)
     return bool(
         re.search(r"\b(?:gd|geracao distribuida)\b", normalized)
@@ -197,9 +286,33 @@ def is_gd_consumption_drop_question(question: str) -> bool:
     )
 
 
+def is_gd_consumption_drop_followup(question: str, context=()) -> bool:
+    """Recognize an elliptical GD-drop follow-up after an explicit GD query."""
+    normalized = _normalize_question(question)
+    asks_eligible_drop = bool(
+        re.search(r"\b(?:queda|reducao)\b", normalized)
+        and (re.search(r"\b30\s*%", normalized) or "elegivel" in normalized)
+    )
+    if not asks_eligible_drop:
+        return False
+    previous_user = next(
+        (turn.content for turn in reversed(context) if turn.role == "user"),
+        "",
+    )
+    return _is_gd_units_question(previous_user) or is_gd_consumption_drop_question(previous_user)
+
+
 def is_explicit_multi_metric_question(question: str) -> bool:
     normalized = unicodedata.normalize("NFKD", question.casefold())
     normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    # “Preço por kWh faturado” é uma métrica única de razão, não uma solicitação
+    # simultânea de consumo e receita.
+    if re.search(
+        r"\b(?:preco|tarifa)\b.{0,50}\b(?:por kwh|do kwh)\b.{0,40}"
+        r"\b(?:faturad\w*|comparav\w*|observad\w*)\b",
+        normalized,
+    ):
+        return False
     # “Classe de consumo” names a billing dimension, not the kWh measure.
     normalized_without_class = re.sub(
         r"\bclasses?\s+de\s+consumo\b",
@@ -217,7 +330,41 @@ def is_explicit_multi_metric_question(question: str) -> bool:
     asks_revenue = any(
         token in normalized for token in ("receit", "fatur", "r$", "reais")
     )
-    return asks_consumption and asks_revenue
+    asks_attendance_total = bool(re.search(
+        r"\b(?:total|quantidade|quantos?|numero)\b.{0,24}"
+        r"\b(?:atendiment|protocol|chamad)",
+        normalized,
+    ))
+    asks_satisfaction = bool(re.search(r"\b(?:satisf|nota|avaliac)", normalized))
+    asks_consumption_and_satisfaction = asks_consumption and asks_satisfaction
+    return (
+        (asks_consumption and asks_revenue)
+        or (asks_attendance_total and asks_satisfaction)
+        or asks_consumption_and_satisfaction
+    )
+
+
+def is_explicit_dec_fec_question(question: str) -> bool:
+    """True only when the user explicitly asks for both continuity metrics."""
+    normalized = _normalize_question(question)
+    return bool(re.search(r"\bdec\b", normalized) and re.search(r"\bfec\b", normalized))
+
+
+def continuity_metric_question(question: str, metric: str) -> str:
+    """Make one explicit DEC/FEC subquestion while preserving its requested scope."""
+    if metric not in {"DEC", "FEC"}:
+        raise ValueError("métrica de continuidade inválida")
+    normalized = re.sub(r"\b(?:DEC|FEC)\b", metric, question, flags=re.IGNORECASE)
+    normalized = re.sub(
+        rf"\b{metric}\b(?:\s*(?:e|ou|/|,)\s*(?:o\s+)?{metric}\b)+",
+        metric,
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    return (
+        f"Calcule o {metric} ponderado para a janela inteira, sem retornar série mensal, "
+        f"preservando o alimentador e o período pedidos: {normalized}"
+    )
 
 
 def is_periodized_accumulated_attendance_question(question: str) -> bool:
@@ -332,6 +479,17 @@ def _uses_weighted_continuity(question: str, context, dimension_value_coverage) 
     )
     if len(set(dates)) > 1 or len(set(named_months)) > 1:
         return True
+    month_range = re.search(
+        r"\b(?:de\s+)?(?:janeiro|jan|fevereiro|fev|marco|mar|abril|abr|"
+        r"maio|mai|junho|jun|julho|jul|agosto|ago|setembro|set|outubro|out|"
+        r"novembro|nov|dezembro|dez)\s+(?:a|ate)\s+(?:de\s+)?"
+        r"(?:janeiro|jan|fevereiro|fev|marco|mar|abril|abr|maio|mai|junho|jun|"
+        r"julho|jul|agosto|ago|setembro|set|outubro|out|novembro|nov|dezembro|dez)"
+        r"\s+(?:de\s+)?20\d{2}\b",
+        _normalize_question(text),
+    )
+    if month_range:
+        return True
     if re.search(r"\b(?:ultim[oa]s?\s+\d+\s+meses|ultim[oa]\s+ano|ano\s+inteiro)\b", text):
         return True
     if re.search(
@@ -357,6 +515,9 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
     scope = request.access_scope
     metric_id = requested_sql_metric_id(request.question, request.context)
     generation_version = (
+        "text-to-sql-f1-v14"
+        if metric_id in {"customer.units_by_class", "inspection.units_by_priority"}
+        else
         "text-to-sql-f1-v12"
         if metric_id.startswith("network.equivalent_interruption_")
         and _uses_weighted_continuity(
@@ -400,6 +561,8 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         "service.accumulated_satisfaction",
         "energy.gd_units",
         "energy.gd_consumption_drop",
+        "customer.units_by_class",
+        "inspection.units_by_priority",
     }:
         coverage = next(
             (item for item in request.temporal_coverage if item.metric_id == metric_id),
@@ -440,7 +603,14 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         else source.measure_column
     )
     gd_filter_value = requested_gd_filter_value(request.question, request.context)
-    if gd_filter_value is not None and metric_id == "energy.consumption":
+    gd_filter_metrics = {
+        "energy.consumption",
+        "energy.average_consumption_per_uc",
+        "billing.average_ticket",
+        "billing.effective_tariff",
+        "billing.revenue",
+    }
+    if gd_filter_value is not None and metric_id in gd_filter_metrics:
         if "generation.distributed" not in scope.allowed_dimension_ids:
             raise SqlContextUnavailable(
                 "Filtro GD não autorizado.", reason="scope_unavailable"
@@ -470,7 +640,7 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         and (
             key != "generation.distributed"
             or gd_filter_value is not None
-            and metric_id == "energy.consumption"
+            and metric_id in gd_filter_metrics
             or metric_id in {"energy.gd_units", "energy.gd_consumption_drop"}
         )
     }
@@ -497,6 +667,17 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
             "frequencia_total_interrupcoes",
         ))
     table = TABLES[source.table]
+    dimension_values = {
+        item.dimension_id: list(item.values)
+        for item in request.dimension_value_coverage
+        if item.dimension_id in dimensions
+    }
+    if metric_id == "inspection.units_by_priority":
+        priority_values = dimension_values.setdefault("inspection.priority", [])
+        if "ALTA - CONSUMO ZERO" not in priority_values:
+            # This approved label may be absent from the current lot; retaining it
+            # lets the model ask for the exact category and return a valid zero.
+            priority_values.append("ALTA - CONSUMO ZERO")
     payload = {
         "generation_contract_version": generation_version,
         "dialect": "postgres",
@@ -547,9 +728,8 @@ def build_sql_generation_context(request: QuestionPlanRequest) -> SqlGenerationC
         },
         "dimensions": dimensions,
         "dimension_values": [
-            item.model_dump(mode="json")
-            for item in request.dimension_value_coverage
-            if item.dimension_id in dimensions
+            {"dimension_id": dimension_id, "values": values}
+            for dimension_id, values in sorted(dimension_values.items())
         ],
         "temporal_coverage": coverage.model_dump(mode="json"),
         "rules": {

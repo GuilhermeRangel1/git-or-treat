@@ -240,32 +240,98 @@ const SQL_DIMENSION_IDS: Record<string, string> = {
 /** Derives chart geometry from the exact rows shown in the F1 table. */
 export function sqlAnalysisVisualization(
   presentation: SqlAnalysisPresentation,
+  metric?: string,
+  filterDimensions: string[] = [],
 ): ChatVisualization | undefined {
+  if (
+    presentation.state === "ready" &&
+    presentation.operation === "comparison" &&
+    presentation.rows.length === 1 &&
+    metric
+  ) {
+    const periods = presentation.period.split(" vs. ");
+    const first = presentation.columns.findIndex(
+      (column) => column.semantic_id === "period_0_total",
+    );
+    const second = presentation.columns.findIndex(
+      (column) => column.semantic_id === "period_1_total",
+    );
+    const measure = presentation.columns[first];
+    if (
+      periods.length === 2 &&
+      first >= 0 &&
+      second >= 0 &&
+      measure.unit &&
+      measure.unit === presentation.columns[second].unit
+    ) {
+      const source = presentation.rows[0];
+      return sqlAnalysisVisualization(
+        {
+          ...presentation,
+          operation: "grouped_total",
+          columns: [
+            {
+              key: "period",
+              label: "Período",
+              role: "dimension",
+              semantic_id: "competency",
+              unit: null,
+            },
+            {
+              ...measure,
+              label: measure.label.replace(/\s+no per[ií]odo 1.*$/i, ""),
+            },
+          ],
+          rows: [first, second].map((index, position) => ({
+            observation_id: `row_${position + 1}`,
+            cells: [periods[position], source.cells[index]],
+          })),
+        },
+        metric,
+        filterDimensions,
+      );
+    }
+  }
   const kind =
     presentation.operation === "monthly_series"
       ? "line"
       : presentation.operation === "ranking"
         ? "horizontal"
-        : presentation.operation === "grouped_total"
+        : [
+              "grouped_total",
+              "comparison",
+              "average",
+              "ratio_of_sums",
+              "weighted_continuity",
+              "snapshot_total",
+            ].includes(presentation.operation)
           ? "bars"
           : undefined;
-  if (!kind || presentation.state !== "ready" || !presentation.rows.length)
+  if (!kind || presentation.state !== "ready" || presentation.rows.length < 2)
     return undefined;
   const dimensions = presentation.columns.filter(
     (column) => column.role === "dimension",
   );
-  const measure = presentation.columns.find(
-    (column) =>
-      column.semantic_id === "revenue_total" ||
-      column.semantic_id === "energy_total",
+  const measures = presentation.columns.filter(
+    (column) => column.role === "measure",
   );
-  if (
-    !dimensions.length ||
-    !measure ||
-    (measure.unit !== "R$" && measure.unit !== "kWh")
-  )
-    return undefined;
-  const isEnergy = measure.unit === "kWh";
+  const measure =
+    presentation.operation === "comparison"
+      ? measures.find(
+          (column) => column.semantic_id === "period_0_minus_period_1",
+        )
+      : measures.length === 1
+        ? measures[0]
+        : undefined;
+  if (!dimensions.length || !measure || !measure.unit) return undefined;
+  const metricId =
+    metric ??
+    (measure.semantic_id === "energy_total"
+      ? "energy.consumption"
+      : measure.semantic_id === "revenue_total"
+        ? "billing.revenue"
+        : undefined);
+  if (!metricId) return undefined;
   if (kind === "line" && dimensions.length !== 1) return undefined;
   if (kind === "line") {
     const monthIndexes = presentation.rows.map((row) => {
@@ -319,7 +385,15 @@ export function sqlAnalysisVisualization(
     points.some((point) => !Number.isFinite(point.value)) ||
     presentation.rows.some((row) => {
       const value = row.cells[presentation.columns.indexOf(measure)];
-      return value === null || Number(value).toFixed(precision) !== value;
+      return (
+        value === null ||
+        Number(value).toFixed(precision) !==
+          (value.includes(".")
+            ? value.padEnd(value.indexOf(".") + 1 + precision, "0")
+            : precision
+              ? value + "." + "0".repeat(precision)
+              : value)
+      );
     })
   )
     return undefined;
@@ -327,24 +401,34 @@ export function sqlAnalysisVisualization(
     (column) => SQL_DIMENSION_IDS[column.semantic_id],
   );
   if (dimensionIds.some((id) => !id)) return undefined;
-  const plotPoints = kind === "line" ? points.slice(-24) : points.slice(0, 24);
+  const byCategory =
+    kind === "bars" &&
+    presentation.operation !== "comparison" &&
+    dimensions.every((dimension) => dimension.semantic_id !== "competency");
+  const plotPoints =
+    kind === "line"
+      ? points.slice(-24)
+      : (byCategory
+          ? [...points].sort((a, b) => b.value - a.value)
+          : points
+        ).slice(0, 24);
+  const chartKind =
+    kind === "bars" &&
+    dimensions.some((dimension) => dimension.semantic_id !== "competency")
+      ? "horizontal"
+      : kind;
   return {
     contract_version: "v1",
-    kind,
-    metric: isEnergy ? "energy.consumption" : "billing.revenue",
-    title: isEnergy
-      ? kind === "line"
-        ? "Consumo medido mensal"
+    kind: chartKind,
+    metric: metricId,
+    title:
+      kind === "line"
+        ? `${measure.label} mensal`
         : kind === "horizontal"
-          ? "Ranking de consumo medido"
-          : `Consumo medido por ${dimensions.map((item) => item.label.toLocaleLowerCase("pt-BR")).join(" e ")}`
-      : kind === "line"
-        ? "Faturamento mensal"
-        : kind === "horizontal"
-          ? "Ranking de faturamento"
-          : `Faturamento por ${dimensions.map((item) => item.label.toLocaleLowerCase("pt-BR")).join(" e ")}`,
+          ? `Ranking · ${measure.label}`
+          : `${measure.label} por ${dimensions.map((column) => column.label.toLocaleLowerCase("pt-BR")).join(" e ")}`,
     unit: measure.unit,
-    dimension_ids: dimensionIds,
+    dimension_ids: [...new Set([...dimensionIds, ...filterDimensions])],
     precision,
     period: presentation.period,
     category_label: dimensions.map((item) => item.label).join(" · "),

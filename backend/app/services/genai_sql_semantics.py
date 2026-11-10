@@ -28,6 +28,7 @@ _GROUPS = {
     "neighborhood": "bairro",
     "consumption_class": "classe_consumo",
     "feeder": "id_alimentador",
+    "inspection_priority": "prioridade_inspecao",
 }
 _MONTH = re.compile(r"[0-9]{4}-(0[1-9]|1[0-2])\Z")
 GROWTH_PERCENT_COLUMN = "period_0_growth_percent"
@@ -76,7 +77,7 @@ def _semantic_review(reviewed, meanings):
     )
 
 
-def _review_comparison(tree, candidate, reviewed, available):
+def _review_comparison(tree, candidate, reviewed, available, request):
     intent = candidate.interpretation
     _require(
         "competency" not in intent.group_by,
@@ -137,12 +138,13 @@ def _review_comparison(tree, candidate, reviewed, available):
             dimensions[declared.name] = expression.name
             continue
         if type(expression) is exp.Sub:
+            left_period = period_index(expression.this)
+            right_period = period_index(expression.expression)
             _require(
-                period_index(expression.this) == 0
-                and period_index(expression.expression) == 1,
-                "Diferença deve subtrair a segunda janela da primeira.",
+                (left_period, right_period) in {(0, 1), (1, 0)},
+                "Diferença deve comparar as duas janelas selecionadas.",
             )
-            meaning = "period_0_minus_period_1"
+            meaning = f"period_{left_period}_minus_period_{right_period}"
         else:
             meaning = f"period_{period_index(expression)}_total"
         meanings.append((output.alias, meaning))
@@ -150,16 +152,51 @@ def _review_comparison(tree, candidate, reviewed, available):
         set(dimensions.values()) == expected_groups,
         "Comparação exige todas as dimensões agrupadas no resultado.",
     )
+    delta_meanings = {
+        "period_0_minus_period_1",
+        "period_1_minus_period_0",
+    }
+    present_meanings = {meaning for _, meaning in meanings}
     _require(
-        {meaning for _, meaning in meanings}
-        == {
-            "period_0_total",
-            "period_1_total",
-            "period_0_minus_period_1",
-        }
+        {"period_0_total", "period_1_total"} <= present_meanings
+        and len(present_meanings & delta_meanings) == 1
         and len(meanings) == 3,
-        "Comparação exige dois totais e uma diferença em reais.",
+        "Comparação exige dois totais e uma diferença entre as janelas.",
     )
+    normalized_question = unicodedata.normalize("NFKD", request.question.casefold())
+    normalized_question = "".join(
+        char for char in normalized_question if not unicodedata.combining(char)
+    )
+    delta_meaning = next(iter(present_meanings & delta_meanings))
+    if re.search(r"\b(?:aumento|aumentou|crescimento|subida)\b", normalized_question):
+        _require(
+            delta_meaning == "period_1_minus_period_0",
+            "Aumento deve subtrair o período inicial do período final.",
+        )
+    if re.search(r"\b(?:queda|reducao|diminuicao)\b", normalized_question):
+        _require(
+            delta_meaning == "period_0_minus_period_1",
+            "Queda deve subtrair o período final do período inicial.",
+        )
+    has_explicit_direction = re.search(
+        r"\b(?:aumento|aumentou|crescimento|subida|queda|reducao|diminuicao)\b",
+        normalized_question,
+    )
+    grouped_comparison = bool(candidate.interpretation.group_by) and bool(
+        re.search(r"\b(?:compare|comparar|comparacao)\b", normalized_question)
+    )
+    if not has_explicit_direction and (
+        re.search(r"\bvariacao\b", normalized_question) or grouped_comparison
+    ):
+        _require(
+            delta_meaning == "period_1_minus_period_0",
+            "Variação agrupada deve subtrair o período inicial do período final.",
+        )
+    elif not has_explicit_direction:
+        _require(
+            delta_meaning == "period_0_minus_period_1",
+            "Diferença deve preservar a ordem dos períodos declarados.",
+        )
     order, limit = tree.args.get("order"), tree.args.get("limit")
     if intent.ranking_direction is None:
         _require(
@@ -174,7 +211,7 @@ def _review_comparison(tree, candidate, reviewed, available):
             "Ranking de comparação exige diferença e desempate por todas as dimensões.",
         )
         delta_alias = next(
-            alias for alias, meaning in meanings if meaning == "period_0_minus_period_1"
+            alias for alias, meaning in meanings if meaning == delta_meaning
         )
         first = order.expressions[0]
         _require(
@@ -346,6 +383,46 @@ def review_sql_semantics(
             ),
             "Bairro solicitado não está no vocabulário Gold autorizado.",
         )
+    normalized_question = unicodedata.normalize("NFKD", request.question.casefold())
+    normalized_question = "".join(
+        char for char in normalized_question if not unicodedata.combining(char)
+    )
+    for dimension_id in ("tariff.subgroup", "tariff.flag"):
+        dimension_filters = [
+            item for item in intent.filters if item.dimension_id == dimension_id
+        ]
+        if not dimension_filters:
+            continue
+        values = next(
+            (
+                item["values"]
+                for item in context["dimension_values"]
+                if item["dimension_id"] == dimension_id
+            ),
+            [],
+        )
+        normalize = lambda value: "".join(
+            char
+            for char in unicodedata.normalize("NFKD", value.casefold())
+            if not unicodedata.combining(char)
+        )
+        authorized = {normalize(value) for value in values}
+        requested = {
+            normalize(value)
+            for item in dimension_filters
+            for value in item.values
+        }
+        _require(
+            requested <= authorized
+            and all(
+                re.search(
+                    rf"(?<![\w]){re.escape(value)}(?![\w])",
+                    normalized_question,
+                )
+                for value in requested
+            ),
+            "Filtro tarifário precisa estar explícito e no vocabulário Gold autorizado.",
+        )
     municipality_filters = [
         item for item in intent.filters if item.dimension_id == "geography.municipality"
     ]
@@ -417,7 +494,13 @@ def review_sql_semantics(
         _require(not gd_filters, "Filtro GD não foi solicitado explicitamente.")
     else:
         _require(
-            intent.metric_id == "energy.consumption"
+            intent.metric_id in {
+                "energy.consumption",
+                "energy.average_consumption_per_uc",
+                "billing.average_ticket",
+                "billing.effective_tariff",
+                "billing.revenue",
+            }
             and len(gd_filters) == 1
             and gd_filters[0].operator == "eq"
             and len(gd_filters[0].values) == 1,
@@ -465,7 +548,11 @@ def review_sql_semantics(
             and intent.aggregation == "sum"
             and not intent.periods
             and not intent.filters
-            and not intent.group_by
+            and intent.group_by in (
+                (),
+                ("consumption_class",) if intent.metric_id == "customer.units_by_class"
+                else ("inspection_priority",),
+            )
             and intent.ranking_direction is None
             and intent.ranking_limit is None,
             "Atendimento acumulado aceita somente o histórico total sem período.",
@@ -660,6 +747,128 @@ def review_sql_semantics(
                     for item in candidate.result_columns
                     if item.role == "measure"
                 ],
+            ),
+            measure_value_type="integer",
+        )
+    if intent.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}:
+        dimension_id = (
+            "customer.consumption_class"
+            if intent.metric_id == "customer.units_by_class"
+            else "inspection.priority"
+        )
+        dimension_column = context["dimensions"][dimension_id]
+        source_table = context["source"]["table"]
+        expected_source = (
+            "visao_360_uc"
+            if intent.metric_id == "customer.units_by_class"
+            else "fila_inspecao"
+        )
+        _require(
+            source_table == expected_source
+            and intent.operation == "snapshot_total"
+            and intent.aggregation == "count_distinct"
+            and not intent.periods
+            and intent.group_by in (
+                (),
+                ("consumption_class",)
+                if intent.metric_id == "customer.units_by_class"
+                else ("inspection_priority",),
+            )
+            and intent.ranking_direction is None
+            and intent.ranking_limit is None
+            and all(item.dimension_id == dimension_id for item in intent.filters),
+            "Contagem cadastral exige retrato Gold e somente o recorte aprovado.",
+        )
+        allowed = next(
+            (item["values"] for item in context["dimension_values"]
+             if item["dimension_id"] == dimension_id),
+            [],
+        )
+        requested = {value.casefold() for item in intent.filters for value in item.values}
+        if intent.metric_id == "inspection.units_by_priority":
+            # The category is approved by the Gold semantic vocabulary. Its
+            # absence in this publication is a valid zero, not missing coverage.
+            allowed = [*allowed, "ALTA - CONSUMO ZERO"]
+            normalized_question = unicodedata.normalize(
+                "NFKD", request.question.casefold()
+            )
+            normalized_question = "".join(
+                char for char in normalized_question
+                if not unicodedata.combining(char)
+            )
+            if re.search(r"\bconsumo\s+zero\b", normalized_question):
+                _require(
+                    requested == {"alta - consumo zero"},
+                    "Consumo zero exige a categoria Gold ALTA - CONSUMO ZERO.",
+                )
+        _require(
+            requested <= {value.casefold() for value in allowed},
+            "Filtro cadastral fora do vocabulário observado na Gold.",
+        )
+        expected = {
+            dimension_column: frozenset(
+                value for item in intent.filters for value in item.values
+            )
+        } if intent.filters else {}
+        where = tree.args.get("where")
+        actual = _selection(where.this, dict(reviewed.parameter_items)) if where else {}
+        _require(actual == expected, "Filtro SQL diverge do retrato cadastral solicitado.")
+        groups = tree.args.get("group")
+        actual_groups = {item.name for item in groups.expressions} if groups else set()
+        expected_groups = {dimension_column} if intent.group_by else set()
+        order = tree.args.get("order")
+        dimension_aliases = {
+            item.name
+            for item in candidate.result_columns
+            if item.role == "dimension"
+        }
+        order_is_dimension_ascending = (
+            order is None
+            or (
+                intent.group_by
+                and len(order.expressions) == 1
+                and type(order.expressions[0]) is exp.Ordered
+                and type(order.expressions[0].this) is exp.Column
+                and order.expressions[0].this.name
+                in ({dimension_column} | dimension_aliases)
+                and not order.expressions[0].args.get("desc")
+            )
+        )
+        measure_outputs = [
+            (output, declared)
+            for output, declared in zip(tree.expressions, candidate.result_columns, strict=True)
+            if declared.role == "measure"
+        ]
+        dimension_outputs = [
+            (output, declared)
+            for output, declared in zip(tree.expressions, candidate.result_columns, strict=True)
+            if declared.role == "dimension"
+        ]
+        _require(
+            actual_groups == expected_groups
+            and order_is_dimension_ascending
+            and not tree.args.get("limit")
+            and len(measure_outputs) == 1
+            and len(dimension_outputs) == (1 if intent.group_by else 0)
+            and measure_outputs[0][1].value_type == "integer"
+            and measure_outputs[0][1].unit == "UCs"
+            and type(measure_outputs[0][0].this) is exp.Count
+            and type(measure_outputs[0][0].this.this) is exp.Distinct
+            and len(measure_outputs[0][0].this.this.expressions) == 1
+            and type(measure_outputs[0][0].this.this.expressions[0]) is exp.Column
+            and measure_outputs[0][0].this.this.expressions[0].name == "id_uc"
+            and all(
+                type(output.this) is exp.Column
+                and output.this.name == dimension_column
+                and declared.role == "dimension"
+                for output, declared in dimension_outputs
+            ),
+            "Contagem cadastral deve contar UCs distintas no retrato e grupo autorizado.",
+        )
+        return replace(
+            _semantic_review(
+                reviewed,
+                [(output.alias, "units_count") for output, _ in measure_outputs],
             ),
             measure_value_type="integer",
         )
@@ -939,7 +1148,7 @@ def review_sql_semantics(
             else "decimal",
         )
     if intent.operation == "comparison":
-        result = _review_comparison(tree, candidate, reviewed, available)
+        result = _review_comparison(tree, candidate, reviewed, available, request)
         return replace(result, measure_value_type=metric["measure_type"])
     _require(
         not any(tree.find_all(exp.Filter, exp.Sub)),

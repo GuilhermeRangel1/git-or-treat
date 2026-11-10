@@ -129,6 +129,16 @@ Ordem de grandeza em % do faturamento de P0. Os ganhos se sobrepõem e **não** 
 3. **Usar a fila de inspeção para perdas não técnicas.** A ordem de prioridade e o motivo já existem. Para as UCs com pelo menos 6 meses de consumo, a Gold publica uma **estimativa de energia a recuperar por UC, condicional à confirmação da irregularidade**: cerca de 3,9 vezes o consumo médio mensal dos 12 meses anteriores, com faixa de 90% (aproximadamente 1,8 a 7,0 vezes). Ela passou na validação temporal (ganho de erro sobre a média das confirmadas acima de 50%, cobertura da faixa acima de 90% e viés abaixo de 15% da média) e **não é probabilidade de fraude nem garantia de recuperação**. As demais UCs mostram só a referência histórica. Ainda não há base para quantificar o benefício total: falta a taxa de confirmação por perfil de UC.
 4. **Fechar lacunas de dados:** valor efetivamente recebido, energia faturada separada do consumo medido e tarifa homologada por mês. Sem elas, as hipóteses de preço e inadimplência continuam indeterminadas.
 
+### Plano para decisão da diretoria comercial
+
+| Prazo proposto | Ação e responsável | Como medir | Ordem de grandeza |
+| --- | --- | --- | --- |
+| 30 dias | Comercial e Perdas selecionam carteiras comercial e residencial em Recife e Jaboatão. Verificam, por amostra, se as quedas coincidem com desligamentos, geração distribuída ou mudanças na atividade dos clientes. | Consumo medido na base comparável e parcela da queda com causa identificada. | Os dois municípios concentram cerca de 69% do efeito negativo de volume. |
+| 60 a 90 dias | Comercial testa uma intervenção apenas nas carteiras com causa tratável e compara com carteiras semelhantes sem intervenção. | Diferença de consumo e faturamento entre piloto e comparação, com o mesmo recorte e período. | Recuperar 10% a 25% do efeito total de volume de 4,02% equivale a cerca de 0,4% a 1,0% do faturamento de P0, mantendo o preço de referência. É um cenário ilustrativo, sem estimativa de probabilidade. |
+| 30 dias | Medição e Faturamento auditam faturas sem leitura em Olinda e Camaragibe e verificam ajustes nas competências seguintes. | Proporção faturada sem leitura e valor líquido de ajustes posteriores. | O componente representa 1,74% do faturamento de P0. Esse é o tamanho do componente a auditar, não uma projeção de perda ou recuperação. |
+
+Para a apresentação, a mensagem central é que o faturamento cresceu **7,97%** entre os dois períodos de 12 meses. O preço efetivo observado contribuiu com **+10,81 pontos percentuais**, enquanto o volume medido retirou **4,02 pontos**. A decisão proposta é investigar a queda de volume em Recife e Jaboatão, testar intervenções onde houver uma causa tratável e auditar em paralelo as faturas sem leitura.
+
 ## 9. Limitações
 
 - Preço efetivo observado não é tarifa homologada, e a decomposição não prova causalidade.

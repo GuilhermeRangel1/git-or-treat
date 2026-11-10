@@ -12,7 +12,7 @@ from sqlalchemy import and_, case, func, or_, select
 from app.models.gold_v2_load import TABLES
 
 ANALYTICAL_CONTROLS = frozenset(
-    {"C01", "C02", "C03", "C04", "C08", "C09", "C10", "C11", "C12", "C13"}
+    {"C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13"}
 )
 
 
@@ -71,7 +71,9 @@ def observe_domain_controls(
 
 
 def _observe(connection, read_rows, periods, origin, batch_ref):
-    population = {r["id_uc"]: r for r in read_rows(TABLES["visao_360_uc"])}
+    population_rows = list(read_rows(TABLES["visao_360_uc"]))
+    population = {r["id_uc"]: r for r in population_rows}
+    inspection_queue = list(read_rows(TABLES["fila_inspecao"]))
     monthly = _monthly_groups(read_rows)
     diag = list(read_rows(TABLES["diagnostico_receita"]))
     bairro = list(read_rows(TABLES["consumo_receita_bairro"]))
@@ -110,6 +112,37 @@ def _observe(connection, read_rows, periods, origin, batch_ref):
             for row in monthly
         )
     )
+    # Controles migrados do fluxo legado. O retrato é válido somente quando cada
+    # UC aparece uma vez e seus rótulos pertencem ao vocabulário Gold publicado.
+    classes = [row["classe"] for row in population.values()]
+    passed["C05"] = (
+        bool(population)
+        and len(population_rows) == len(population)
+        and all(isinstance(value, str) and value.strip() for value in classes)
+        and sum(Counter(classes).values()) == len(population_rows)
+    )
+    expected_priorities = {
+        "ALTA - HISTORICO IRREGULAR",
+        "ALTA - CONSUMO ZERO",
+        "BAIXA",
+        "MEDIA - NUNCA INSPECIONADO",
+        "REVISAR - SEM HISTORICO DE CONSUMO",
+    }
+    queue_ids = [row["id_uc"] for row in inspection_queue]
+    priorities = [row["prioridade_inspecao"] for row in inspection_queue]
+    queue_valid = (
+        bool(inspection_queue)
+        and len(queue_ids) == len(set(queue_ids))
+        and set(queue_ids) == set(population)
+        and all(value in expected_priorities for value in priorities)
+    )
+    passed["C06"] = queue_valid
+    # C07 verifica a consulta da categoria explícita. Ausência da categoria no lote
+    # é contagem zero válida; não é falha de cobertura nem motivo para bloquear a fila.
+    zero_priority_count = sum(
+        value == "ALTA - CONSUMO ZERO" for value in priorities
+    )
+    passed["C07"] = queue_valid and zero_priority_count >= 0
     left, lv = _totals(
         bairro, (*aggregates, "qtd_ucs_distintas_faturadas_no_mes"), ("competencia",)
     )

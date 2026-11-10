@@ -5,11 +5,6 @@ import re
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
-from sqlalchemy.exc import SQLAlchemyError
-
 from app.core.config import settings
 from app.core.genai_gold_database import get_question_gold_resources
 from app.models.gold_v2 import TABLES
@@ -17,6 +12,11 @@ from app.schemas.genai_internal import AccessScope
 from app.schemas.gold_readiness import GoldReadinessReport
 from app.schemas.sql_generation import SqlGenerationResponse
 from app.services.genai_audit import AuditStore
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SQLAlchemyError
+
 from tests.support.database import test_engine
 from tests.support.platform_auth import login_as_profile
 from tests.test_genai_sql_structure import candidate as make_candidate
@@ -108,7 +108,7 @@ def test_customer_service_public_route_recognizes_satisfaction_contract(client, 
     login_as_profile(client, monkeypatch, "customer_service", username="sql-satisfaction-route")
 
     response = client.post("/api/v1/ai/sql-analyses", json={
-        "question": "Qual foi a nota média de satisfação em junho de 2026?",
+        "question": "Qual foi a nota média de satisfação em julho de 2026?",
     })
 
     assert response.status_code == 200, response.text
@@ -171,6 +171,16 @@ def test_customer_service_public_route_recognizes_accumulated_satisfaction(clien
                 },
             )
 
+        async def evaluate_readiness(self, _engine, **kwargs):
+            return GoldReadinessReport.model_validate({
+                "readiness_version": "gold-readiness-v2",
+                "batch_ref": kwargs["expected_batch_ref"],
+                "lot_state": "ready",
+                "capabilities": {
+                    "atendimento.uc_acumulado": {"status": "available"},
+                },
+            })
+
     monkeypatch.setattr(settings, "ANALYTICS_SOURCE", "gold")
     monkeypatch.setattr(settings, "GENAI_SQL_EXECUTION_ENABLED", True)
     monkeypatch.setattr(endpoint.GoldPublicationContext, "capture",
@@ -191,12 +201,12 @@ def test_customer_service_public_route_recognizes_accumulated_satisfaction(clien
                      username="sql-accumulated-satisfaction-route")
 
     response = client.post("/api/v1/ai/sql-analyses", json={
-        "question": "Qual foi a média acumulada das notas de satisfação?",
+        "question": "Qual foi a média acumulada das notas de satisfação em 2025?",
     })
 
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "unsupported"
-    assert generated and generated[0]["generation_contract_version"] == "text-to-sql-f1-v9"
+    assert generated == []  # Período não publicado é recusado antes do gerador.
 
 
 def test_commercial_public_route_recognizes_gd_registry_snapshot(client, monkeypatch):
@@ -953,6 +963,7 @@ def test_public_route_domain_policy_without_sql(
 def test_public_route_executes_legacy_gd_consumption_mapping(client, monkeypatch):
     from app.api.v1.endpoints import ai as endpoint
     from app.schemas.genai_internal import QuestionPlanRequest
+
     from tests.test_genai_sql_semantics import gd_consumption_query
 
     owner_url = make_url(os.environ["TEST_TEXT_TO_SQL_URL"])

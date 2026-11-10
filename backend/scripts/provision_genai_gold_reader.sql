@@ -36,6 +36,8 @@ GRANT SELECT ("dominio", "competencia", "recorte", "estado_cobertura", "qtd_regi
 -- Atendimento: somente colunas necessárias à agregação; sem conteúdo de chamados ou cadastro.
 GRANT SELECT ("id_uc", "protocolo", "data_abertura", "nota_satisfacao", "_nota_invalida", "_nota_negativa", "_abertura_futura") ON gold_v2.atendimentos_uc TO venergy_genai_reader;
 GRANT SELECT ("id_uc", "municipio", "classe", "alimentador", "possui_gd", "media_consumo_historico", "total_chamados_callcenter", "media_satisfacao_atendimento") ON gold_v2.visao_360_uc TO venergy_genai_reader;
+-- C05/C06/C07: only the identifiers and categorical labels needed for counts.
+GRANT SELECT ("id_uc", "prioridade_inspecao") ON gold_v2.fila_inspecao TO venergy_genai_reader;
 -- Alcance local autorizado em 01/11/2026: somente projeções analíticas, sem cadastro ou texto.
 GRANT SELECT ("id_uc", "municipio", "possui_gd", "consumo_medio_inicial", "consumo_medio_final", "meses_com_leitura_p1", "meses_com_leitura_p2", "variacao_pct", "queda_consumo_superior_30_pct") ON gold_v2.variacao_consumo_uc TO venergy_genai_reader;
 GRANT SELECT ("id_ocorrencia", "id_uc", "alimentador", "data_abertura", "duracao_min", "flag_duracao_incompativel", "flag_abertura_futura", "flag_encerramento_futuro") ON gold_v2.ocorrencias_uc TO venergy_genai_reader;
@@ -115,6 +117,8 @@ BEGIN
                 ('visao_360_uc', 'media_consumo_historico'),
                 ('visao_360_uc', 'total_chamados_callcenter'),
                 ('visao_360_uc', 'media_satisfacao_atendimento'),
+                ('fila_inspecao', 'id_uc'),
+                ('fila_inspecao', 'prioridade_inspecao'),
                 ('variacao_consumo_uc', 'municipio'),
                 ('variacao_consumo_uc', 'id_uc'),
                 ('variacao_consumo_uc', 'possui_gd'),
