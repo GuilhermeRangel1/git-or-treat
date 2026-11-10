@@ -51,6 +51,7 @@ Meaning = Literal[
     "period_1_total",
     "satisfaction_accumulated_average",
     "period_0_minus_period_1",
+    "period_1_minus_period_0",
     "period_0_growth_percent",
 ]
 DimensionMeaning = Literal[
@@ -208,6 +209,27 @@ class SqlEvidence(ClosedModel):
                 or self.evidence_contract_version != "text-to-sql-f1-evidence-v8"
             ):
                 raise ValueError("GD exige contagem cadastral do lote sem período")
+        elif self.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}:
+            expected_table = (
+                "gold_v2.visao_360_uc"
+                if self.metric_id == "customer.units_by_class"
+                else "gold_v2.fila_inspecao"
+            )
+            expected_dimension = (
+                "customer.consumption_class"
+                if self.metric_id == "customer.units_by_class"
+                else "inspection.priority"
+            )
+            if (
+                self.source_table != expected_table
+                or self.interpretation.operation != "snapshot_total"
+                or self.interpretation.aggregation != "count_distinct"
+                or self.interpretation.periods
+                or any(item.dimension_id != expected_dimension for item in self.interpretation.filters)
+                or self.evidence_contract_version != "text-to-sql-f1-evidence-v14"
+                or set(self.measure_semantics.values()) != {"units_count"}
+            ):
+                raise ValueError("contagem de UCs exige retrato e fonte Gold aprovados")
         elif self.metric_id == "energy.gd_consumption_drop":
             gd_filters = [
                 item
@@ -226,19 +248,6 @@ class SqlEvidence(ClosedModel):
                 or self.evidence_contract_version != "text-to-sql-f1-evidence-v10"
             ):
                 raise ValueError("queda de GD exige contagem do recorte Gold aprovado")
-        elif self.metric_id in {"customer.units_by_class", "inspection.units_by_priority"}:
-            expected_table = "gold_v2.visao_360_uc" if self.metric_id == "customer.units_by_class" else "gold_v2.fila_inspecao"
-            expected_dimension = "customer.consumption_class" if self.metric_id == "customer.units_by_class" else "inspection.priority"
-            if (
-                self.source_table != expected_table
-                or self.interpretation.operation != "snapshot_total"
-                or self.interpretation.aggregation != "count_distinct"
-                or self.interpretation.periods
-                or any(item.dimension_id != expected_dimension for item in self.interpretation.filters)
-                or self.evidence_contract_version != "text-to-sql-f1-evidence-v14"
-                or set(self.measure_semantics.values()) != {"units_count"}
-            ):
-                raise ValueError("contagem de UCs exige retrato e fonte Gold aprovados")
         elif self.metric_id == "service.satisfaction":
             if (
                 self.source_table != "gold_v2.atendimentos_uc"
@@ -324,6 +333,17 @@ class SqlEvidence(ClosedModel):
                     "receita por bairro exige contrato de receita compatível"
                 )
         elif (
+            self.metric_id == "energy.consumption"
+            and self.source_table == "gold_v2.consumo_receita_bairro"
+        ):
+            if not any(
+                item.dimension_id == "geography.neighborhood"
+                for item in self.interpretation.filters
+            ):
+                raise ValueError(
+                    "consumo no recorte por bairro exige filtro territorial explícito"
+                )
+        elif (
             not continuity
             and self.metric_id
             not in {
@@ -336,11 +356,15 @@ class SqlEvidence(ClosedModel):
         ):
             raise ValueError("fonte SQL diverge da métrica F1")
         if self.interpretation.operation == "comparison":
+            delta_meanings = {
+                "period_0_minus_period_1",
+                "period_1_minus_period_0",
+            }
+            present = set(self.measure_semantics.values())
             base_meanings = {
                 "period_0_total",
                 "period_1_total",
-                "period_0_minus_period_1",
-            }
+            } | (present & delta_meanings)
             has_growth = "period_0_growth_percent" in self.measure_semantics.values()
             expected_meanings = base_meanings | (
                 {"period_0_growth_percent"} if has_growth else set()
@@ -355,6 +379,7 @@ class SqlEvidence(ClosedModel):
             if (
                 len(measures) != len(expected_meanings)
                 or set(self.measure_semantics.values()) != expected_meanings
+                or len(present & delta_meanings) != 1
                 or self.evidence_contract_version != expected_version
             ):
                 raise ValueError(
