@@ -55,7 +55,8 @@ Meaning = Literal[
     "period_0_growth_percent",
 ]
 DimensionMeaning = Literal[
-    "competency", "municipality", "neighborhood", "consumption_class", "feeder", "inspection_priority"
+    "competency", "municipality", "neighborhood", "consumption_class", "feeder",
+    "inspection_priority",
 ]
 _DECIMAL = re.compile(r"-?(?:0|[1-9][0-9]{0,100})(?:\.[0-9]{1,100})?\Z")
 
@@ -225,7 +226,10 @@ class SqlEvidence(ClosedModel):
                 or self.interpretation.operation != "snapshot_total"
                 or self.interpretation.aggregation != "count_distinct"
                 or self.interpretation.periods
-                or any(item.dimension_id != expected_dimension for item in self.interpretation.filters)
+                or any(
+                    item.dimension_id != expected_dimension
+                    for item in self.interpretation.filters
+                )
                 or self.evidence_contract_version != "text-to-sql-f1-evidence-v14"
                 or set(self.measure_semantics.values()) != {"units_count"}
             ):

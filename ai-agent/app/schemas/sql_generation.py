@@ -204,13 +204,15 @@ class SqlInterpretation(ClosedModel):
         "weighted_continuity",
     ]
     aggregation: Literal[
-        "sum", "count_non_null", "count_distinct", "count_gd_drop", "key_grain_read", "average_non_null", "ratio_of_sums", "weighted_ratio"
+        "sum", "count_non_null", "count_distinct", "count_gd_drop",
+        "key_grain_read", "average_non_null", "ratio_of_sums", "weighted_ratio",
     ]
     periods: tuple[SqlPeriod, ...] = Field(max_length=2)
     filters: tuple[SqlAnalysisFilter, ...] = Field(default=(), max_length=3)
     group_by: tuple[
         Literal[
-            "competency", "municipality", "neighborhood", "consumption_class", "feeder", "inspection_priority"
+            "competency", "municipality", "neighborhood", "consumption_class",
+            "feeder", "inspection_priority",
         ],
         ...,
     ] = Field(default=(), max_length=4)
@@ -663,9 +665,12 @@ class SqlGenerationCandidate(ClosedModel):
                 )
             ):
                 raise ValueError("F1 v13 só admite ticket médio e preço observado")
-            if self.generation_contract_version == "text-to-sql-f1-v14" and self.interpretation.metric_id not in {
+            if (
+                self.generation_contract_version == "text-to-sql-f1-v14"
+                and self.interpretation.metric_id not in {
                 "customer.units_by_class", "inspection.units_by_priority"
-            }:
+                }
+            ):
                 raise ValueError("F1 v14 só admite contagens cadastrais C05-C07")
         else:
             if (
